@@ -145,11 +145,12 @@ public data class AppContext(
      * for advisory anomaly signals (`tee_integrity_verdict` only
      * surfaces when the local verdict is degraded).
      *
-     * Null on devices that don't support hardware key attestation
-     * at all (pre-Android 9 / API 28). Non-null but with
-     * [AttestationReport.unavailableReason] populated when the API
-     * is supported but a specific keygen attempt failed (e.g. no
-     * KeyMint implementation in a stripped AOSP build).
+     * Non-null but with [AttestationReport.unavailableReason]
+     * populated when a specific keygen attempt failed (e.g. no
+     * KeyMint implementation in a stripped AOSP build, or the
+     * keystore was uninitialised). The library's minSdk is 28, so
+     * the "device doesn't support attestation at all" case is no
+     * longer reachable at runtime.
      */
     public val attestation: AttestationReport? = null,
 
@@ -166,8 +167,8 @@ public data class AppContext(
      * install vs which package the install originated from (e.g.
      * Play Store / sideload / third-party store). Null on devices
      * where the lookup failed. Originating / initiating fields
-     * require API 30+; on 28-29 only [InstallSource.installingPackage]
-     * is populated.
+     * require API 30+; on the library's minSdk floor (API 28-29)
+     * only [InstallSource.installingPackage] is populated.
      */
     public val installSource: InstallSource? = null,
     /**
@@ -183,7 +184,7 @@ public data class AppContext(
  * Install attribution for the running APK. Wraps the three
  * package-name fields exposed by `PackageManager.getInstallSourceInfo`
  * (API 30+) plus the older `getInstallerPackageName` value as a
- * fallback for API 28-29.
+ * fallback for API 28-29 (the library's minSdk floor).
  *
  *  - [installingPackage]: the package responsible for the install
  *    that produced the current APK. On a Play Store install this is
@@ -312,9 +313,14 @@ public data class AttestationReport(
 
     /**
      * Stable code surfaced when the F14 keygen couldn't run:
-     * `"api_too_low"`, `"attestation_not_supported"`,
-     * `"keystore_error"`, `"keystore_unavailable"`,
-     * `"missing_package_name"`. Null on success.
+     * `"attestation_not_supported"`, `"keystore_error"`,
+     * `"keystore_unavailable"`, `"missing_package_name"`. Null on
+     * success.
+     *
+     * `"api_too_low"` was historically emitted on devices below
+     * API 28 and is preserved in the documented value set for
+     * wire-format stability, but the library's current minSdk is
+     * 28 so the codepath is no longer reachable.
      */
     public val unavailableReason: String?,
 )

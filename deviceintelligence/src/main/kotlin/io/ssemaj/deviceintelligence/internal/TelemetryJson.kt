@@ -105,8 +105,11 @@ internal object TelemetryJson {
             kvCertValidityArray("signer_cert_validity", validity, indent); append(",\n")
         }
         // attestation is the always-shipped raw evidence + advisory
-        // verdict from F14. Null on devices that don't support
-        // hardware attestation at all (pre-Android 9).
+        // verdict from F14. Null only on the rare path where F14's
+        // detector returned without producing a report (e.g. native
+        // bridge unavailable); the library's minSdk is 28 so the
+        // "device doesn't support attestation at all" case is no
+        // longer reachable at runtime.
         val att = a.attestation
         if (att == null) {
             append(indent).appendQuoted("attestation").append(": null\n")

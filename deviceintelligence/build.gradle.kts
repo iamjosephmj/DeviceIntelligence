@@ -9,7 +9,12 @@ android {
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        minSdk = 26
+        // Android 9 is the floor: the F14 hardware key-attestation
+        // surface and several PackageManager APIs we rely on
+        // (GET_SIGNING_CERTIFICATES, signingInfo) all landed in API
+        // 28. Below that, large chunks of the library degraded to
+        // null / inconclusive without giving the consumer real value.
+        minSdk = 28
         consumerProguardFiles("consumer-rules.pro")
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -19,7 +24,7 @@ android {
                 cppFlags("-std=c++17", "-fno-exceptions", "-fno-rtti")
                 arguments(
                     "-DANDROID_STL=c++_static",
-                    "-DANDROID_PLATFORM=android-26",
+                    "-DANDROID_PLATFORM=android-28",
                 )
             }
         }

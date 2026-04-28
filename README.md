@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
-  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-26%20(Android%208.0)-green.svg">
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28%20(Android%209.0)-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
   <img alt="Schema" src="https://img.shields.io/badge/wire_schema-v1-orange.svg">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-yellow.svg">
@@ -137,8 +137,8 @@ RASP and let each layer do what it's good at.
 | APK integrity         | `F10.apk_integrity`           | APK bytes vs. the build-time fingerprint baked by the Gradle plugin                              |
 | Emulator probe        | `F12.emulator_probe`          | CPU-instruction-level signals (arm64 MRS / x86\_64 CPUID hypervisor bit)                         |
 | App cloner            | `F13.cloner_probe`            | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches                            |
-| Key attestation       | `F14.key_attestation`         | TEE / StrongBox attestation: Verified Boot state, bootloader lock, OS patch level (28+)          |
-| Bootloader integrity  | `F15.bootloader_integrity`    | Cross-checks F14's chain against a second attestation to surface TEE spoofing / cached chains (28+) |
+| Key attestation       | `F14.key_attestation`         | TEE / StrongBox attestation: Verified Boot state, bootloader lock, OS patch level                |
+| Bootloader integrity  | `F15.bootloader_integrity`    | Cross-checks F14's chain against a second attestation to surface TEE spoofing / cached chains    |
 | Runtime environment   | `F16.runtime_environment`     | In-process tampering: debugger / native tracer attached, `ro.debuggable` mismatch, hooking framework loaded (Frida / Xposed / LSPosed / Substrate / Riru / Zygisk / Taichi), RWX memory mappings |
 | Root indicators       | `F17.root_indicators`         | `su` binary on disk (PATH walk + hardcoded paths), Magisk artifacts (filesystem + `/proc/mounts`), `ro.build.tags = test-keys`, `which su` fallthrough, known root-manager apps installed |
 
@@ -438,15 +438,15 @@ Its output lives in **two places**, on purpose:
   `MEETS_STRONG_INTEGRITY`) so backends already wired up to Play
   Integrity can consume them without a remapping table.
 
-Requires Android 9 (API 28). On older devices `app.attestation` is
-`null` (the device doesn't support hardware attestation at all) and
-F14 returns `status: "inconclusive"` with reason `api_too_low`.
-On API 28+ but where keygen failed (rare; stripped AOSP / no-TEE
-emulator), `app.attestation` is non-null with `unavailable_reason`
-populated and the parsed fields all `null` — backends always see the
-same shape. Cold-start cost (~80–500ms TEE / ~0.5–4s StrongBox) is
-absorbed by the manifest-merged init provider on a background thread,
-so user-facing `collect()` reads the cached chain in single-digit ms.
+Hardware key attestation requires Android 9 (API 28), which is
+also the library's `minSdk` floor — so on any device that runs the
+SDK at all, the surface is available. Where keygen still fails
+(rare; stripped AOSP, no-TEE emulator), `app.attestation` is
+non-null with `unavailable_reason` populated and the parsed fields
+all `null` — backends always see the same shape. Cold-start cost
+(~80–500ms TEE / ~0.5–4s StrongBox) is absorbed by the
+manifest-merged init provider on a background thread, so user-facing
+`collect()` reads the cached chain in single-digit ms.
 
 ### Bootloader integrity (F15)
 
@@ -520,10 +520,10 @@ chain (`report.app.attestation.chainB64`, accessed off the typed report —
 not in the JSON wire format by default) against Google's pinned root +
 revocation list and correlates signals across the fleet over time.
 
-Requires Android 9 (API 28). Returns `status: "inconclusive"` with reason
-`f14_unavailable` if F14 hasn't cached a result yet, or with the same
-failure-reason vocabulary as F14 (`attestation_not_supported`,
-`keystore_error`, `keystore_unavailable`) if F15's own keygen fails.
+Returns `status: "inconclusive"` with reason `f14_unavailable` if
+F14 hasn't cached a result yet, or with the same failure-reason
+vocabulary as F14 (`attestation_not_supported`, `keystore_error`,
+`keystore_unavailable`) if F15's own keygen fails.
 
 ### Runtime environment (F16)
 

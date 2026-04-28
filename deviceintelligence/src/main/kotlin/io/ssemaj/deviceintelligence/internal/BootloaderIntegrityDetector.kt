@@ -73,7 +73,6 @@ import java.security.cert.X509Certificate
  *    two cached chains — sub-millisecond.
  *
  * Failure-mode policy:
- *  - Pre-API 28 → INCONCLUSIVE `api_too_low` (matches F14).
  *  - F14 didn't cache a result → INCONCLUSIVE `f14_unavailable`.
  *  - F15's own keygen failed → INCONCLUSIVE with the same
  *    failure-reason vocabulary F14 uses (`attestation_not_supported`,
@@ -122,15 +121,6 @@ internal object BootloaderIntegrityDetector : Detector {
     override fun evaluate(ctx: DetectorContext): DetectorReport {
         val start = SystemClock.elapsedRealtime()
         fun dur(): Long = SystemClock.elapsedRealtime() - start
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            return inconclusive(
-                id = id,
-                reason = "api_too_low",
-                message = "Hardware key attestation requires Android 9 (API 28) or newer",
-                durationMs = dur(),
-            )
-        }
 
         val pkg = ctx.applicationContext.packageName.orEmpty()
         if (pkg.isEmpty()) {
