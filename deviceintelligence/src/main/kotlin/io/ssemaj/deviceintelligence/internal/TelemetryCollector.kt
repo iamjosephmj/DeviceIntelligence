@@ -133,9 +133,7 @@ internal object TelemetryCollector {
         }.getOrNull()
 
         val bootCount = runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT)
-            } else null
+            Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT)
         }.getOrNull()
 
         val vpnActive = readVpnActive(context)
@@ -296,22 +294,16 @@ internal object TelemetryCollector {
     }
 
     /**
-     * Single PackageInfo lookup with GET_SIGNATURES (or its API
-     * 28+ replacement, GET_SIGNING_CERTIFICATES) so we get the
-     * cert chain without spending a second IPC. Returns null on
-     * any failure — every consumer treats null as "field
+     * Single PackageInfo lookup with GET_SIGNING_CERTIFICATES so we
+     * get the cert chain without spending a second IPC. Returns null
+     * on any failure — every consumer treats null as "field
      * unavailable".
      */
-    @Suppress("DEPRECATION")
     private fun readPackageInfoForObservability(context: Context): android.content.pm.PackageInfo? {
         val pm = context.packageManager
         val pkg = context.packageName
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
-            } else {
-                pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES)
-            }
+            pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
         } catch (t: Throwable) {
             Log.w(TAG, "PackageInfo lookup failed", t)
             null
@@ -323,16 +315,17 @@ internal object TelemetryCollector {
      * `Signature` into an X.509 cert, and returns its validity
      * window. Returns null on any failure (no signatures, parse
      * error, no chain) — backends treat null as "unavailable".
+     *
+     * `signingInfo` was added in API 28 and is the floor for this
+     * library; the legacy `packageInfo.signatures` is consulted only
+     * as a defensive fallback for the rare case where `signingInfo`
+     * comes back null on a malformed PackageInfo.
      */
     @Suppress("DEPRECATION")
     private fun readSignerCertValidity(packageInfo: android.content.pm.PackageInfo?): List<CertValidity>? {
         if (packageInfo == null) return null
-        val signatures: Array<android.content.pm.Signature>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            // signingInfo can be null on older targets; fall back to legacy field.
+        val signatures: Array<android.content.pm.Signature>? =
             packageInfo.signingInfo?.apkContentsSigners ?: packageInfo.signatures
-        } else {
-            packageInfo.signatures
-        }
         if (signatures.isNullOrEmpty()) return null
         return runCatching {
             val cf = java.security.cert.CertificateFactory.getInstance("X.509")

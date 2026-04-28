@@ -1,7 +1,6 @@
 package io.ssemaj.deviceintelligence.internal
 
 import android.annotation.SuppressLint
-import android.os.Build
 import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -58,17 +57,19 @@ import java.util.Base64
  *    single-digit ms after the first call.
  *
  * Failure-mode policy (mirrors the rest of the library):
- *  - Pre-API 28 → `INCONCLUSIVE` reason `api_too_low`, and
- *    `app.attestation` is `null` on the report (the device does not
- *    support hardware attestation at all).
- *  - On API 28+ but the keystore couldn't run → `INCONCLUSIVE` with
- *    one of `attestation_not_supported`, `keystore_error`,
+ *  - Keystore couldn't run → `INCONCLUSIVE` with one of
+ *    `attestation_not_supported`, `keystore_error`,
  *    `keystore_unavailable`. `app.attestation` is non-null with
  *    [AttestationReport.unavailableReason] populated and the parsed
  *    fields all null — backends always see the same shape.
  *  - Chain retrieved but extension parse failed → `OK` with no
  *    findings. `app.attestation.chainB64` carries the raw chain so
  *    a backend can do the work from the bytes.
+ *
+ * The pre-API-28 `api_too_low` failure case no longer exists — the
+ * library's minSdk is 28 — but the constant is preserved in
+ * [AttestationReport.unavailableReason]'s documented value set so
+ * historical wire-format consumers don't break on the string.
  *
  * Stays declared as `object` for cache locality; identical pattern
  * to [EmulatorProbe] and [ClonerDetector].
@@ -146,15 +147,6 @@ internal object KeyAttestationDetector : Detector {
         val start = SystemClock.elapsedRealtime()
         fun dur(): Long = SystemClock.elapsedRealtime() - start
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            return inconclusive(
-                id = id,
-                reason = "api_too_low",
-                message = "Hardware key attestation requires Android 9 (API 28) or newer",
-                durationMs = dur(),
-            )
-        }
-
         val pkg = ctx.applicationContext.packageName.orEmpty()
         if (pkg.isEmpty()) {
             return inconclusive(
@@ -177,7 +169,7 @@ internal object KeyAttestationDetector : Detector {
 
     /**
      * Build the [AttestationReport] that ships at `app.attestation` on
-     * every report (when API 28+).
+     * every report.
      *
      * Called by [TelemetryCollector] *after* this detector has run,
      * which guarantees the cache is populated (or set to a Failure
@@ -187,8 +179,6 @@ internal object KeyAttestationDetector : Detector {
      * would produce — same single source of truth.
      *
      * Returns:
-     *  - `null` on pre-API 28 (the device doesn't support hardware
-     *    attestation at all).
      *  - [AttestationReport] with [AttestationReport.unavailableReason]
      *    populated when keygen failed (e.g. stripped AOSP / no-TEE
      *    emulator).
@@ -200,7 +190,6 @@ internal object KeyAttestationDetector : Detector {
         runtimePackageName: String,
         runtimeSignerCertSha256: List<String>,
     ): AttestationReport? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
         return when (val c = synchronized(lock) { cached }) {
             is AttestationResult.Success -> buildSuccessReport(
                 c = c,
