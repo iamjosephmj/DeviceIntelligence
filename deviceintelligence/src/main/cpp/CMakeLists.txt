@@ -62,4 +62,13 @@ target_link_options(dicore PRIVATE
         -Wl,--exclude-libs,ALL
         -Wl,-z,relro
         -Wl,-z,now
+        # 16 KB ELF segment alignment. Required for Android 15+ on
+        # devices that boot with the 16 KB page size kernel (Pixel 8a/9
+        # and the API 35 / API 36 emulators); without this, the loader
+        # rejects the .so with "ELF segment alignment less than page
+        # size". The flag is harmless on 4 KB devices — the loader still
+        # maps at 4 KB granularity, just with extra zero padding between
+        # segments. Pairs with AGP's automatic `zipalign -p 16384` for
+        # APK-side .so packaging (AGP 8.5+).
+        -Wl,-z,max-page-size=16384
 )
