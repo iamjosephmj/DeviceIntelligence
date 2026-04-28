@@ -1,10 +1,13 @@
 package io.ssemaj.deviceintelligence.internal
 
 import io.ssemaj.deviceintelligence.AppContext
+import io.ssemaj.deviceintelligence.AttestationReport
+import io.ssemaj.deviceintelligence.CertValidity
 import io.ssemaj.deviceintelligence.DetectorReport
 import io.ssemaj.deviceintelligence.DetectorStatus
 import io.ssemaj.deviceintelligence.DeviceContext
 import io.ssemaj.deviceintelligence.Finding
+import io.ssemaj.deviceintelligence.InstallSource
 import io.ssemaj.deviceintelligence.ReportSummary
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TelemetryReport
@@ -56,7 +59,19 @@ internal object TelemetryJson {
         kvStr("model", d.model, indent); append(",\n")
         kvInt("sdk_int", d.sdkInt, indent); append(",\n")
         kvStr("abi", d.abi, indent); append(",\n")
-        kvStr("fingerprint", d.fingerprint, indent); append('\n')
+        kvStr("fingerprint", d.fingerprint, indent); append(",\n")
+        // Observability fields. Each may be null; the JSON encoder
+        // emits `null` for unavailable values rather than omitting
+        // the key entirely so backends always see the same shape.
+        kvLongOrNull("total_ram_mb", d.totalRamMb, indent); append(",\n")
+        kvIntOrNull("cpu_cores", d.cpuCores, indent); append(",\n")
+        kvIntOrNull("screen_density_dpi", d.screenDensityDpi, indent); append(",\n")
+        kvStrOrNull("screen_resolution", d.screenResolution, indent); append(",\n")
+        kvBoolOrNull("has_fingerprint_hw", d.hasFingerprintHw, indent); append(",\n")
+        kvBoolOrNull("has_telephony_hw", d.hasTelephonyHw, indent); append(",\n")
+        kvIntOrNull("sensor_count", d.sensorCount, indent); append(",\n")
+        kvIntOrNull("boot_count", d.bootCount, indent); append(",\n")
+        kvBoolOrNull("vpn_active", d.vpnActive, indent); append('\n')
     }
 
     private fun StringBuilder.encodeApp(a: AppContext, indent: String) {
@@ -65,7 +80,106 @@ internal object TelemetryJson {
         kvStrOrNull("installer_package", a.installerPackage, indent); append(",\n")
         kvList("signer_cert_sha256", a.signerCertSha256, indent); append(",\n")
         kvStrOrNull("build_variant", a.buildVariant, indent); append(",\n")
-        kvStrOrNull("library_plugin_version", a.libraryPluginVersion, indent); append('\n')
+        kvStrOrNull("library_plugin_version", a.libraryPluginVersion, indent); append(",\n")
+        kvLongOrNull("first_install_epoch_ms", a.firstInstallEpochMs, indent); append(",\n")
+        kvLongOrNull("last_update_epoch_ms", a.lastUpdateEpochMs, indent); append(",\n")
+        kvIntOrNull("target_sdk_version", a.targetSdkVersion, indent); append(",\n")
+        // install_source is the richer struct; installer_package
+        // above is the backward-compatible flat scalar that mirrors
+        // install_source.installing_package.
+        val installSource = a.installSource
+        if (installSource == null) {
+            append(indent).appendQuoted("install_source").append(": null,\n")
+        } else {
+            kvObject("install_source", indent = indent) { encodeInstallSource(installSource, it) }
+            append(",\n")
+        }
+        // signer_cert_validity follows the same null-vs-empty-vs-list
+        // convention as signer_cert_sha256 above; null means lookup
+        // failed, [] means no signers, [..] means each signer's
+        // validity period in the same order.
+        val validity = a.signerCertValidity
+        if (validity == null) {
+            append(indent).appendQuoted("signer_cert_validity").append(": null,\n")
+        } else {
+            kvCertValidityArray("signer_cert_validity", validity, indent); append(",\n")
+        }
+        // attestation is the always-shipped raw evidence + advisory
+        // verdict from F14. Null on devices that don't support
+        // hardware attestation at all (pre-Android 9).
+        val att = a.attestation
+        if (att == null) {
+            append(indent).appendQuoted("attestation").append(": null\n")
+        } else {
+            kvObject("attestation", indent = indent) { encodeAttestation(att, it) }
+            append('\n')
+        }
+    }
+
+    private fun StringBuilder.encodeInstallSource(s: InstallSource, indent: String) {
+        kvStrOrNull("installing_package", s.installingPackage, indent); append(",\n")
+        kvStrOrNull("originating_package", s.originatingPackage, indent); append(",\n")
+        kvStrOrNull("initiating_package", s.initiatingPackage, indent); append('\n')
+    }
+
+    /**
+     * Inline array of `{not_before_epoch_ms, not_after_epoch_ms}`
+     * objects. One entry per signer, same order as
+     * [AppContext.signerCertSha256]. Empty list serializes as `[]`.
+     */
+    private fun StringBuilder.kvCertValidityArray(
+        k: String,
+        items: List<CertValidity>,
+        indent: String,
+    ) {
+        append(indent).appendQuoted(k).append(": [")
+        if (items.isEmpty()) {
+            append(']')
+            return
+        }
+        append('\n')
+        items.forEachIndexed { i, cv ->
+            append(indent).append("  { ")
+                .appendQuoted("not_before_epoch_ms").append(": ").append(cv.notBeforeEpochMs)
+                .append(", ")
+                .appendQuoted("not_after_epoch_ms").append(": ").append(cv.notAfterEpochMs)
+                .append(" }")
+            if (i != items.lastIndex) append(',')
+            append('\n')
+        }
+        append(indent).append(']')
+    }
+
+    /**
+     * Trimmed JSON view of [AttestationReport]. Drops the heavy
+     * diagnostic fields ([AttestationReport.chainB64],
+     * [AttestationReport.attestationChallengeB64],
+     * [AttestationReport.attestedApplicationIdSha256],
+     * [AttestationReport.verifiedBootKeySha256],
+     * [AttestationReport.keymasterVersion],
+     * [AttestationReport.osVersion],
+     * [AttestationReport.vendorPatchLevel],
+     * [AttestationReport.bootPatchLevel]) so the wire format stays
+     * compact. Backends that need the chain bytes for authoritative
+     * re-verification read them off the typed report directly
+     * (`report.app.attestation.chainB64`); the JSON ships
+     * [AttestationReport.chainSha256] for cheap correlation / dedup.
+     */
+    private fun StringBuilder.encodeAttestation(att: AttestationReport, indent: String) {
+        kvStrOrNull("chain_sha256", att.chainSha256, indent); append(",\n")
+        kvInt("chain_length", att.chainLength, indent); append(",\n")
+        kvStrOrNull("attestation_security_level", att.attestationSecurityLevel, indent); append(",\n")
+        kvStrOrNull("keymaster_security_level", att.keymasterSecurityLevel, indent); append(",\n")
+        kvStrOrNull("verified_boot_state", att.verifiedBootState, indent); append(",\n")
+        kvBoolOrNull("device_locked", att.deviceLocked, indent); append(",\n")
+        kvIntOrNull("os_patch_level", att.osPatchLevel, indent); append(",\n")
+        kvStrOrNull("attested_package_name", att.attestedPackageName, indent); append(",\n")
+        kvList("attested_signer_cert_sha256", att.attestedSignerCertSha256, indent); append(",\n")
+        kvStrOrNull("verdict_device_recognition", att.verdictDeviceRecognition, indent); append(",\n")
+        kvStrOrNull("verdict_app_recognition", att.verdictAppRecognition, indent); append(",\n")
+        kvStrOrNull("verdict_reason", att.verdictReason, indent); append(",\n")
+        kvBool("verdict_authoritative", att.verdictAuthoritative, indent); append(",\n")
+        kvStrOrNull("unavailable_reason", att.unavailableReason, indent); append('\n')
     }
 
     // ---- detectors / findings ---------------------------------------------
@@ -139,8 +253,27 @@ internal object TelemetryJson {
         append(indent).appendQuoted(k).append(": ").append(v)
     }
 
+    private fun StringBuilder.kvIntOrNull(k: String, v: Int?, indent: String = "  ") {
+        append(indent).appendQuoted(k).append(": ")
+        if (v == null) append("null") else append(v)
+    }
+
+    private fun StringBuilder.kvBool(k: String, v: Boolean, indent: String = "  ") {
+        append(indent).appendQuoted(k).append(": ").append(if (v) "true" else "false")
+    }
+
+    private fun StringBuilder.kvBoolOrNull(k: String, v: Boolean?, indent: String = "  ") {
+        append(indent).appendQuoted(k).append(": ")
+        if (v == null) append("null") else append(if (v) "true" else "false")
+    }
+
     private fun StringBuilder.kvLong(k: String, v: Long, indent: String = "  ") {
         append(indent).appendQuoted(k).append(": ").append(v)
+    }
+
+    private fun StringBuilder.kvLongOrNull(k: String, v: Long?, indent: String = "  ") {
+        append(indent).appendQuoted(k).append(": ")
+        if (v == null) append("null") else append(v)
     }
 
     private fun StringBuilder.kvStr(k: String, v: String, indent: String = "  ") {

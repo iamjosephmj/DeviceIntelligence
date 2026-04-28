@@ -12,20 +12,19 @@ import io.ssemaj.deviceintelligence.DeviceIntelligence
  *
  * Android instantiates content providers AFTER the application's
  * `ClassLoader` is built but BEFORE [android.app.Application.onCreate],
- * which gives us a free, app-wide hook for pre-warming DeviceIntelligence without
- * forcing the consumer to plumb us into their `Application` subclass.
+ * which gives us a free, app-wide hook for pre-warming DeviceIntelligence
+ * without forcing the consumer to plumb us into their `Application`
+ * subclass.
  *
  * What we do here is intentionally minimal:
- *  1. Trigger [System.loadLibrary] for `dicore` early via [NativeBridge]
- *     (the field-init does the load).
- *  2. Snapshot [SelfProtect]'s `.text` baseline synchronously so the
- *     fingerprint is captured before any third-party SDK has a chance
- *     to load and patch us. The snapshot is sub-millisecond.
- *  3. Schedule a background [DeviceIntelligence.collect] pre-warm so the F10 fingerprint
- *     is decoded and APK certs are read off the cold I/O path; the
- *     report itself is dropped (no caching at this layer) but the
- *     per-detector caches (e.g. ApkIntegrityDetector.cachedFingerprint)
- *     populate, making subsequent `collect()` calls fast.
+ *  1. Trigger [System.loadLibrary] for `dicore` early via
+ *     [NativeBridge] (the field-init does the load).
+ *  2. Schedule a background [DeviceIntelligence.collect] pre-warm so
+ *     the F10 fingerprint is decoded and APK certs are read off the
+ *     cold I/O path; the report itself is dropped (no caching at this
+ *     layer) but the per-detector caches (e.g.
+ *     `ApkIntegrityDetector.cachedFingerprint`) populate, making
+ *     subsequent `collect()` calls fast.
  *
  * Why a background thread? Collection does ZIP I/O and a few SHA-256
  * passes — fast (~tens of ms) but not zero, and we never block
@@ -44,21 +43,10 @@ internal class DeviceIntelligenceInitProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         val ctx = context ?: return false
 
-        val nativeReady = runCatching { NativeBridge.isReady() }.getOrDefault(false)
-
-        if (nativeReady) {
-            try {
-                SelfProtect.snapshot()
-                Log.i(
-                    LOG_TAG,
-                    "self-protect snapshot taken: ${SelfProtect.regionCount()} region(s)",
-                )
-            } catch (t: Throwable) {
-                Log.w(LOG_TAG, "self-protect snapshot failed", t)
-            }
-        } else {
-            Log.w(LOG_TAG, "skipping self-protect snapshot: native not loaded")
-        }
+        // Touch NativeBridge so libdicore.so loads early (before any
+        // third-party SDK has a chance to load and probe us). The
+        // field-init of NativeBridge does the System.loadLibrary call.
+        runCatching { NativeBridge.isReady() }
 
         Thread({
             try {

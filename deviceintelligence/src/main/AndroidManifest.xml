@@ -1,6 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        ACCESS_NETWORK_STATE is intentionally NOT declared here even
+        though DeviceContext.vpnActive needs it.
+
+        Consumers opt in per-app via the deviceintelligence Gradle
+        DSL block:
+
+            deviceintelligence {
+                enableVpnDetection.set(true)
+            }
+
+        which makes the plugin inject the permission into the
+        consumer's variant manifest. Apps that don't opt in ship
+        without ACCESS_NETWORK_STATE and DeviceContext.vpnActive
+        reports `null`, which is graceful degradation.
+
+        Why opt-in even though the permission is `normal`-protection
+        and Play-store benign: the value the field carries (whether
+        the user is on a VPN) is privacy-sensitive enough that we
+        want each consumer to consciously decide they want it
+        rather than inheriting it silently from a transitive library.
+    -->
+
+    <!--
+        Broad package visibility for F17.root_indicators.
+
+        IMPORTANT FOR CONSUMERS: this is a Google-Play-restricted
+        permission. Apps that include this manifest will inherit it
+        through manifest merging; when those apps are submitted to
+        Google Play, the developer must justify the permission under
+        one of the Play Console permitted use cases
+        (https://support.google.com/googleplay/android-developer/answer/10158779).
+        "Anti-malware / security app" is the relevant category for
+        DeviceIntelligence-driven integrity telemetry. Consumers who
+        cannot justify the permission should remove it via a
+        manifest-merger override:
+
+            <uses-permission
+                android:name="android.permission.QUERY_ALL_PACKAGES"
+                tools:node="remove" />
+
+        F17 will then fall back to whatever subset of packages the
+        consumer's own <queries> block exposes (or just to the on-disk
+        / shell signals).
+
+        Why we declare it at the library level: Android 11+ hides
+        installed packages from getPackageInfo() / getInstalledPackages()
+        unless the caller declares either an explicit <queries> entry,
+        a matching <queries><intent>, or this permission. F17 needs
+        to enumerate beyond a hand-maintained list (new root managers
+        appear constantly — KernelSU forks, Apatch, etc.) and the
+        permission is the only mechanism that gives that scope.
+    -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
     <application>
         <!--
             Auto-init provider for the DeviceIntelligence SDK. Runs before

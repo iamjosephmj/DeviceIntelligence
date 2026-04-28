@@ -51,6 +51,12 @@ android {
 
 deviceintelligence {
     verbose.set(true)
+    // Opt in to VPN detection so DeviceContext.vpnActive populates
+    // (true / false instead of null). The plugin injects
+    // ACCESS_NETWORK_STATE into the sample's merged manifest;
+    // apps that skip this still build and run, just with
+    // vpnActive = null in the report.
+    enableVpnDetection.set(true)
 }
 
 dependencies {

@@ -39,9 +39,9 @@ by:
 Everything else — code, native libs, assets including the baked
 fingerprint blob — is identical. `F10.apk_integrity` sees the new
 signer cert, compares against the baked one, and emits a finding
-with `kind="apk_signer_mismatch"` and `severity="critical"`. F11
-(.text watchdog), F12 (emulator probe), and F13 (cloner probe) are
-signature-agnostic and continue to operate normally on top of that.
+with `kind="apk_signer_mismatch"` and `severity="critical"`. F12
+(emulator probe) and F13 (cloner probe) are signature-agnostic and
+continue to operate normally on top of that.
 
 | Field | Value |
 |-------|-------|

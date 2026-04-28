@@ -64,6 +64,13 @@ public const val TELEMETRY_SCHEMA_VERSION: Int = 1
 /**
  * Hardware / OS context. Mirrors [android.os.Build] but trimmed to
  * fields that are stable, useful for cohorting, and not PII.
+ *
+ * The fields below the [fingerprint] field are observability data
+ * (no detector consumes them); they're shipped purely so backends
+ * can cohort reports and run cheap emulator / fraud-ring heuristics
+ * server-side. Every one of them is nullable: any single read can
+ * fail (permission denied, missing system service, API-level guard)
+ * without affecting the rest of the report.
  */
 public data class DeviceContext(
     public val manufacturer: String,
@@ -75,6 +82,32 @@ public data class DeviceContext(
      * (a rooted ROM often has a hand-edited fingerprint).
      */
     public val fingerprint: String,
+
+    // ---- observability fields (cohorting / fraud heuristics) ----
+
+    /** Total RAM in mebibytes, from `ActivityManager.MemoryInfo.totalMem`. */
+    public val totalRamMb: Long? = null,
+    /** `Runtime.getRuntime().availableProcessors()`. */
+    public val cpuCores: Int? = null,
+    /** `Resources.system.displayMetrics.densityDpi`. */
+    public val screenDensityDpi: Int? = null,
+    /** Display resolution as `"WIDTHxHEIGHT"` (e.g. `"1080x2400"`). */
+    public val screenResolution: String? = null,
+    /** `PackageManager.FEATURE_FINGERPRINT`. */
+    public val hasFingerprintHw: Boolean? = null,
+    /** `PackageManager.FEATURE_TELEPHONY`. */
+    public val hasTelephonyHw: Boolean? = null,
+    /** `SensorManager.getSensorList(Sensor.TYPE_ALL).size`. */
+    public val sensorCount: Int? = null,
+    /** `Settings.Global.BOOT_COUNT` (API 24+). */
+    public val bootCount: Int? = null,
+    /**
+     * True iff the device currently has an active VPN transport.
+     * Read via `ConnectivityManager`; requires
+     * `ACCESS_NETWORK_STATE`. Null if the permission isn't granted
+     * or the lookup fails.
+     */
+    public val vpnActive: Boolean? = null,
 )
 
 /**
@@ -85,6 +118,13 @@ public data class DeviceContext(
 public data class AppContext(
     public val packageName: String,
     public val apkPath: String?,
+    /**
+     * Single-string installer name from `PackageManager.getInstallerPackageName`
+     * (or, on API 30+, `getInstallSourceInfo().installingPackageName`).
+     * Kept for backward compatibility with reports that pre-date the
+     * richer [installSource] block, which carries the same value plus
+     * the originating / initiating package fields.
+     */
     public val installerPackage: String?,
     /** SHA-256 hex of every signer cert observed at runtime, in the order F10 returns them. */
     public val signerCertSha256: List<String>,
@@ -92,6 +132,191 @@ public data class AppContext(
     public val buildVariant: String?,
     /** deviceintelligence-gradle plugin version that produced the baked fingerprint. May be null if the fingerprint hasn't been decoded. */
     public val libraryPluginVersion: String?,
+    /**
+     * Hardware key-attestation evidence captured by F14, plus the
+     * locally derived advisory verdict.
+     *
+     * Lives here rather than as a [Finding] inside the F14 detector
+     * report because it is *always-shipped raw evidence* — backends
+     * need it on every report to perform authoritative server-side
+     * re-verification of the cert chain (against Google's root +
+     * revocation list), which is the only verdict the library
+     * considers authoritative. F14's detector findings are reserved
+     * for advisory anomaly signals (`tee_integrity_verdict` only
+     * surfaces when the local verdict is degraded).
+     *
+     * Null on devices that don't support hardware key attestation
+     * at all (pre-Android 9 / API 28). Non-null but with
+     * [AttestationReport.unavailableReason] populated when the API
+     * is supported but a specific keygen attempt failed (e.g. no
+     * KeyMint implementation in a stripped AOSP build).
+     */
+    public val attestation: AttestationReport? = null,
+
+    // ---- observability fields (cohorting / fraud heuristics) ----
+
+    /** Wall-clock first install time, from `PackageInfo.firstInstallTime`. */
+    public val firstInstallEpochMs: Long? = null,
+    /** Wall-clock last update time, from `PackageInfo.lastUpdateTime`. */
+    public val lastUpdateEpochMs: Long? = null,
+    /** `applicationInfo.targetSdkVersion`. */
+    public val targetSdkVersion: Int? = null,
+    /**
+     * Richer install attribution. Distinguishes who triggered the
+     * install vs which package the install originated from (e.g.
+     * Play Store / sideload / third-party store). Null on devices
+     * where the lookup failed. Originating / initiating fields
+     * require API 30+; on 28-29 only [InstallSource.installingPackage]
+     * is populated.
+     */
+    public val installSource: InstallSource? = null,
+    /**
+     * Per-signer cert validity periods, in the same order as
+     * [signerCertSha256]. Useful for cert-expiry monitoring and
+     * spotting old re-signed APKs. Null if the validity periods
+     * couldn't be extracted (e.g. native bridge unavailable).
+     */
+    public val signerCertValidity: List<CertValidity>? = null,
+)
+
+/**
+ * Install attribution for the running APK. Wraps the three
+ * package-name fields exposed by `PackageManager.getInstallSourceInfo`
+ * (API 30+) plus the older `getInstallerPackageName` value as a
+ * fallback for API 28-29.
+ *
+ *  - [installingPackage]: the package responsible for the install
+ *    that produced the current APK. On a Play Store install this is
+ *    typically `com.android.vending`. Sideloaded APKs may report
+ *    `com.android.shell`, `com.android.packageinstaller`, or null.
+ *  - [originatingPackage]: the package that *originally* delivered
+ *    the APK (chain-of-custody hint when an installer wraps another
+ *    installer). Null on API <30 and frequently null even on 30+.
+ *  - [initiatingPackage]: the package that initiated the install
+ *    request. Distinguishes "Play Store served the APK" (initiating
+ *    + installing both Play) from "Browser downloaded the APK and
+ *    handed it to the package installer" (initiating = browser,
+ *    installing = packageinstaller). Null on API <30.
+ */
+public data class InstallSource(
+    public val installingPackage: String?,
+    public val originatingPackage: String?,
+    public val initiatingPackage: String?,
+)
+
+/**
+ * Validity period of a single signer certificate. Both bounds are
+ * UTC milliseconds since epoch. Useful for backends that want to
+ * monitor cert expiry or flag freshly re-signed APKs.
+ */
+public data class CertValidity(
+    public val notBeforeEpochMs: Long,
+    public val notAfterEpochMs: Long,
+)
+
+/**
+ * Hardware key-attestation evidence shipped on every report, plus
+ * the locally derived advisory verdict. Always reflects a single F14
+ * keygen pass that was cached at process start.
+ *
+ * **Authority caveat.** None of the parsed fields below are
+ * authoritative on their own — the on-device library does not walk
+ * the cert chain to Google's pinned attestation root or check the
+ * revocation list. Backends MUST re-verify [chainB64] server-side.
+ * The `verdict_*` fields are advisory-only (used for in-app UX
+ * gating, not for security decisions).
+ *
+ * All parsed fields are nullable: a malformed or unparseable
+ * `KeyDescription` extension yields a non-null [AttestationReport]
+ * with [chainB64] populated and the parsed fields null, so the
+ * backend can still do the work from the raw chain bytes.
+ *
+ * **JSON wire shape vs typed shape.** [TelemetryReport.toJson] omits
+ * the heavier diagnostic fields ([chainB64], [attestationChallengeB64],
+ * [attestedApplicationIdSha256], [verifiedBootKeySha256],
+ * [keymasterVersion], [osVersion], [vendorPatchLevel],
+ * [bootPatchLevel]) to keep the wire format compact and human-
+ * readable — the JSON ships a [chainSha256] for backend correlation
+ * instead. Backends that need to do authoritative re-verification of
+ * the chain bytes read this typed object directly (see
+ * `AppContext.attestation`) rather than parsing them out of JSON.
+ */
+public data class AttestationReport(
+    /**
+     * Pipe-separated base64 of every cert in the chain (leaf first,
+     * root last). The single piece of authoritative evidence on this
+     * report; everything else is parsed convenience.
+     *
+     * Null when [unavailableReason] is set. NOT shipped in JSON
+     * output; backend uploaders read this field directly off the
+     * typed report.
+     */
+    public val chainB64: String?,
+    /**
+     * Lowercase hex SHA-256 of the raw concatenated chain bytes
+     * (`chainB64.toByteArray(US-ASCII)`). Cheap correlation /
+     * dedup key for backends that don't need the bytes themselves.
+     * Null when [unavailableReason] is set.
+     */
+    public val chainSha256: String?,
+    /** Number of certs in the chain. Zero when [chainB64] is null. */
+    public val chainLength: Int,
+
+    // ---- parsed KeyDescription extension fields ----
+
+    /** Hardware tier of the attestation cert itself: `"StrongBox"`, `"TrustedEnvironment"`, or `"Software"`. */
+    public val attestationSecurityLevel: String?,
+    /** Hardware tier of the attested key: same vocabulary as [attestationSecurityLevel]. */
+    public val keymasterSecurityLevel: String?,
+    /** KeyMaster / KeyMint version (e.g. `41`, `100`, `200`, `300`). Diagnostic; not in default JSON. */
+    public val keymasterVersion: Int?,
+    /** Base64 of the per-keygen nonce the TEE echoed into the leaf. Diagnostic; not in default JSON. */
+    public val attestationChallengeB64: String?,
+    /** `"Verified"`, `"SelfSigned"`, `"Unverified"`, or `"Failed"`. */
+    public val verifiedBootState: String?,
+    /** True iff the bootloader is locked, per the TEE. */
+    public val deviceLocked: Boolean?,
+    /** SHA-256 hex of the Verified Boot signing key. Stable per OEM/ROM. Diagnostic; not in default JSON. */
+    public val verifiedBootKeySha256: String?,
+    /** Diagnostic; not in default JSON (correlatable from `device.fingerprint`). */
+    public val osVersion: Int?,
+    /** Format `YYYYMM` on KM4, `YYYYMMDD` on KM4.1+. Useful for patch-age policy. */
+    public val osPatchLevel: Int?,
+    /** Diagnostic; not in default JSON. */
+    public val vendorPatchLevel: Int?,
+    /** Diagnostic; not in default JSON. */
+    public val bootPatchLevel: Int?,
+    public val attestedPackageName: String?,
+    /** SHA-256 hex of the raw `attestation_application_id` blob. Diagnostic; not in default JSON. */
+    public val attestedApplicationIdSha256: String?,
+    /** SHA-256 hex of every attested signer cert. Compare against [AppContext.signerCertSha256]. */
+    public val attestedSignerCertSha256: List<String>,
+
+    // ---- locally derived advisory verdict ----
+
+    /**
+     * Comma-separated subset of the Play-Integrity-API spelling:
+     * `"MEETS_BASIC_INTEGRITY"`, `"MEETS_DEVICE_INTEGRITY"`,
+     * `"MEETS_STRONG_INTEGRITY"`. Wire-compatible with Play Integrity
+     * consumers.
+     */
+    public val verdictDeviceRecognition: String?,
+    /** `"RECOGNIZED"` / `"UNRECOGNIZED_VERSION"` / `"UNEVALUATED"`. */
+    public val verdictAppRecognition: String?,
+    /** Stable short-code for the first failed requirement (e.g. `"bootloader_unlocked"`, `"patch_too_old"`). Null on full pass. */
+    public val verdictReason: String?,
+    /** Always `false` on-device. Backends decide authority after server-side chain verification. */
+    public val verdictAuthoritative: Boolean,
+
+    // ---- failure modes ----
+
+    /**
+     * Stable code surfaced when the F14 keygen couldn't run:
+     * `"api_too_low"`, `"attestation_not_supported"`,
+     * `"keystore_error"`, `"keystore_unavailable"`,
+     * `"missing_package_name"`. Null on success.
+     */
+    public val unavailableReason: String?,
 )
 
 /**

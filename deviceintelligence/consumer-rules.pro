@@ -16,9 +16,6 @@
 -keep class io.ssemaj.deviceintelligence.Severity { *; }
 -keep class io.ssemaj.deviceintelligence.DetectorStatus { *; }
 
-# Listener interface for the F11 watchdog real-time channel.
--keep class io.ssemaj.deviceintelligence.SelfProtectListener { *; }
-
 # Manifest-merged auto-init provider; Android instantiates it via
 # reflection from the merged manifest, so R8 must not strip / rename it.
 -keep class io.ssemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider { *; }
@@ -28,9 +25,6 @@
 # themselves form half of each JNI symbol — they MUST not be renamed.
 -keep class io.ssemaj.deviceintelligence.internal.NativeBridge {
     public static native <methods>;
-}
--keepclasseswithmembernames class io.ssemaj.deviceintelligence.internal.SelfProtect {
-    native <methods>;
 }
 -keepclasseswithmembernames class io.ssemaj.deviceintelligence.internal.EmulatorProbe {
     native <methods>;

@@ -20,8 +20,8 @@ import io.ssemaj.deviceintelligence.Finding
  *    [DetectorStatus.ERROR] report. Throwing breaks the entire
  *    collect call for the consumer.
  *  - SHOULD complete in single-digit milliseconds. Anything more
- *    expensive (e.g. F11 watchdog ticks) belongs in a separate
- *    background task whose state this detector only summarises.
+ *    expensive belongs in a separate background task whose state
+ *    this detector only summarises.
  *  - MUST be re-entrant safe; the collector may run detectors
  *    concurrently in a future revision.
  *  - MAY hold per-process cached state. The collector itself does
@@ -44,10 +44,22 @@ internal interface Detector {
 /**
  * Context passed to every detector. Wraps the bits of runtime state
  * a detector might need without making each one re-discover them.
+ *
+ * [f10Report] carries the F10 ApkIntegrityDetector's [DetectorReport]
+ * from the same `collect()` call, populated by [TelemetryCollector]
+ * AFTER F10 runs and BEFORE downstream detectors run. Detectors that
+ * don't depend on F10's verdict ignore it; F14's
+ * [KeyAttestationDetector] uses it to derive the `app_recognition`
+ * portion of its TEE-integrity verdict (an F10 finding == "running
+ * APK doesn't match build-time fingerprint" => `UNRECOGNIZED_VERSION`).
+ *
+ * Null means "F10 hasn't run yet in this collect() pass," which the
+ * verdict deriver treats as `UNEVALUATED` rather than as a failure.
  */
 internal data class DetectorContext(
     val applicationContext: Context,
     val nativeReady: Boolean,
+    val f10Report: DetectorReport? = null,
 )
 
 /**

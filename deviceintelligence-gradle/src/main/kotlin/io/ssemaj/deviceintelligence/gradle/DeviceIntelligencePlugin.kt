@@ -8,6 +8,7 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import io.ssemaj.deviceintelligence.gradle.tasks.BakeFingerprintTask
 import io.ssemaj.deviceintelligence.gradle.tasks.ComputeFingerprintTask
 import io.ssemaj.deviceintelligence.gradle.tasks.GenerateKeyChunksTask
+import io.ssemaj.deviceintelligence.gradle.tasks.GenerateOptionalManifestTask
 import io.ssemaj.deviceintelligence.gradle.tasks.InstrumentApkTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -35,6 +36,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
         val ext = project.extensions.create("deviceintelligence", DeviceIntelligenceExtension::class.java).apply {
             verbose.convention(false)
             detectors.convention(emptySet())
+            enableVpnDetection.convention(false)
         }
 
         project.plugins.withId("com.android.application") {
@@ -53,6 +55,13 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             ?: error("io.ssemaj: AGP application plugin applied but ApplicationExtension is missing")
 
         components.onVariants { variant ->
+            // Optional permission injection runs independently of the
+            // fingerprint pipeline — it's wired even on variants
+            // without a resolvable signingConfig because the consumer
+            // can opt into VPN detection regardless of whether the
+            // fingerprint binding is configured.
+            wireOptionalManifest(project, ext, variant)
+
             val buildTypeName = variant.buildType
             val signingConfigDsl = resolveSigningConfig(androidExt, buildTypeName)
             if (signingConfigDsl == null) {
@@ -213,6 +222,49 @@ class DeviceIntelligencePlugin : Plugin<Project> {
                         "io.ssemaj: registered ${genKeyTask.name} + ${computeTask.name} + ${bakeTask.name} + ${instrumentTask.name}"
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Generate + wire a tiny per-variant manifest fragment carrying
+     * any opt-in permissions (currently only `ACCESS_NETWORK_STATE`,
+     * gated on `enableVpnDetection = true`).
+     *
+     * The task is registered unconditionally — it always produces a
+     * valid manifest, possibly with zero `<uses-permission>` rows —
+     * because AGP captures `addGeneratedManifestFile` wiring at
+     * configuration time and we want the `enableVpnDetection`
+     * Property to drive only task INPUTS (and thus only the file
+     * contents), never the wiring graph itself. This keeps the
+     * configuration-cache stable across opt-in toggles.
+     */
+    private fun wireOptionalManifest(
+        project: Project,
+        ext: DeviceIntelligenceExtension,
+        variant: com.android.build.api.variant.ApplicationVariant,
+    ) {
+        val variantTitle = variant.name.replaceFirstChar { it.uppercase() }
+        val taskName = "generate${variantTitle}DeviceIntelligenceOptionalManifest"
+        val outFile = project.layout.buildDirectory
+            .file("intermediates/io.ssemaj/${variant.name}/optional-AndroidManifest.xml")
+
+        val task = project.tasks.register<GenerateOptionalManifestTask>(taskName) {
+            group = "io.ssemaj"
+            description = "Generates the opt-in <uses-permission> manifest fragment for variant '${variant.name}'."
+
+            variantName.set(variant.name)
+            needsAccessNetworkState.set(ext.enableVpnDetection)
+            outputManifest.set(outFile)
+        }
+
+        variant.sources.manifests.addGeneratedManifestFile(task) { it.outputManifest }
+
+        project.afterEvaluate {
+            if (ext.verbose.getOrElse(false)) {
+                project.logger.lifecycle(
+                    "io.ssemaj: registered ${task.name} (vpnDetection=${ext.enableVpnDetection.getOrElse(false)})"
+                )
             }
         }
     }

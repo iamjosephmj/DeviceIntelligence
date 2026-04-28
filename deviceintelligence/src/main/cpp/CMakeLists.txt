@@ -13,11 +13,10 @@ add_library(dicore SHARED
         dicore/zip_parser.cpp
         dicore/sigblock_parser.cpp
         dicore/jni_bridge.cpp
-        dicore/self_protect.cpp
-        dicore/self_protect_jni.cpp
         dicore/emu_probe_jni.cpp
         dicore/cloner_probe.cpp
         dicore/cloner_probe_jni.cpp
+        dicore/runtime_probe_jni.cpp
 )
 
 # F12 emulator probe: per-ABI implementation. Each ABI build pulls
