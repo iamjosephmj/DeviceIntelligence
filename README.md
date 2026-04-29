@@ -127,7 +127,6 @@ your backend / data warehouse  →  dashboards, cohorts, fraud signals
 - [The sample app](#the-sample-app)
 - [Building from source](#building-from-source)
 - [Project layout](#project-layout)
-- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [Prior art and acknowledgments](#prior-art-and-acknowledgments)
 - [License](#license)
@@ -818,8 +817,8 @@ Requirements:
 - Android NDK `27.0.12077973` (CMake builds the `dicore` native lib).
 
 For published consumption use [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence)
-— see [Quickstart](#quickstart). The Maven Central path is on the
-[Roadmap](#roadmap).
+— see [Quickstart](#quickstart). Maven Central is not wired yet; follow
+[issues](https://github.com/iamjosephmj/DeviceIntelligence/issues) for updates.
 
 ## Project layout
 
@@ -843,66 +842,11 @@ The runtime SDK has roughly two layers:
   arm64 MRS / x86_64 CPUID for the emulator probe) or can't do efficiently (APK
   ZIP parse, signing-block parse, `/proc/self/maps` read).
 
-## Roadmap
-
-This is a pre-1.0 library. The detector set and wire format are stable; what's
-not yet there:
-
-- **JitPack distribution — shipped.** Both halves (runtime AAR + Gradle plugin)
-  publish on every git tag; coordinates documented in [Quickstart](#quickstart).
-- **Maven Central artifact** — JitPack covers the immediate "I want a published
-  artifact" need; Maven Central is the next step (signed POMs + Sonatype
-  validation) once the wire schema is locked at 1.0. Track via
-  [issues](https://github.com/iamjosephmj/DeviceIntelligence/issues).
-- **Backend reference verifier** — sample server-side code that validates the
-  attestation `chainB64` against Google's hardware root + revocation list, and
-  shows how to correlate `attestation.key` / `integrity.bootloader` /
-  `runtime.environment` / `runtime.root` findings into a single decision.
-- **Deeper hooking-detection signals — shipped as `integrity.art`.**
-  `runtime.environment` today is *name-based*: it scans
-  `/proc/self/maps` for known hooking-framework library signatures
-  (Frida / Substrate / Xposed / LSPosed / Riru / Zygisk / Taichi)
-  and reports `hook_framework_present`. That catches the loaded
-  library, but not the *act* of hooking itself, which means a
-  renamed or in-memory-only agent slips through. The follow-up
-  layer — **integrity-style hook detection** — landed as
-  [`integrity.art`](docs/DETECTORS.md#integrityart): five
-  orthogonal vectors covering ArtMethod entry-point rewrites
-  (Xposed family + Frida attach detection), JNIEnv function-table
-  tampering, inline trampolines on ART hot-paths (Frida
-  `Interceptor.attach`), `entry_point_from_jni_` overwrites
-  (Pine / Dobby / Frida-Java native-method bridges), and
-  `ACC_NATIVE` bit flips (Frida-Java
-  `cls.method.implementation = ...` for non-native targets).
-  `integrity.art` lives as its own detector so consumers can gate
-  it independently; unlike the other detectors it deliberately
-  does not memoize across `collect()` calls so runtime injection
-  is detectable. Tier 2 follow-ups staying on the roadmap: **PLT /
-  GOT entry inspection** for resolved libc symbols (catches
-  pure-native libc hooks), and `dlopen` / `linker` audit-trail
-  diffing (catches injected libraries that bypass every other
-  channel).
-- **Schema v2 rename — shipped.** Detector IDs have moved from
-  the sparse F-numbered scheme (`F10.apk_integrity`,
-  `F12.emulator_probe`, …, with a gap at F11) to a
-  category-prefixed scheme (`integrity.apk`, `runtime.emulator`,
-  …) that scales as new detectors land without renumbering, and
-  groups detectors by what question they answer
-  (`integrity.*` / `attestation.*` / `runtime.*`). The
-  `schema_version` is now `2`. This is a breaking change for any
-  backend that routes on `detector.id` — the bumped
-  `schema_version` is the migration signal; there is no
-  compat shim. The mapping is one-to-one (every old `F<n>.<name>`
-  has a new ID), so route tables can be updated mechanically.
-  See the [Detector reference](#detector-reference) for the new
-  IDs.
-- **More detector suggestions welcome** — see [Contributing](#contributing).
+## Contributing
 
 The public Kotlin surface (`DeviceIntelligence.collect`, `DeviceIntelligence.collectJson`,
 plus the data classes in `Telemetry.kt`) is intentionally tiny and won't grow
 without a `schema_version` bump.
-
-## Contributing
 
 Issues, PRs, and ideas for new detectors are all welcome. A few principles to
 keep in mind if you're proposing changes:
