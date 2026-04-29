@@ -25,17 +25,13 @@ Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
 matching runtime AAR to `implementation` for you, so you do **not** declare a
 second `implementation("…:deviceintelligence:…")` line.
 
-> **When you *do* add `implementation` yourself:** only if your root build also
-> `include`s the upstream `:deviceintelligence` project (monorepo or vendor fork).
-> In that case the plugin would otherwise wire `project(":deviceintelligence")`
-> for fast local iteration. To use the **published** JitPack AAR instead — same
-> as a real consumer — set `deviceintelligence { disableAutoRuntimeDependency.set(true) }`
-> **and** add  
+> **When you *do* add `implementation` yourself:** only if you opt out of the
+> plugin's auto-wiring with `deviceintelligence { disableAutoRuntimeDependency.set(true) }`
+> (e.g. shipping the AAR through a wrapper module the plugin can't see). In that
+> case add  
 > `implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:<plugin version>")`  
-> (same version string as the plugin, e.g. `0.2.0`). This repository’s
-> [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts) uses
-> that pattern (`libs.deviceintelligence` in the version catalog). Full rationale:
-> [Quickstart → Add it to your own app](#add-it-to-your-own-app).
+> with the **same version string as the plugin**. Full rationale:
+> [Quickstart → Library-only mode (advanced)](#library-only-mode-advanced).
 
 **1. `settings.gradle.kts`** — declare the JitPack repo and map the plugin id to its JitPack-published module ([why](#quickstart)):
 
@@ -78,34 +74,6 @@ plugins {
     id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
 ```
-
-<details>
-<summary><strong>Monorepo / vendor fork</strong> — your build also includes <code>:deviceintelligence</code> as a project (click to expand)</summary>
-
-```kotlin
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("io.ssemaj.deviceintelligence") version "0.2.0"
-}
-
-deviceintelligence {
-    // Stop the plugin from substituting project(":deviceintelligence").
-    disableAutoRuntimeDependency.set(true)
-}
-
-dependencies {
-    // Use the published AAR. MUST match the plugin version above.
-    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.2.0")
-}
-```
-
-This is exactly what [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts)
-does (via `libs.deviceintelligence` in the version catalog), so the in-repo sample
-matches what an external JitPack consumer resolves. See
-[Quickstart → Add it to your own app](#add-it-to-your-own-app) for the rationale.
-
-</details>
 
 **3. Collect at runtime** — anywhere in your app, off the main thread:
 
@@ -274,13 +242,12 @@ cd DeviceIntelligence
 adb shell am start -n io.ssemaj.sample/.MainActivity
 ```
 
-The sample resolves the Gradle plugin and runtime AAR **`0.2.0` from JitPack**
-(same coordinates as [Install](#install)); the first `./gradlew` run needs
-network access to fetch them. Because the root build still includes the in-tree
-`:deviceintelligence` module for library tests, the sample sets
-`disableAutoRuntimeDependency` and declares **`implementation(libs.deviceintelligence)`**
-explicitly — see [Add it to your own app](#add-it-to-your-own-app) for why that
-pair is needed (normal external apps skip both and rely on the plugin alone).
+The sample resolves the Gradle plugin **`0.2.0` from JitPack** (same coordinates
+as [Install](#install)); the first `./gradlew` run needs network access. The
+runtime AAR is wired automatically by the plugin — because `:deviceintelligence`
+is included in the root build, the plugin substitutes
+`project(":deviceintelligence")` so changes in the library source are picked up
+without a publish (an external app gets the matching JitPack AAR instead).
 
 You'll see a card-based viewer that re-runs every detector on demand and lets you
 copy the canonical JSON to your clipboard. On a clean device, every detector
@@ -330,17 +297,13 @@ dependencyResolutionManagement {
 **no `implementation("...:deviceintelligence:0.2.0")` line** — the plugin auto-adds
 the matching runtime AAR for you, locked to the same version as itself.
 
-> **Same Gradle build as `:deviceintelligence`?** If your root `settings.gradle.kts`
-> also `include`s this library as a project (typical **monorepo** or vendor fork),
-> the plugin detects that module and wires **`implementation(project(":deviceintelligence"))`**
-> instead of the JitPack coordinate so local Kotlin / native changes are picked up
-> without publishing. To force the **published** AAR anyway — what
-> [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts) does so
-> the sample matches a real consumer — set
-> `deviceintelligence { disableAutoRuntimeDependency.set(true) }` **and** add the
-> runtime dependency yourself, with the **same version** as the plugin (this repo
-> uses the version catalog: `implementation(libs.deviceintelligence)` next to
-> `alias(libs.plugins.deviceintelligence)`).
+> **Monorepo / vendor fork?** If your root `settings.gradle.kts` also `include`s
+> this library as a project, the plugin detects that module and wires
+> `implementation(project(":deviceintelligence"))` instead of the JitPack coordinate
+> so local Kotlin / native changes are picked up without publishing. This is what
+> [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts) relies on.
+> To force the **published** AAR anyway, see
+> [Library-only mode (advanced)](#library-only-mode-advanced).
 
 ```kotlin
 plugins {
@@ -402,14 +365,14 @@ so the APK-integrity detector reports `status: "inconclusive"` with
 `inconclusive_reason: "asset_missing"`. Every other detector works unchanged.
 
 You can also keep the plugin's manifest-injection work but skip the auto-applied
-AAR (e.g. when the AAR is delivered via a wrapper module the plugin can't see,
-or when you need the published coordinate while `:deviceintelligence` still exists
-in the same composite — see the callout above) by setting
-`disableAutoRuntimeDependency = true` in the DSL block, or passing
-`-Pdeviceintelligence.disableAutoRuntimeDependency=true` on the command line.
-In that mode the plugin **does not** add any runtime dependency; you **must**
-supply `implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:<version>")`
-(or your catalog alias) yourself, locked to the same version as the plugin.
+AAR (e.g. when the AAR is delivered via a wrapper module the plugin can't see, or
+when you want the **published** AAR even though `:deviceintelligence` is included
+in the same composite) by setting `disableAutoRuntimeDependency = true` in the
+DSL block, or passing `-Pdeviceintelligence.disableAutoRuntimeDependency=true` on
+the command line. In that mode the plugin **does not** add any runtime
+dependency; you **must** supply
+`implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:<version>")`
+yourself, locked to the same version as the plugin.
 
 ### What the Gradle plugin does at build time
 
@@ -843,11 +806,11 @@ Device, App, Findings, Detectors, JSON). It's built with programmatic Kotlin UI
 custom dark/light palette, the wrapping chip layout, and the JSON viewer — is in
 two files: `MainActivity.kt` and `Ui.kt`.
 
-Gradle wiring matches a **JitPack consumer** (plugin + published AAR **`0.2.0`**),
-not the default in-tree `project(":deviceintelligence")` substitution — see the
-callout under [Add it to your own app](#add-it-to-your-own-app) and
-[`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts)
-(`disableAutoRuntimeDependency` + `implementation(libs.deviceintelligence)`).
+Gradle wiring matches a **JitPack consumer** at the plugin id level (plugin
+**`0.2.0`** resolved from JitPack), and the runtime AAR is auto-wired by the
+plugin via the in-tree `project(":deviceintelligence")` substitution so changes
+in the library source rebuild without a publish — see
+[Add it to your own app](#add-it-to-your-own-app).
 
 ```sh
 ./gradlew :samples:minimal:installDebug

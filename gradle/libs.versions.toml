@@ -5,7 +5,6 @@ kotlin = "2.0.21"
 junit = "4.13.2"
 
 [libraries]
-deviceintelligence = { module = "com.github.iamjosephmj.DeviceIntelligence:deviceintelligence", version.ref = "deviceintelligence" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

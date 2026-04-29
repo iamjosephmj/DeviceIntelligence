@@ -50,10 +50,6 @@ android {
 }
 
 deviceintelligence {
-    // Published JitPack runtime (same version as the plugin). Without this,
-    // the plugin would substitute the in-tree :deviceintelligence project and
-    // the sample would not match what external apps resolve from JitPack.
-    disableAutoRuntimeDependency.set(true)
     verbose.set(true)
     // Opt in to VPN detection so DeviceContext.vpnActive populates
     // (true / false instead of null). The plugin injects
@@ -68,11 +64,10 @@ deviceintelligence {
     enableBiometricsDetection.set(true)
 }
 
-// Runtime AAR comes from JitPack (same version as the plugin) so this sample
-// matches external consumer resolution. The library module remains in the root
-// build for `./gradlew :deviceintelligence:*`; use `disableAutoRuntimeDependency`
-// here to avoid the plugin's in-tree :deviceintelligence substitution.
-dependencies {
-    implementation(libs.deviceintelligence)
-}
-
+// No `dependencies { implementation("...:deviceintelligence:...") }` here.
+// The DeviceIntelligence Gradle plugin auto-wires the runtime AAR. In this
+// repo `:deviceintelligence` is included in the root build, so the plugin
+// substitutes `project(":deviceintelligence")` (fast in-tree dev loop). For
+// an external consumer with no `:deviceintelligence` module, the plugin
+// auto-resolves the matching JitPack AAR instead. Either way the consumer
+// applies the plugin and writes nothing else — see README "Install".
