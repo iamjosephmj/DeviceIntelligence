@@ -81,4 +81,230 @@ internal object NativeBridge {
      */
     @JvmStatic
     external fun procSelfMaps(): String?
+
+    /**
+     * F18 milestone-0 liveness probe. Returns the sentinel
+     * `0xF18A11FE` when the `art_integrity` translation unit is
+     * present in `libdicore.so`. Anything else (including the
+     * default Java-side fallback of `0` from a JNI lookup miss)
+     * means the build skipped the unit and no F18 vector check
+     * can run yet.
+     *
+     * The probe is the single thing M0 ships on the native side;
+     * M1+ adds the real snapshot / evaluate entry points.
+     */
+    @JvmStatic
+    external fun artIntegrityProbe(): Int
+
+    /**
+     * F18 — total number of methods in the frozen-method registry
+     * (compile-time constant on the native side; surfaced to
+     * Kotlin so the detector can compare it against
+     * [artIntegrityRegistryResolved] without hard-coding the
+     * count in two places).
+     */
+    @JvmStatic
+    external fun artIntegrityRegistrySize(): Int
+
+    /**
+     * F18 — number of registry entries that resolved successfully
+     * during `JNI_OnLoad`. Equal to [artIntegrityRegistrySize] on
+     * a healthy device; lower means at least one JDK class /
+     * method we expected to find is unavailable on this OEM ROM,
+     * and the corresponding entry will be skipped during scans.
+     */
+    @JvmStatic
+    external fun artIntegrityRegistryResolved(): Int
+
+    /**
+     * F18 — number of registry entries whose ArtMethod entry-point
+     * pointer was readable at JNI_OnLoad. Less than
+     * [artIntegrityRegistryResolved] by the count of INDEX-encoded
+     * jmethodIDs (a few intrinsified static native methods on
+     * recent ART versions). Vector A's range/diff checks operate
+     * only on these readable entries.
+     */
+    @JvmStatic
+    external fun artIntegrityEntryPointReadable(): Int
+
+    /**
+     * F18 — `[libart, boot_oat, jit_cache, oat_other]` counts of
+     * memory regions captured by the M3 range resolver. A healthy
+     * device has libart >= 1 and boot_oat >= 1; jit_cache + other
+     * oat are zero on a freshly-launched app and grow as ART
+     * compiles methods. Returns null only if the JNI call
+     * itself fails, which never happens in practice.
+     */
+    @JvmStatic
+    external fun artIntegrityRangeCounts(): IntArray?
+
+    /**
+     * F18 Vector A — re-reads every registry slot's entry pointer
+     * NOW and returns one record per slot:
+     *
+     *   `"<short_id>|<live_hex>|<snap_hex>|<live_class>|<snap_class>|<readable>|<drifted>"`
+     *
+     * Kotlin parses each record into a [Finding] when:
+     *   - `readable=1` (otherwise the slot is INDEX-encoded; skip)
+     *   - `live_class=unknown` (entry pointer escaped libart/oat/jit;
+     *     real Vector A signal)
+     *   - `drifted=1` (live != snapshot; M5 signal, the diff check)
+     *
+     * Empty array means the scanner couldn't initialise (unknown
+     * API offset, etc); Kotlin treats that as "vector A
+     * unavailable" and emits an inconclusive marker rather than a
+     * false-clean.
+     */
+    @JvmStatic
+    external fun artIntegrityScan(): Array<String>?
+
+    /**
+     * F18 — `true` when the most recent [artIntegrityScan] call
+     * found the mmap-protected baseline page's stored SHA-256
+     * matching the recomputed hash of the values. `false` means
+     * the baseline was tampered with between the last two scans
+     * (an attacker bypassed PROT_NONE and edited the page) —
+     * itself a Vector A finding (`art_baseline_tampered`).
+     */
+    @JvmStatic
+    external fun artIntegrityBaselineIntact(): Boolean
+
+    /**
+     * F18 Vector C — re-reads the watched JNIEnv function-table
+     * pointers (`GetMethodID`, `RegisterNatives`,
+     * `CallStaticIntMethod`, etc) NOW and returns one record per
+     * watched function:
+     *
+     *   `"<name>|<live_hex>|<snap_hex>|<live_class>|<snap_class>|<drifted>"`
+     *
+     * Kotlin parses each record into a [Finding] when:
+     *   - `live_class=unknown` (pointer escaped libart — Frida-Java
+     *     style hijack, emits `jni_env_table_out_of_range`)
+     *   - `drifted=1` (live != snapshot, emits `jni_env_table_drifted`)
+     *
+     * Empty array means the snapshot was never captured (e.g.
+     * JNI_OnLoad couldn't get a JNIEnv); Kotlin treats that as
+     * "vector C unavailable" rather than a clean signal.
+     */
+    @JvmStatic
+    external fun artIntegrityJniEnvScan(): Array<String>?
+
+    /**
+     * F18 Vector C analogue to [artIntegrityBaselineIntact]:
+     * `true` when the JNIEnv-table baseline storage's hash
+     * matched its values on the most recent scan, `false` if
+     * the baseline page was tampered with.
+     */
+    @JvmStatic
+    external fun artIntegrityJniEnvBaselineIntact(): Boolean
+
+    /**
+     * F18 Vector D — re-reads the first ~16 bytes of each
+     * tracked libart hot-path symbol (`art_quick_invoke_stub`,
+     * etc), classifies vs the JNI_OnLoad snapshot AND vs the
+     * embedded per-API baseline. Returns one record per slot:
+     *
+     *   `"<symbol>|<addr_hex>|<live_hex_bytes>|<snap_hex_bytes>|<resolved>|<drifted>|<baseline_known>|<baseline_mismatch>"`
+     *
+     * Kotlin emits findings when:
+     *   - `resolved=1 && drifted=1` → `art_internal_prologue_drifted`
+     *     (HIGH; runtime tamper after our snapshot)
+     *   - `resolved=1 && baseline_known=1 && baseline_mismatch=1`
+     *     → `art_internal_prologue_baseline_mismatch` (MEDIUM;
+     *     either a pre-load injector or an unrecognised OEM ROM)
+     *
+     * Empty array means the snapshot was never captured (libart
+     * symbols all missing). Kotlin treats that as "vector D
+     * unavailable".
+     */
+    @JvmStatic
+    external fun artIntegrityInlinePrologueScan(): Array<String>?
+
+    /**
+     * F18 Vector D analogue to [artIntegrityBaselineIntact]:
+     * `true` when the inline-prologue baseline page's stored
+     * hash matched its values on the most recent scan.
+     */
+    @JvmStatic
+    external fun artIntegrityInlinePrologueBaselineIntact(): Boolean
+
+    /**
+     * F18 dev-time helper. Returns one string per Vector-D
+     * target shaped as `"<symbol>|<api_int>|<hex_bytes>"`
+     * (or `<api_int>|missing` if dlsym failed for the symbol).
+     *
+     * Used during M8 baseline-extraction to harvest expected
+     * prologue bytes from a clean device, which then get pasted
+     * into `inline_prologue.cpp`'s `kBaselines` table. Not
+     * referenced by the production detector path; safe to leave
+     * exported because the contents are already trivially
+     * readable by any in-process code.
+     */
+    @JvmStatic
+    external fun artIntegrityExtractPrologueBaseline(): Array<String>?
+
+    /**
+     * F18 Vector E — re-reads `entry_point_from_jni_` (a.k.a. the
+     * `data_` slot) for every registry slot and returns one
+     * record per slot:
+     *
+     *   `"<short_id>|<live_hex>|<snap_hex>|<live_class>|<snap_class>|<readable>|<drifted>|<snap_was_native>"`
+     *
+     * Kotlin emits findings when:
+     *   - `readable=1` AND `snap_was_native=1` AND `drifted=1`
+     *     → `art_method_jni_entry_drifted` (HIGH; canonical
+     *     Frida-Java native-method bridge install).
+     *   - `readable=1` AND `live_class=unknown`
+     *     → `art_method_jni_entry_out_of_range` (HIGH; bridge
+     *     pointer landed in attacker-allocated memory, regardless
+     *     of method kind).
+     *
+     * Empty array means the snapshot was never captured (registry
+     * empty or per-API offset unknown). Kotlin treats that as
+     * "vector E unavailable" rather than a clean signal.
+     */
+    @JvmStatic
+    external fun artIntegrityJniEntryScan(): Array<String>?
+
+    /**
+     * F18 Vector E analogue to [artIntegrityBaselineIntact]:
+     * `true` when the JNI-entry baseline page's hash matched its
+     * values on the most recent scan.
+     */
+    @JvmStatic
+    external fun artIntegrityJniEntryBaselineIntact(): Boolean
+
+    /**
+     * F18 Vector F — re-reads `access_flags_` for every registry
+     * slot and returns one record per slot:
+     *
+     *   `"<short_id>|<live_flags_hex>|<snap_flags_hex>|<readable>|<flip_on>|<flip_off>|<any_drift>"`
+     *
+     * Kotlin emits findings when:
+     *   - `readable=1` AND `flip_on=1`
+     *     → `art_method_acc_native_flipped_on` (HIGH; Frida-Java
+     *     converted a Java method to look native — proof-positive
+     *     hook).
+     *   - `readable=1` AND `flip_off=1`
+     *     → `art_method_acc_native_flipped_off` (HIGH; native
+     *     method had its bit cleared — rare but unambiguous
+     *     tamper).
+     *
+     * The `any_drift` field is informational only — ART legitimately
+     * tweaks other access_flags_ bits (intrinsic markers, hotness
+     * counters historically) during normal execution.
+     *
+     * Empty array means the snapshot was never captured. Kotlin
+     * treats that as "vector F unavailable".
+     */
+    @JvmStatic
+    external fun artIntegrityAccessFlagsScan(): Array<String>?
+
+    /**
+     * F18 Vector F analogue to [artIntegrityBaselineIntact]:
+     * `true` when the access-flags baseline page's hash matched
+     * its values on the most recent scan.
+     */
+    @JvmStatic
+    external fun artIntegrityAccessFlagsBaselineIntact(): Boolean
 }

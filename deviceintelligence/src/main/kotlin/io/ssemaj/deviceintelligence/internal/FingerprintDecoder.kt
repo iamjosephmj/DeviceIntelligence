@@ -10,7 +10,7 @@ import java.io.IOException
  * decodes it back into a [Fingerprint].
  *
  * Failure modes are explicit: every distinct way the pipeline can break
- * is its own [DecodeResult.Failure] subtype so the F10 detector can map
+ * is its own [DecodeResult.Failure] subtype so the integrity.apk detector can map
  * them to structured tampering evidence (asset stripped vs. key
  * missing vs. wrong key vs. format skew vs. corrupt blob).
  *

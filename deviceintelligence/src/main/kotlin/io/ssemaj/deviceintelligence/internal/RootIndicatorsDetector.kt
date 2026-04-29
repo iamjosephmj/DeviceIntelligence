@@ -10,17 +10,17 @@ import io.ssemaj.deviceintelligence.Severity
 import java.io.File
 
 /**
- * F17 — Root indicator detector.
+ * `runtime.root` — Root indicator detector.
  *
  * Filesystem-, shell-, and installed-app-level root signals. None
  * of these are individually authoritative — every one of them can
  * be hidden by a sufficiently determined root tool (Magisk's
  * DenyList, Zygisk modules, etc.) — so this detector is best
  * thought of as the "low-hanging fruit" layer that pairs with
- * F14's TEE-attested `verified_boot_state` (which is much harder
- * to spoof) and F16's hooking-framework checks. A device that
- * trips F17 is a device whose owner did not even bother to hide
- * the root.
+ * `attestation.key`'s TEE-attested `verified_boot_state` (which
+ * is much harder to spoof) and `runtime.environment`'s
+ * hooking-framework checks. A device that trips `runtime.root`
+ * is a device whose owner did not even bother to hide the root.
  *
  * Five orthogonal channels:
  *  1. `su` binary on disk: walk `$PATH` plus the canonical
@@ -38,8 +38,8 @@ import java.io.File
  *     against a hardcoded list. Works on Android 11+ thanks to the
  *     `QUERY_ALL_PACKAGES` permission declared in the library manifest.
  *     Consumers who cannot justify that permission under Play policy
- *     can strip it via `tools:node="remove"`; F17 then silently
- *     degrades to channels 1-4.
+ *     can strip it via `tools:node="remove"`; `runtime.root` then
+ *     silently degrades to channels 1-4.
  *
  * All checks emit at most one finding per match. A single device
  * with `su` in three locations + Magisk + Magisk Manager installed
@@ -50,7 +50,7 @@ internal object RootIndicatorsDetector : Detector {
 
     private const val TAG = "DeviceIntelligence.RootIndicators"
 
-    override val id: String = "F17.root_indicators"
+    override val id: String = "runtime.root"
 
     private const val KIND_SU_BINARY = "su_binary_present"
     private const val KIND_MAGISK = "magisk_artifact_present"
@@ -108,8 +108,9 @@ internal object RootIndicatorsDetector : Detector {
      * `tools:node="remove"`; see the library manifest comment for
      * the exact incantation. With the permission stripped these
      * lookups silently return "not installed" for any package the
-     * host app doesn't otherwise have visibility on, and F17
-     * degrades gracefully to its on-disk + shell signals.
+     * host app doesn't otherwise have visibility on, and
+     * `runtime.root` degrades gracefully to its on-disk + shell
+     * signals.
      */
     private val ROOT_MANAGER_PACKAGES: List<String> = listOf(
         "com.topjohnwu.magisk",
@@ -133,7 +134,7 @@ internal object RootIndicatorsDetector : Detector {
         val findings = synchronized(lock) {
             cached ?: doEvaluate(ctx).also { cached = it }
         }
-        Log.i(TAG, "F17 ran: ${findings.size} finding(s)")
+        Log.i(TAG, "ran: ${findings.size} finding(s)")
         return ok(id, findings, dur())
     }
 

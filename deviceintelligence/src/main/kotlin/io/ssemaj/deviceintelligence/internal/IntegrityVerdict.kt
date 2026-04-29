@@ -8,8 +8,8 @@ import java.util.TimeZone
 
 /**
  * Play-Integrity-shaped verdict derived locally from a parsed
- * [ParsedKeyDescription] plus the F10 [DetectorReport] from the
- * same `collect()` call.
+ * [ParsedKeyDescription] plus the `integrity.apk` [DetectorReport]
+ * from the same `collect()` call.
  *
  * The verdict is **advisory** — the on-device library does not
  * walk the cert chain to Google's attestation root, does not check
@@ -56,11 +56,11 @@ internal enum class DeviceTier(val wire: String) {
  * we don't depend on Play) but the semantics map 1:1.
  */
 internal enum class AppRecognition(val wire: String) {
-    /** F10 clean AND attested package + signer match runtime. */
+    /** `integrity.apk` clean AND attested package + signer match runtime. */
     RECOGNIZED("RECOGNIZED"),
-    /** F10 found a mismatch, OR attested identity disagrees with runtime. */
+    /** `integrity.apk` found a mismatch, OR attested identity disagrees with runtime. */
     UNRECOGNIZED_VERSION("UNRECOGNIZED_VERSION"),
-    /** F10 didn't run cleanly OR no attested signer digests to compare. */
+    /** `integrity.apk` didn't run cleanly OR no attested signer digests to compare. */
     UNEVALUATED("UNEVALUATED"),
 }
 
@@ -82,10 +82,10 @@ internal const val MAX_PATCH_AGE_DAYS: Long = 365L
  *                            null only if the parser couldn't decode
  *                            anything (the deriver will return
  *                            UNEVALUATED + CRITICAL in that case).
- * @param f10Report           F10's report from the same `collect()`
- *                            call. Null means F10 hasn't run yet
- *                            (verdict downgrades app_recognition
- *                            to UNEVALUATED).
+ * @param apkReport           `integrity.apk`'s report from the same
+ *                            `collect()` call. Null means
+ *                            `integrity.apk` hasn't run yet (verdict
+ *                            downgrades app_recognition to UNEVALUATED).
  * @param runtimePackageName  consumer's runtime `Context.packageName`.
  * @param runtimeSignerCertSha256  consumer's runtime signer cert
  *                            SHA-256 hashes (lowercase hex; matches
@@ -95,7 +95,7 @@ internal const val MAX_PATCH_AGE_DAYS: Long = 365L
  */
 internal fun deriveIntegrityVerdict(
     parsed: ParsedKeyDescription?,
-    f10Report: DetectorReport?,
+    apkReport: DetectorReport?,
     runtimePackageName: String,
     runtimeSignerCertSha256: List<String>,
     nowEpochMs: Long,
@@ -149,7 +149,7 @@ internal fun deriveIntegrityVerdict(
     }
 
     val app = computeAppRecognition(
-        f10Report,
+        apkReport,
         parsed,
         runtimePackageName,
         runtimeSignerCertSha256,
@@ -181,17 +181,17 @@ internal fun deriveIntegrityVerdict(
 }
 
 private fun computeAppRecognition(
-    f10: DetectorReport?,
+    apk: DetectorReport?,
     parsed: ParsedKeyDescription,
     runtimePackageName: String,
     runtimeSignerCertSha256: List<String>,
 ): AppRecognition {
-    if (f10 == null) return AppRecognition.UNEVALUATED
-    if (f10.status != DetectorStatus.OK) return AppRecognition.UNEVALUATED
-    // F10 producing any finding (regardless of kind) means the running
-    // APK does not match the build-time fingerprint exactly. That's the
-    // textbook "UNRECOGNIZED_VERSION" signal.
-    if (f10.findings.isNotEmpty()) return AppRecognition.UNRECOGNIZED_VERSION
+    if (apk == null) return AppRecognition.UNEVALUATED
+    if (apk.status != DetectorStatus.OK) return AppRecognition.UNEVALUATED
+    // integrity.apk producing any finding (regardless of kind) means
+    // the running APK does not match the build-time fingerprint
+    // exactly. That's the textbook "UNRECOGNIZED_VERSION" signal.
+    if (apk.findings.isNotEmpty()) return AppRecognition.UNRECOGNIZED_VERSION
 
     val attestedPkg = parsed.attestedPackageName
     if (attestedPkg != null && attestedPkg != runtimePackageName) {
@@ -200,9 +200,9 @@ private fun computeAppRecognition(
 
     val attestedSet = parsed.attestedSignerDigestsHex.map { it.lowercase() }.toSet()
     if (attestedSet.isEmpty()) {
-        // No digests to compare against — F10 is clean so we don't
-        // want to *downgrade* to UNRECOGNIZED_VERSION; mark UNEVALUATED
-        // so the backend can decide.
+        // No digests to compare against — integrity.apk is clean so
+        // we don't want to *downgrade* to UNRECOGNIZED_VERSION; mark
+        // UNEVALUATED so the backend can decide.
         return AppRecognition.UNEVALUATED
     }
     val runtimeSet = runtimeSignerCertSha256.map { it.lowercase() }.toSet()

@@ -7,7 +7,7 @@ import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.Severity
 
 /**
- * F12 — CPU-instruction emulator detector.
+ * `runtime.emulator` — CPU-instruction emulator detector.
  *
  * Drives the per-ABI native probe (`emu_probe_arm64.cpp` /
  * `emu_probe_x86_64.cpp`) and emits a single
@@ -29,7 +29,7 @@ internal object EmulatorProbe : Detector {
 
     private const val TAG = "DeviceIntelligence.EmulatorProbe"
 
-    override val id: String = "F12.emulator_probe"
+    override val id: String = "runtime.emulator"
 
     @Volatile
     private var cached: List<Finding>? = null

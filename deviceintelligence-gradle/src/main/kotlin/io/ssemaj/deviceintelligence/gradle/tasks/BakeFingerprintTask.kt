@@ -42,7 +42,7 @@ abstract class BakeFingerprintTask : DefaultTask() {
     @get:Input
     abstract val variantName: Property<String>
 
-    /** XOR-encrypted blob, ready to be packaged as an APK asset by F8. */
+    /** XOR-encrypted blob, ready to be packaged as an APK asset by [InstrumentApkTask]. */
     @get:OutputFile
     abstract val fingerprintBin: RegularFileProperty
 

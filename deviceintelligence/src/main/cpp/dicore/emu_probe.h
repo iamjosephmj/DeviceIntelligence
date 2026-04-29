@@ -25,10 +25,10 @@ namespace dicore::emu {
 struct Signals {
     // True if any single signal triggered. Useful for telemetry but
     // NOT used for the verdict — some signals (e.g. CTR_EL0 echo)
-    // alone are not enough to flip the F10 result.
+    // alone are not enough to flip the runtime.emulator result.
     bool present;
 
-    // True iff the probe is confident enough to fold into F10 as a
+    // True iff the probe is confident enough to fold into runtime.emulator as a
     // Tampered verdict. See decision-rule notes inline in each
     // implementation.
     bool decisive;

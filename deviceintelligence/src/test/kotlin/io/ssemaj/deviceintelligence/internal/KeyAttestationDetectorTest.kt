@@ -26,7 +26,7 @@ class KeyAttestationDetectorTest {
     fun `detector id matches the F14 contract`() {
         // Stable identifier — backends key on this. Any change is a
         // wire-format break and would need a corresponding bump.
-        assertEquals("F14.key_attestation", KeyAttestationDetector.id)
+        assertEquals("attestation.key", KeyAttestationDetector.id)
     }
 
     @Test

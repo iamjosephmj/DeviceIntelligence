@@ -15,7 +15,7 @@ import java.util.TimeZone
  *
  * Table-driven: each test exercises one row in the verdict matrix
  * (attestation security level x verified-boot state x device-locked
- * x patch age x F10 status x app-recognition cross-check). The
+ * x patch age x integrity.apk status x app-recognition cross-check). The
  * deriver is intentionally a top-level pure function so these
  * tests bring up zero Android infrastructure.
  */
@@ -40,7 +40,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -72,7 +72,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -103,7 +103,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -133,7 +133,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -163,7 +163,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -187,7 +187,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -202,7 +202,7 @@ class IntegrityVerdictTest {
     fun `null parsed yields UNEVALUATED with key_description_unparseable`() {
         val v = deriveIntegrityVerdict(
             parsed = null,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -215,7 +215,7 @@ class IntegrityVerdictTest {
     }
 
     @Test
-    fun `F10 with findings produces UNRECOGNIZED_VERSION and CRITICAL`() {
+    fun `apk findings produce UNRECOGNIZED_VERSION and CRITICAL`() {
         val parsed = parsedKeyDescription(
             securityLevel = SecurityLevel.STRONG_BOX,
             verifiedBootState = VerifiedBootState.VERIFIED,
@@ -224,7 +224,7 @@ class IntegrityVerdictTest {
             attestedPackageName = pkg,
             attestedSignerDigestsHex = listOf(signerHex),
         )
-        val f10 = okF10(
+        val apk = okApk(
             listOf(
                 Finding(
                     kind = "apk_entry_modified",
@@ -238,7 +238,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = f10,
+            apkReport = apk,
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -251,7 +251,7 @@ class IntegrityVerdictTest {
     }
 
     @Test
-    fun `F10 inconclusive produces UNEVALUATED app recognition`() {
+    fun `apk inconclusive produces UNEVALUATED app recognition`() {
         val parsed = parsedKeyDescription(
             securityLevel = SecurityLevel.STRONG_BOX,
             verifiedBootState = VerifiedBootState.VERIFIED,
@@ -260,8 +260,8 @@ class IntegrityVerdictTest {
             attestedPackageName = pkg,
             attestedSignerDigestsHex = listOf(signerHex),
         )
-        val f10 = DetectorReport(
-            id = "F10.apk_integrity",
+        val apk = DetectorReport(
+            id = "integrity.apk",
             status = DetectorStatus.INCONCLUSIVE,
             durationMs = 1,
             findings = emptyList(),
@@ -270,7 +270,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = f10,
+            apkReport = apk,
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -294,7 +294,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -318,7 +318,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -341,7 +341,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -366,7 +366,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(signerHex),
             nowEpochMs = now,
@@ -397,7 +397,7 @@ class IntegrityVerdictTest {
 
         val v = deriveIntegrityVerdict(
             parsed = parsed,
-            f10Report = okF10(emptyList()),
+            apkReport = okApk(emptyList()),
             runtimePackageName = pkg,
             runtimeSignerCertSha256 = listOf(mixed),
             nowEpochMs = now,
@@ -433,8 +433,8 @@ class IntegrityVerdictTest {
         attestedSignerDigestsHex = attestedSignerDigestsHex,
     )
 
-    private fun okF10(findings: List<Finding>): DetectorReport = DetectorReport(
-        id = "F10.apk_integrity",
+    private fun okApk(findings: List<Finding>): DetectorReport = DetectorReport(
+        id = "integrity.apk",
         status = DetectorStatus.OK,
         durationMs = 1,
         findings = findings,

@@ -17,6 +17,19 @@ add_library(dicore SHARED
         dicore/cloner_probe.cpp
         dicore/cloner_probe_jni.cpp
         dicore/runtime_probe_jni.cpp
+        # F18 — ART integrity. M0 ships only the liveness probe; later
+        # milestones add registry/offsets/ranges/snapshot/inline_prologue
+        # as additional translation units inside dicore/art_integrity/.
+        dicore/art_integrity/art_integrity.cpp
+        dicore/art_integrity/registry.cpp
+        dicore/art_integrity/offsets.cpp
+        dicore/art_integrity/ranges.cpp
+        dicore/art_integrity/snapshot.cpp
+        dicore/art_integrity/jni_env_table.cpp
+        dicore/art_integrity/inline_prologue.cpp
+        dicore/art_integrity/jni_entry.cpp
+        dicore/art_integrity/access_flags.cpp
+        dicore/art_integrity_jni.cpp
 )
 
 # F12 emulator probe: per-ABI implementation. Each ABI build pulls

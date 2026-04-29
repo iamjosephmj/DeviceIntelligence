@@ -8,7 +8,7 @@ import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.Severity
 
 /**
- * F13 — App-cloner / multi-app-launcher detector.
+ * `runtime.cloner` — App-cloner / multi-app-launcher detector.
  *
  * Drives three native readers in `libdicore.so`
  * (`cloner_probe.cpp`) that pull kernel-truth values out of
@@ -40,7 +40,7 @@ internal object ClonerDetector : Detector {
 
     private const val TAG = "DeviceIntelligence.ClonerDetector"
 
-    override val id: String = "F13.cloner_probe"
+    override val id: String = "runtime.cloner"
 
     @Volatile
     private var cached: List<Finding>? = null

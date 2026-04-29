@@ -31,7 +31,11 @@ internal interface Detector {
 
     /**
      * Stable identifier, surfaced as [DetectorReport.id]. Convention
-     * is `"F<n>.<short_name>"`, e.g. `"F10.apk_integrity"`.
+     * is `"<category>.<scope>"` where category is one of
+     * `integrity`, `attestation`, or `runtime`, e.g.
+     * `"integrity.apk"`. The category prefix tells consumers what
+     * kind of evidence the detector produces; the scope tells them
+     * what the detector inspects.
      */
     val id: String
 
@@ -45,21 +49,23 @@ internal interface Detector {
  * Context passed to every detector. Wraps the bits of runtime state
  * a detector might need without making each one re-discover them.
  *
- * [f10Report] carries the F10 ApkIntegrityDetector's [DetectorReport]
- * from the same `collect()` call, populated by [TelemetryCollector]
- * AFTER F10 runs and BEFORE downstream detectors run. Detectors that
- * don't depend on F10's verdict ignore it; F14's
- * [KeyAttestationDetector] uses it to derive the `app_recognition`
- * portion of its TEE-integrity verdict (an F10 finding == "running
- * APK doesn't match build-time fingerprint" => `UNRECOGNIZED_VERSION`).
+ * [apkReport] carries the `integrity.apk` [ApkIntegrityDetector]'s
+ * [DetectorReport] from the same `collect()` call, populated by
+ * [TelemetryCollector] AFTER `integrity.apk` runs and BEFORE
+ * downstream detectors run. Detectors that don't depend on it
+ * ignore it; `attestation.key`'s [KeyAttestationDetector] uses it
+ * to derive the `app_recognition` portion of its TEE-integrity
+ * verdict (an `integrity.apk` finding == "running APK doesn't
+ * match build-time fingerprint" => `UNRECOGNIZED_VERSION`).
  *
- * Null means "F10 hasn't run yet in this collect() pass," which the
- * verdict deriver treats as `UNEVALUATED` rather than as a failure.
+ * Null means "`integrity.apk` hasn't run yet in this collect() pass,"
+ * which the verdict deriver treats as `UNEVALUATED` rather than
+ * as a failure.
  */
 internal data class DetectorContext(
     val applicationContext: Context,
     val nativeReady: Boolean,
-    val f10Report: DetectorReport? = null,
+    val apkReport: DetectorReport? = null,
 )
 
 /**

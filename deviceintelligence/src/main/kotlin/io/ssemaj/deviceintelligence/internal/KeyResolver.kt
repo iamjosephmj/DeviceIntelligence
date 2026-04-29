@@ -100,7 +100,7 @@ internal object KeyResolver {
     /**
      * Couldn't recover the per-build key. Thrown for any failure mode
      * (missing class, missing method, wrong return type, runtime error).
-     * Treated as a hard tampering signal by the F10 detector.
+     * Treated as a hard tampering signal by the integrity.apk detector.
      */
     class KeyMissingException(message: String, cause: Throwable?) : RuntimeException(message, cause)
 }

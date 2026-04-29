@@ -20,7 +20,7 @@ import io.ssemaj.deviceintelligence.DeviceIntelligence
  *  1. Trigger [System.loadLibrary] for `dicore` early via
  *     [NativeBridge] (the field-init does the load).
  *  2. Schedule a background [DeviceIntelligence.collect] pre-warm so
- *     the F10 fingerprint is decoded and APK certs are read off the
+ *     the integrity.apk fingerprint is decoded and APK certs are read off the
  *     cold I/O path; the report itself is dropped (no caching at this
  *     layer) but the per-detector caches (e.g.
  *     `ApkIntegrityDetector.cachedFingerprint`) populate, making

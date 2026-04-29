@@ -70,10 +70,31 @@ class MainActivity : Activity() {
     private lateinit var jsonToggleBtn: Button
     private var jsonExpanded: Boolean = false
 
+    private lateinit var autoBtn: Button
+
     @Volatile
     private var lastReport: TelemetryReport? = null
     @Volatile
     private var lastJson: String = ""
+
+    /** True while a `Re-collect` thread is in flight. Prevents the
+     *  auto-refresh loop from queueing a second collect on top of
+     *  one that hasn't finished yet. */
+    @Volatile
+    private var collectInFlight: Boolean = false
+
+    /** True while the auto-collect loop is active. */
+    private var autoCollectOn: Boolean = false
+
+    /** The auto-collect tick lambda — instantiated once and re-posted
+     *  on the main handler so the cancel path is `removeCallbacks(this)`. */
+    private val autoCollectTick: Runnable = object : Runnable {
+        override fun run() {
+            if (!autoCollectOn) return
+            if (!collectInFlight) runCollect(initial = false)
+            mainHandler.postDelayed(this, AUTO_COLLECT_INTERVAL_MS)
+        }
+    }
 
     private val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
@@ -150,9 +171,10 @@ class MainActivity : Activity() {
         actionsCard.addView(
             ui.subtitle(
                 this,
-                "Re-collect re-runs every detector. Copy JSON puts the full " +
-                    "telemetry blob (exactly what a backend would receive) on " +
-                    "the clipboard.",
+                "Re-collect re-runs every detector. Auto re-collects every " +
+                    "${AUTO_COLLECT_INTERVAL_MS / 1000}s — useful for watching " +
+                    "integrity.art catch a Frida / LSPosed attach in real " +
+                    "time. Copy JSON puts the full telemetry blob on the clipboard.",
             ),
         )
         val actionsRow = LinearLayout(this).apply {
@@ -163,6 +185,8 @@ class MainActivity : Activity() {
             ).apply { topMargin = Ui.dp(this@MainActivity, 12) }
         }
         actionsRow.addView(makeButton("Re-collect", Ui.Tone.INFO) { runCollect(initial = false) })
+        autoBtn = makeButton(autoButtonLabel(), Ui.Tone.NEUTRAL) { toggleAutoCollect() }
+        actionsRow.addView(autoBtn)
         actionsRow.addView(makeButton("Copy JSON", Ui.Tone.NEUTRAL) { copyJsonToClipboard() })
         actionsCard.addView(actionsRow)
 
@@ -281,6 +305,8 @@ class MainActivity : Activity() {
     // ---- collect & render --------------------------------------------------
 
     private fun runCollect(initial: Boolean) {
+        if (collectInFlight) return
+        collectInFlight = true
         Thread({
             val report = try {
                 DeviceIntelligence.collect(this)
@@ -289,25 +315,57 @@ class MainActivity : Activity() {
                 null
             }
             mainHandler.post {
-                if (report == null) {
-                    jsonView.text = "(collect failed — see logcat)"
-                    Log.w(TAG, "collect failed")
-                    return@post
+                try {
+                    if (report == null) {
+                        jsonView.text = "(collect failed — see logcat)"
+                        Log.w(TAG, "collect failed")
+                        return@post
+                    }
+                    lastReport = report
+                    lastJson = report.toJson()
+                    renderHero(report)
+                    renderDevice(report.device)
+                    renderApp(report.app)
+                    renderFindings(report)
+                    renderDetectors(report.detectors)
+                    jsonView.text = lastJson
+                    val findingCount = report.summary.totalFindings
+                    val verb = if (initial) "initial collect" else "recollect"
+                    Log.i(TAG, "$verb done: $findingCount finding(s) in ${report.collectionDurationMs}ms")
+                    Log.i(JSON_TAG, lastJson)
+                } finally {
+                    collectInFlight = false
                 }
-                lastReport = report
-                lastJson = report.toJson()
-                renderHero(report)
-                renderDevice(report.device)
-                renderApp(report.app)
-                renderFindings(report)
-                renderDetectors(report.detectors)
-                jsonView.text = lastJson
-                val findingCount = report.summary.totalFindings
-                val verb = if (initial) "initial collect" else "recollect"
-                Log.i(TAG, "$verb done: $findingCount finding(s) in ${report.collectionDurationMs}ms")
-                Log.i(JSON_TAG, lastJson)
             }
         }, "sample-collect").apply { isDaemon = true }.start()
+    }
+
+    private fun toggleAutoCollect() {
+        autoCollectOn = !autoCollectOn
+        autoBtn.text = autoButtonLabel()
+        if (autoCollectOn) {
+            mainHandler.removeCallbacks(autoCollectTick)
+            mainHandler.post(autoCollectTick)
+            toast("Auto-collect on (${AUTO_COLLECT_INTERVAL_MS / 1000}s)")
+        } else {
+            mainHandler.removeCallbacks(autoCollectTick)
+            toast("Auto-collect off")
+        }
+    }
+
+    private fun autoButtonLabel(): String =
+        if (autoCollectOn) "Auto · on" else "Auto · off"
+
+    override fun onPause() {
+        super.onPause()
+        // Stop the auto loop when we lose foreground so a backgrounded
+        // sample app doesn't keep re-running collects forever.
+        if (autoCollectOn) mainHandler.removeCallbacks(autoCollectTick)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (autoCollectOn) mainHandler.post(autoCollectTick)
     }
 
     // ---- rendering helpers -------------------------------------------------
@@ -739,5 +797,10 @@ class MainActivity : Activity() {
     private companion object {
         const val TAG = "DeviceIntelligence.Sample"
         const val JSON_TAG = "DeviceIntelligence.Json"
+
+        /** Auto-collect period. 2 s strikes a usable balance between
+         *  "live enough to see Frida attach" and "doesn't drown
+         *  logcat or burn battery". */
+        const val AUTO_COLLECT_INTERVAL_MS = 2_000L
     }
 }

@@ -12,7 +12,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28%20(Android%209.0)-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
-  <img alt="Schema" src="https://img.shields.io/badge/wire_schema-v1-orange.svg">
+  <img alt="Schema" src="https://img.shields.io/badge/wire_schema-v2-orange.svg">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-yellow.svg">
 </p>
 
@@ -121,11 +121,7 @@ your backend / data warehouse  →  dashboards, cohorts, fraud signals
 - [Output shape](#output-shape)
 - [Stable contract](#stable-contract)
   - [`status` vs `findings` — read this once](#status-vs-findings--read-this-once)
-- [Detector deep dives](#detector-deep-dives)
-  - [F14 — Hardware key attestation](#hardware-key-attestation-f14-and-appattestation)
-  - [F15 — Bootloader integrity](#bootloader-integrity-f15)
-  - [F16 — Runtime environment](#runtime-environment-f16)
-  - [F17 — Root indicators](#root-indicators-f17)
+- [Detector reference](#detector-reference) — full per-detector deep dive lives in [`docs/DETECTORS.md`](docs/DETECTORS.md)
 - [Permissions](#permissions)
 - [Performance, threading, caching](#performance-threading-caching)
 - [The sample app](#the-sample-app)
@@ -158,7 +154,7 @@ DeviceIntelligence sits in a different spot from all three:
 | Hardware-backed attestation evidence | Yes (verdict only) | Sometimes | No | **Yes (raw chain → backend)** |
 | Multi-layer (defense-in-depth) | Single verdict | Yes | Single signal | **7 orthogonal detectors** |
 | Honest about what it can't prove | Mixed | Rarely | No | **Yes — every signal documents its bypass model** |
-| Stable, versioned wire format | Yes | Vendor-specific | No | **Yes (`schema_version: 1`)** |
+| Stable, versioned wire format | Yes | Vendor-specific | No | **Yes (`schema_version: 2`)** |
 | Decides on-device whether to block / crash / lock | No (server-verified verdict) | **Yes (this is the point)** | N/A (you decide) | **No — explicitly never** |
 | Designed for fleet-wide ecosystem analysis | Per-session | No | No | **Yes (deterministic JSON for warehousing)** |
 
@@ -200,17 +196,24 @@ RASP and let each layer do what it's good at.
 
 | Detector              | id                            | What it observes                                                                                 |
 | --------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| APK integrity         | `F10.apk_integrity`           | APK bytes vs. the build-time fingerprint baked by the Gradle plugin                              |
-| Emulator probe        | `F12.emulator_probe`          | CPU-instruction-level signals (arm64 MRS / x86\_64 CPUID hypervisor bit)                         |
-| App cloner            | `F13.cloner_probe`            | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches                            |
-| Key attestation       | `F14.key_attestation`         | TEE / StrongBox attestation: Verified Boot state, bootloader lock, OS patch level                |
-| Bootloader integrity  | `F15.bootloader_integrity`    | Cross-checks F14's chain against a second attestation to surface TEE spoofing / cached chains    |
-| Runtime environment   | `F16.runtime_environment`     | In-process tampering: debugger / native tracer attached, `ro.debuggable` mismatch, hooking framework loaded (Frida / Xposed / LSPosed / Substrate / Riru / Zygisk / Taichi), RWX memory mappings |
-| Root indicators       | `F17.root_indicators`         | `su` binary on disk (PATH walk + hardcoded paths), Magisk artifacts (filesystem + `/proc/mounts`), `ro.build.tags = test-keys`, `which su` fallthrough, known root-manager apps installed |
+| APK integrity         | `integrity.apk`               | APK bytes vs. the build-time fingerprint baked by the Gradle plugin                              |
+| Bootloader integrity  | `integrity.bootloader`        | Cross-checks `attestation.key`'s chain against a second attestation to surface TEE spoofing / cached chains |
+| ART integrity         | `integrity.art`               | In-process ART tampering across five orthogonal vectors: ArtMethod entry-point rewrites (Xposed-family + Frida-attach detection), JNIEnv function-table tampering (Frida-Java JNI hijacks), inline trampolines on ART hot-paths (Frida `Interceptor.attach`), `entry_point_from_jni_` overwrites (Pine / Dobby / Frida-Java native-method bridges), and `ACC_NATIVE` bit flips (Frida-Java `cls.method.implementation = ...`) |
+| Key attestation       | `attestation.key`             | TEE / StrongBox attestation: Verified Boot state, bootloader lock, OS patch level                |
+| Runtime environment   | `runtime.environment`         | In-process tampering: debugger / native tracer attached, `ro.debuggable` mismatch, hooking framework loaded (Frida / Xposed / LSPosed / Substrate / Riru / Zygisk / Taichi), RWX memory mappings |
+| Root indicators       | `runtime.root`                | `su` binary on disk (PATH walk + hardcoded paths), Magisk artifacts (filesystem + `/proc/mounts`), `ro.build.tags = test-keys`, `which su` fallthrough, known root-manager apps installed |
+| Emulator probe        | `runtime.emulator`            | CPU-instruction-level signals (arm64 MRS / x86\_64 CPUID hypervisor bit)                         |
+| App cloner            | `runtime.cloner`              | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches                            |
 
-Every detector is independent. Adding a new one is a single line in
-`TelemetryCollector` and a single class implementing the internal `Detector`
-interface — no public-API changes, no JSON-serializer changes, no policy changes.
+The detector ID is a `<category>.<scope>` pair — `integrity.*` /
+`attestation.*` / `runtime.*`. The full reference for every
+detector (threat model, finding kinds, sample tripped JSON,
+costs, caveats) lives in [`docs/DETECTORS.md`](docs/DETECTORS.md).
+
+Every detector is independent. Adding a new one is a single line
+in `TelemetryCollector` and a single class implementing the
+internal `Detector` interface — no public-API changes, no
+JSON-serializer changes, no policy changes.
 
 ## Quickstart
 
@@ -311,7 +314,7 @@ from cached state in single-digit ms.
 ### Library-only mode (advanced)
 
 If you want the runtime AAR without the Gradle plugin's build-time work — for
-example, you want to **skip F10 (APK integrity) entirely** and just collect
+example, you want to **skip `integrity.apk` entirely** and just collect
 device intelligence at runtime — drop the plugin and pull the AAR directly:
 
 ```kotlin
@@ -330,8 +333,8 @@ dependencies {
 }
 ```
 
-Without the plugin, the F10 fingerprint asset is absent at runtime, so the
-APK-integrity detector reports `status: "inconclusive"` with
+Without the plugin, the `integrity.apk` fingerprint asset is absent at runtime,
+so the APK-integrity detector reports `status: "inconclusive"` with
 `inconclusive_reason: "asset_missing"`. Every other detector works unchanged.
 
 You can also keep the plugin's manifest-injection work but skip the auto-applied
@@ -392,7 +395,7 @@ exactly what the SDK emits.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "library_version": "0.1.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
@@ -503,7 +506,7 @@ exactly what the SDK emits.
   },
   "detectors": [
     {
-      "id": "F10.apk_integrity",
+      "id": "integrity.apk",
       "status": "ok",
       "duration_ms": 841,
       "inconclusive_reason": null,
@@ -511,31 +514,7 @@ exactly what the SDK emits.
       "findings": []
     },
     {
-      "id": "F12.emulator_probe",
-      "status": "ok",
-      "duration_ms": 0,
-      "inconclusive_reason": null,
-      "error_message": null,
-      "findings": []
-    },
-    {
-      "id": "F13.cloner_probe",
-      "status": "ok",
-      "duration_ms": 0,
-      "inconclusive_reason": null,
-      "error_message": null,
-      "findings": []
-    },
-    {
-      "id": "F14.key_attestation",
-      "status": "ok",
-      "duration_ms": 495,
-      "inconclusive_reason": null,
-      "error_message": null,
-      "findings": []
-    },
-    {
-      "id": "F15.bootloader_integrity",
+      "id": "integrity.bootloader",
       "status": "ok",
       "duration_ms": 243,
       "inconclusive_reason": null,
@@ -543,7 +522,23 @@ exactly what the SDK emits.
       "findings": []
     },
     {
-      "id": "F16.runtime_environment",
+      "id": "integrity.art",
+      "status": "ok",
+      "duration_ms": 4,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
+    },
+    {
+      "id": "attestation.key",
+      "status": "ok",
+      "duration_ms": 495,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
+    },
+    {
+      "id": "runtime.environment",
       "status": "ok",
       "duration_ms": 5525,
       "inconclusive_reason": null,
@@ -551,9 +546,25 @@ exactly what the SDK emits.
       "findings": []
     },
     {
-      "id": "F17.root_indicators",
+      "id": "runtime.root",
       "status": "ok",
       "duration_ms": 458,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
+    },
+    {
+      "id": "runtime.emulator",
+      "status": "ok",
+      "duration_ms": 0,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
+    },
+    {
+      "id": "runtime.cloner",
+      "status": "ok",
+      "duration_ms": 0,
       "inconclusive_reason": null,
       "error_message": null,
       "findings": []
@@ -589,9 +600,8 @@ exactly what the SDK emits.
 > Everything else — including the StrongBox-backed attestation block,
 > the Tensor G4 SoC identity, the Pixel 9 Pro Mali GPU + 120 Hz panel +
 > 11-rate refresh ladder, and the GMS signer SHA — is the unmodified
-> real value. For what a *tripped* finding looks like, see the
-> [Bootloader integrity](#bootloader-integrity-f15) and
-> [Root indicators](#root-indicators-f17) sections below.
+> real value. For what a *tripped* finding looks like for any
+> detector, see [`docs/DETECTORS.md`](docs/DETECTORS.md).
 
 The "no news is good news" pattern is uniform across detectors: a clean device
 emits a report with empty `findings[]` arrays everywhere and `summary.total_findings: 0`.
@@ -612,7 +622,7 @@ from a backend) across releases that share the same `schema_version`:
 `details` is **opaque diagnostic data**. Useful for forensics. Its keys may change
 between releases without a `schema_version` bump — don't key on them server-side.
 
-A wire-format-breaking change bumps `schema_version`. The current version is `1`.
+A wire-format-breaking change bumps `schema_version`. The current version is `2`.
 
 ### `status` vs `findings` — read this once
 
@@ -631,7 +641,7 @@ So a rooted device looks like this (truncated):
 
 ```json
 {
-  "id": "F17.root_indicators",
+  "id": "runtime.root",
   "status": "ok",
   "findings": [
     { "kind": "root_manager_app_installed", "severity": "high", ... }
@@ -639,8 +649,8 @@ So a rooted device looks like this (truncated):
 }
 ```
 
-`status: "ok"` means F17 ran successfully. The `findings` entry means it found a
-root manager app installed. Both facts are independently true.
+`status: "ok"` means `runtime.root` ran successfully. The `findings` entry
+means it found a root manager app installed. Both facts are independently true.
 
 **Why split it?** A backend has to distinguish three different "no findings"
 cases that look identical if you collapse them: clean device (`status=ok,
@@ -654,235 +664,75 @@ The roll-up that *does* answer "did anything trip?" lives in `summary`:
 "summary": {
   "total_findings": 3,
   "findings_by_severity": { "low": 0, "medium": 1, "high": 2, "critical": 0 },
-  "detectors_with_findings": ["F14.key_attestation", "F15.bootloader_integrity", "F17.root_indicators"]
+  "detectors_with_findings": ["attestation.key", "integrity.bootloader", "runtime.root"]
 }
 ```
 
 `detectors_with_findings` is the list to drive a "device looks tampered"
 decision off — not `status`.
 
-## Detector deep dives
+## Detector reference
 
-### Hardware key attestation (F14) and `app.attestation`
+The full per-detector reference — purpose, threat model, finding
+kinds, sample tripped JSON, costs, caveats — lives in
+[**`docs/DETECTORS.md`**](docs/DETECTORS.md). One section per
+detector, in the order they appear in the report:
 
-`F14.key_attestation` is the only detector that talks to the device's TEE
-/ StrongBox directly. It requests an attested EC keypair and parses the
-`KeyDescription` extension Google's KeyMint signs into the leaf cert
-(`OID 1.3.6.1.4.1.11129.2.1.17`).
+- [`integrity.apk`](docs/DETECTORS.md#integrityapk) — APK bytes
+  vs. the build-time fingerprint baked by the Gradle plugin.
+- [`integrity.bootloader`](docs/DETECTORS.md#integritybootloader)
+  — cross-checks `attestation.key`'s chain to surface TEE
+  spoofing / cached chains.
+- [`integrity.art`](docs/DETECTORS.md#integrityart) — in-process
+  ART tampering across five orthogonal vectors. The 5-vector deep
+  dive (Vector A entry-point rewrites / Vector C JNIEnv table
+  hijacks / Vector D inline trampolines / Vector E
+  `entry_point_from_jni_` overwrites / Vector F `ACC_NATIVE`
+  flips) and the canonical Frida-attach signature live here.
+- [`attestation.key`](docs/DETECTORS.md#attestationkey) — TEE /
+  StrongBox attestation: Verified Boot, bootloader lock, OS patch
+  level. Always-shipped `app.attestation` evidence + advisory
+  verdict.
+- [`runtime.environment`](docs/DETECTORS.md#runtimeenvironment) —
+  debugger / hooker libs / RWX trampoline pages /
+  `ro.debuggable` mismatch (the Zygisk fingerprint).
+- [`runtime.root`](docs/DETECTORS.md#runtimeroot) — `su` binary,
+  Magisk artifacts, `test-keys`, root-manager apps. Includes the
+  `QUERY_ALL_PACKAGES` permission notice.
+- [`runtime.emulator`](docs/DETECTORS.md#runtimeemulator) —
+  CPU-instruction-level signals (arm64 MRS / x86\_64 CPUID
+  hypervisor bit).
+- [`runtime.cloner`](docs/DETECTORS.md#runtimecloner) — foreign
+  APK mappings, mount-namespace inconsistencies, UID mismatches.
 
-Its output lives in **two places**, on purpose:
+The two cross-cutting facts worth keeping in mind here, with
+fuller treatment in `docs/DETECTORS.md`:
 
-- **`app.attestation`** (top of the report) — the **always-shipped
-  evidence + advisory verdict**. Present on every report (when the
-  device supports hardware attestation), even on perfectly clean
-  devices. The JSON ships a compact actionable subset: a SHA-256
-  correlation key for the chain (`chain_sha256`), the security level
-  the chain came back at (`attestation_security_level` /
-  `keymaster_security_level` — `StrongBox` / `TrustedEnvironment` /
-  `Software` — plus a derived `software_backed` boolean that's `true`
-  iff *either* level is `Software`, useful for one-key cohort filters
-  on backends that don't want to OR two strings), Verified Boot state,
-  `device_locked`, OS patch level, attested package + signer, and the
-  Play-Integrity-shaped advisory (`verdict_device_recognition` /
-  `verdict_app_recognition` / `verdict_reason`). A backend that needs
-  an authoritative verdict
-  MUST re-verify the **chain bytes** against Google's
-  hardware-attestation root and the
-  [attestation revocation list](https://android.googleapis.com/attestation/status)
-  server-side. The library does not do this on-device by design — an
-  attacker who controls userland could patch the on-device verifier
-  out. `verdict_authoritative` is always `false`: the local verdict is
-  for in-app UX gating; trust the re-verified chain for security
-  decisions.
+1.  **`attestation.key`'s chain is the single authoritative
+    signal in the whole report**, but only after a backend
+    re-verifies it server-side against Google's pinned
+    attestation root + revocation list. Everything else — every
+    `runtime.*` finding, every `integrity.*` finding, even the
+    library's own `verdict_*` strings — is advisory. The chain
+    bytes ship on the typed `AttestationReport` object
+    (`report.app.attestation.chainB64`) for backend uploaders;
+    the JSON ships only the compact actionable subset.
+2.  **`integrity.art` deliberately does not memoize across
+    `collect()` calls.** A cached per-process verdict would let
+    any Frida / LSPosed / Zygisk attach that landed *after* the
+    first collect — the common runtime-injection case — hide
+    forever behind the frozen pre-attach result. Every other
+    detector caches what it sensibly can for the process
+    lifetime; `integrity.art` is the explicit non-cached
+    counterpart. See the [Performance, threading,
+    caching](#performance-threading-caching) table below.
 
-  > **Where are the chain bytes?** To keep the JSON wire format
-  > compact and human-readable for open-source consumers, the raw
-  > base64 chain (~5KB) and a handful of diagnostic fields
-  > (`attestation_challenge_b64`, `attested_application_id_sha256`,
-  > `verified_boot_key_sha256`, `keymaster_version`, `os_version`,
-  > `vendor_patch_level`, `boot_patch_level`) are **not** in the JSON
-  > by default. They live on the typed `AttestationReport` Kotlin
-  > object — backend uploaders that need to ship the bytes for
-  > authoritative re-verification read them off the typed report
-  > directly:
-  >
-  > ```kotlin
-  > val report = DeviceIntelligence.collect(context)
-  > val chainB64: String? = report.app.attestation?.chainB64
-  > val chainSha: String? = report.app.attestation?.chainSha256
-  > // Upload chainB64 alongside the JSON; chainSha256 lets the backend
-  > // dedup and correlate across reports without parsing the chain.
-  > ```
-
-- **F14 findings** (`tee_integrity_verdict`) — emitted **only when the
-  local verdict is degraded** (severity > LOW). On a clean device F14
-  contributes zero findings, matching the rest of the library's
-  "no news is good news" pattern. The verdict's wire spellings mirror
-  Play Integrity (`MEETS_BASIC_INTEGRITY`, `MEETS_DEVICE_INTEGRITY`,
-  `MEETS_STRONG_INTEGRITY`) so backends already wired up to Play
-  Integrity can consume them without a remapping table.
-
-Hardware key attestation requires Android 9 (API 28), which is
-also the library's `minSdk` floor — so on any device that runs the
-SDK at all, the surface is available. Where keygen still fails
-(rare; stripped AOSP, no-TEE emulator), `app.attestation` is
-non-null with `unavailable_reason` populated and the parsed fields
-all `null` — backends always see the same shape. Cold-start cost
-(~80–500ms TEE / ~0.5–4s StrongBox) is absorbed by the
-manifest-merged init provider on a background thread, so user-facing
-`collect()` reads the cached chain in single-digit ms.
-
-### Bootloader integrity (F15)
-
-F14 reports what the TEE *claims*. On a device with
-[Tricky Store](https://github.com/5ec1cff/TrickyStore) / LSPosed installed,
-the AndroidKeyStore surface itself is hooked: the attacker captures a clean
-attestation chain on a known-good boot session and replays it on every
-subsequent keygen call. F14 sees a well-formed chain, parses it, and
-dutifully reports `device_locked = true` even though `getprop ro.boot.flash.locked`
-shows the bootloader as unlocked.
-
-`F15.bootloader_integrity` raises the cost of that bypass with orthogonal
-cross-checks. It runs a **second** attestation under a fresh alias + nonce
-and compares it to F14's. On a clean device it emits **zero findings** and
-costs one extra TEE keygen (~80–500ms TEE / ~0.5–4s StrongBox), absorbed by
-the same background pre-warm that runs F14. On a device where any of the
-checks trip, it emits one finding per tripped check with a stable
-`subreason` code in `details`:
-
-| Finding kind                            | Subreason                            | Severity | Triggered when                                                                                                                              |
-| --------------------------------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bootloader_integrity_anomaly`          | `chain_empty`                        | high     | F14's chain has no certs                                                                                                                    |
-| `bootloader_integrity_anomaly`          | `chain_too_short`                    | high     | F14's chain has fewer than 2 certs (real attestation chains have leaf + ≥1 issuer)                                                          |
-| `bootloader_integrity_anomaly`          | `chain_signature_invalid`            | high     | A cert in the chain doesn't verify against its issuer's public key                                                                          |
-| `bootloader_integrity_anomaly`          | `chain_root_not_self_signed`         | high     | The root cert doesn't self-sign                                                                                                             |
-| `bootloader_integrity_anomaly`          | `validity_child_predates_parent`     | high     | An intermediate cert's `notBefore` precedes its issuer's (leaf is skipped — KeyMint uses fixed `1970..2048` defaults)                       |
-| `bootloader_integrity_anomaly`          | `validity_child_outlasts_parent`     | high     | An intermediate cert's `notAfter` outlasts its issuer's                                                                                     |
-| `bootloader_integrity_anomaly`          | `challenge_not_echoed`               | high     | The leaf doesn't embed the nonce we asked the TEE to attest                                                                                 |
-| `bootloader_integrity_anomaly`          | `freshness_pubkey_identical`         | high     | Two consecutive keygens (under different aliases) produced leaf certs with the same SubjectPublicKey                                        |
-| `bootloader_integrity_anomaly`          | `freshness_challenge_identical`      | high     | Two consecutive keygens (with different nonces) produced leaf certs that echo the same attestation challenge                                |
-| `bootloader_integrity_anomaly`          | `leaf_pubkey_mismatch`               | high     | The leaf cert's SubjectPublicKey doesn't match the public key the AndroidKeyStore actually holds for our alias                              |
-| `bootloader_integrity_anomaly`          | `leaf_pubkey_unreadable`             | medium   | Defensive: leaf's pubkey couldn't be decoded for comparison                                                                                 |
-| `bootloader_strongbox_unavailable`      | `strongbox_unexpectedly_unavailable` | medium   | Device advertises StrongBox capability — either via `PackageManager.FEATURE_STRONGBOX_KEYSTORE` or by being on the Pixel-3+ denylist — but the attestation came back at TEE / SOFTWARE security level |
-
-> **Why no leaf-validity / leaf-serial / leaf-age checks?** Real Android
-> KeyMint sets the attestation leaf cert's `notBefore = 1970-01-01`,
-> `notAfter = 2048-01-01`, and `serialNumber = 1` for *every* attested
-> key — these fields carry no per-keygen meaning, so checks against them
-> would false-positive on every clean device. F15 instead derives
-> freshness signals from data the TEE *does* sign meaningfully: the
-> embedded attestation challenge and the leaf SubjectPublicKey.
-
-A tripped F15 finding looks like this in the JSON output:
-
-```json
-{
-  "id": "F15.bootloader_integrity",
-  "status": "ok",
-  "duration_ms": 312,
-  "findings": [
-    {
-      "kind": "bootloader_strongbox_unavailable",
-      "severity": "medium",
-      "subject": "com.example.app",
-      "message": "Device advertises StrongBox capability (platform=true, pixel_denylist=true) but TEE attestation came back at security level TrustedEnvironment — StrongBox surface may have been bypassed",
-      "details": {
-        "subreason": "strongbox_unexpectedly_unavailable",
-        "verdict_authoritative": "false",
-        "device_model": "Pixel 6 Pro",
-        "attestation_security_level": "TrustedEnvironment",
-        "strongbox_platform_available": "true",
-        "strongbox_pixel_denylist_match": "true"
-      }
-    }
-  ]
-}
-```
-
-Same authority caveat as F14: `verdict_authoritative` is always `"false"`.
-F15 raises the cost of a bypass and surfaces high-signal red flags, but
-the authoritative verdict still comes from a backend that re-verifies F14's
-chain (`report.app.attestation.chainB64`, accessed off the typed report —
-not in the JSON wire format by default) against Google's pinned root +
-revocation list and correlates signals across the fleet over time.
-
-Returns `status: "inconclusive"` with reason `f14_unavailable` if
-F14 hasn't cached a result yet, or with the same failure-reason
-vocabulary as F14 (`attestation_not_supported`, `keystore_error`,
-`keystore_unavailable`) if F15's own keygen fails.
-
-### Runtime environment (F16)
-
-`F16.runtime_environment` watches for tampering signals that show up
-inside our own process the moment something attaches to or injects
-into us. Four orthogonal channels, all powered by a single
-`/proc/self/maps` read and a single `/proc/self/status` read; result
-is cached for the process lifetime:
-
-| Finding kind                 | Severity | Triggered when                                                                                                                              |
-| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `debugger_attached`          | high     | `Debug.isDebuggerConnected()` is true OR `/proc/self/status` reports a non-zero `TracerPid` (gdb / lldb / `frida-trace` / strace attached)  |
-| `ro_debuggable_mismatch`     | high     | The app's own `FLAG_DEBUGGABLE` disagrees with the system's `ro.debuggable` property (classic repackaging tell)                             |
-| `hook_framework_present`     | high     | A library matching a known hooking-framework signature is mapped into the process (Frida, Substrate, Xposed, LSPosed, Riru, Zygisk, Taichi) |
-| `rwx_memory_mapping`         | high     | A read-write-executable page mapping exists in the process (the Android loader never produces `rwxp` / `rwxs` regions; JIT trampoline tell) |
-
-Hook-framework matches emit one finding per distinct framework
-(canonical name in `details.framework`), so backends can triage
-each one independently. RWX mappings emit a single finding with up
-to 8 region descriptors in `details.region_*`; if there are more,
-the last entry is a `... +N more` overflow marker.
-
-Costs ~2-5 ms total on a clean device (one `/proc` read, one short
-status parse, plus the maps scan). Always returns `status: "ok"` —
-the only failure mode is the native bridge being unavailable, in
-which case the maps-dependent checks silently degrade to "no signal"
-rather than reporting the detector as inconclusive.
-
-### Root indicators (F17)
-
-`F17.root_indicators` covers the filesystem-, shell-, and
-installed-app-level root signals that pair with F14's TEE-attested
-`verified_boot_state`. None of these are individually authoritative
-— every one of them can be hidden by a sufficiently determined root
-tool (Magisk's DenyList, Zygisk modules, etc.) — so this detector
-is best thought of as the "low-hanging fruit" layer. A device that
-trips F17 is a device whose owner did not even bother to hide the
-root.
-
-| Finding kind                 | Severity | Triggered when                                                                                                                              |
-| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `su_binary_present`          | high     | An `su` binary exists at one of the canonical hardcoded paths or in any directory on `$PATH` (one finding per matching path)                |
-| `magisk_artifact_present`    | high     | A Magisk-shipped file/dir exists OR `/proc/mounts` has a `magisk`-named entry (one finding per matching artifact, descriptor in `details.artifact`) |
-| `test_keys_build`            | medium   | `ro.build.tags` reports `test-keys` (custom ROM, eng build, or hand-edited build.prop)                                                      |
-| `which_su_succeeded`         | high     | `Runtime.exec("which su")` resolved to a binary not on the hardcoded path list (only run when no other `su` hits, ~30-80ms cost)            |
-| `root_manager_app_installed` | medium   | A known root-manager / Xposed-manager app is installed (one finding per matched package, name in `details.package_name`)                    |
-
-> **Permission notice — `QUERY_ALL_PACKAGES`.** Package visibility
-> for the root-manager check is provided by
-> `android.permission.QUERY_ALL_PACKAGES`, declared in the library
-> manifest. This permission is merged into every consuming app and
-> is treated as a [restricted permission by Google Play](https://support.google.com/googleplay/android-developer/answer/10158779);
-> consumers shipping to Play must justify it under one of the
-> permitted use cases ("anti-malware / device security" is the
-> relevant category for DeviceIntelligence-driven integrity
-> telemetry). Consumers who cannot justify it can strip it via
-> manifest-merger:
->
-> ```xml
-> <uses-permission
->     android:name="android.permission.QUERY_ALL_PACKAGES"
->     tools:node="remove" />
-> ```
->
-> F17 then silently degrades to channels 1-4 (`su` binary,
-> Magisk artifacts, `test-keys`, `which su`) — only the
-> `root_manager_app_installed` channel is affected.
-
-Same defense-in-depth principle as the rest of the library: if F17
-trips, pair it with the TEE-attested `verified_boot_state` from
-`app.attestation` for an authoritative cross-check. If F17 says
-"clean" but `verified_boot_state` is `Unverified`, the device is
-likely running a root tool that hides from filesystem-level checks.
+For developers: the [`tools/red-team/`](tools/red-team/README.md)
+harness ships six Frida scripts (one per `integrity.art` vector
+plus the end-to-end Frida-Java hook test) that intentionally
+trigger each finding, plus a README documenting the expected
+`findings` for each script. Use it after a code change to verify
+`integrity.art` still fires.
 
 ## Permissions
 
@@ -892,7 +742,7 @@ consumers can decide per-app.
 
 | Permission                       | Where it lives                                | Required by                                              | Opt-in mechanism                                  |
 |----------------------------------|-----------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
-| `QUERY_ALL_PACKAGES`             | Library manifest (always merged in)           | F17 `root_manager_app_installed` channel                 | Strip via `tools:node="remove"`                   |
+| `QUERY_ALL_PACKAGES`             | Library manifest (always merged in)           | `runtime.root` `root_manager_app_installed` channel      | Strip via `tools:node="remove"`                   |
 | `ACCESS_NETWORK_STATE`           | Generated manifest fragment (opt-in)          | `DeviceContext.vpnActive`                                | `enableVpnDetection.set(true)` in Gradle          |
 | `USE_BIOMETRIC`                  | Generated manifest fragment (opt-in)          | `DeviceContext.biometricsEnrolled`                       | `enableBiometricsDetection.set(true)` in Gradle   |
 
@@ -902,17 +752,17 @@ When you opt out of a permission, the affected field reports `null` rather than
 `QUERY_ALL_PACKAGES` is the one to think hardest about: it's a
 [Google-Play-restricted permission](https://support.google.com/googleplay/android-developer/answer/10158779)
 and your Play Console submission needs to justify it under "anti-malware / device
-security". If you can't or don't want to, strip it as shown above and F17 silently
-degrades; the rest of the library is unaffected.
+security". If you can't or don't want to, strip it as shown above and
+`runtime.root` silently degrades; the rest of the library is unaffected.
 
 ## Performance, threading, caching
 
 | Concern              | Behavior                                                                                                                                                                                                                                               |
 |----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Cold-start cost      | A manifest-merged `ContentProvider` triggers `System.loadLibrary("dicore")` and a background pre-warm pass before `Application.onCreate` runs. The first user-visible `collect()` sees cached state and returns in single-digit ms.                    |
-| Hot-path `collect()` | ~tens of ms on a warm process (one APK ZIP walk dominates F10; F14/F15 hit cached attestation results; F16/F17 hit cached `/proc` parses).                                                                                                            |
+| Hot-path `collect()` | ~tens of ms on a warm process (one APK ZIP walk dominates `integrity.apk`; `attestation.key` / `integrity.bootloader` hit cached attestation results; `runtime.environment` / `runtime.root` hit cached `/proc` parses).                                                                                                            |
 | Threading            | `collect()` is safe to call from any thread. For production, call it off the main thread anyway — the *first* call after process start may not be fully warm yet.                                                                                      |
-| Caching              | Each detector caches what it sensibly can for the process lifetime (attestation chain, `/proc/self/maps` parse, `/proc/mounts` parse, root-manager lookup). The library deliberately does NOT cache the full report — the consumer is the right owner of "how often". |
+| Caching              | Most detectors cache what they sensibly can for the process lifetime (attestation chain, `/proc/self/maps` parse, `/proc/mounts` parse, root-manager lookup). **`integrity.art` is the explicit exception**: it re-evaluates on every `collect()` because a cached verdict would let post-launch Frida / LSPosed attach hide behind the frozen pre-attach result. The library deliberately does NOT cache the full report either — the consumer is the right owner of "how often". |
 | Native lib size      | `libdicore.so` is built per ABI (`arm64-v8a` + `x86_64` only), with `-fvisibility=hidden`, `-ffunction-sections`, `--gc-sections`. Currently ~230-250 KB stripped per ABI for the release variant; debug builds are larger because they retain the unwind tables.                                                                                |
 
 ## The sample app
@@ -929,9 +779,16 @@ two files: `MainActivity.kt` and `Ui.kt`.
 adb shell am start -n io.ssemaj.sample/.MainActivity
 ```
 
-The `Re-collect` button re-runs every detector and re-renders. The `Copy JSON`
-button puts the canonical JSON on the clipboard — exactly what your backend
-would receive, byte for byte.
+The `Re-collect` button re-runs every detector and re-renders. The
+`Auto · off` toggle starts a 2-second auto-recollect loop — useful
+for watching `integrity.art` catch a Frida / LSPosed attach in
+real time, since `integrity.art` deliberately re-evaluates on
+every collect (see [`integrity.art`](docs/DETECTORS.md#integrityart)
+on why caching this detector's verdict would defeat its purpose).
+The auto loop is lifecycle-aware: it pauses when the activity
+goes to the background and resumes on return. The `Copy JSON`
+button puts the canonical JSON on the clipboard — exactly what
+your backend would receive, byte for byte.
 
 ## Building from source
 
@@ -999,21 +856,46 @@ not yet there:
   [issues](https://github.com/iamjosephmj/DeviceIntelligence/issues).
 - **Backend reference verifier** — sample server-side code that validates the
   attestation `chainB64` against Google's hardware root + revocation list, and
-  shows how to correlate F14/F15/F16/F17 findings into a single decision.
-- **Deeper hooking-detection signals (in progress)** — F16 today is
-  *name-based*: it scans `/proc/self/maps` for known hooking-framework
-  library signatures (Frida / Substrate / Xposed / LSPosed / Riru / Zygisk
-  / Taichi) and reports `hook_framework_present`. That catches the loaded
-  library, but not the *act* of hooking itself, which means a renamed or
-  in-memory-only agent currently slips through. We're building the next
-  layer: **integrity-style hook detection** — PLT / GOT entry inspection
-  for resolved libc / libart symbols, inline-trampoline detection at the
-  prologue of hot ART / JNI entry points, JNI function-table tampering
-  checks (`JNIEnv->GetMethodID` and friends rewritten by an attacker),
-  and `dlopen` / `linker` audit-trail diffing. Targeted as additional
-  finding kinds inside the existing `F16.runtime_environment` detector
-  so backends don't have to track a new id; design notes and progress
-  will land in a tracking issue once the API surface is firm.
+  shows how to correlate `attestation.key` / `integrity.bootloader` /
+  `runtime.environment` / `runtime.root` findings into a single decision.
+- **Deeper hooking-detection signals — shipped as `integrity.art`.**
+  `runtime.environment` today is *name-based*: it scans
+  `/proc/self/maps` for known hooking-framework library signatures
+  (Frida / Substrate / Xposed / LSPosed / Riru / Zygisk / Taichi)
+  and reports `hook_framework_present`. That catches the loaded
+  library, but not the *act* of hooking itself, which means a
+  renamed or in-memory-only agent slips through. The follow-up
+  layer — **integrity-style hook detection** — landed as
+  [`integrity.art`](docs/DETECTORS.md#integrityart): five
+  orthogonal vectors covering ArtMethod entry-point rewrites
+  (Xposed family + Frida attach detection), JNIEnv function-table
+  tampering, inline trampolines on ART hot-paths (Frida
+  `Interceptor.attach`), `entry_point_from_jni_` overwrites
+  (Pine / Dobby / Frida-Java native-method bridges), and
+  `ACC_NATIVE` bit flips (Frida-Java
+  `cls.method.implementation = ...` for non-native targets).
+  `integrity.art` lives as its own detector so consumers can gate
+  it independently; unlike the other detectors it deliberately
+  does not memoize across `collect()` calls so runtime injection
+  is detectable. Tier 2 follow-ups staying on the roadmap: **PLT /
+  GOT entry inspection** for resolved libc symbols (catches
+  pure-native libc hooks), and `dlopen` / `linker` audit-trail
+  diffing (catches injected libraries that bypass every other
+  channel).
+- **Schema v2 rename — shipped.** Detector IDs have moved from
+  the sparse F-numbered scheme (`F10.apk_integrity`,
+  `F12.emulator_probe`, …, with a gap at F11) to a
+  category-prefixed scheme (`integrity.apk`, `runtime.emulator`,
+  …) that scales as new detectors land without renumbering, and
+  groups detectors by what question they answer
+  (`integrity.*` / `attestation.*` / `runtime.*`). The
+  `schema_version` is now `2`. This is a breaking change for any
+  backend that routes on `detector.id` — the bumped
+  `schema_version` is the migration signal; there is no
+  compat shim. The mapping is one-to-one (every old `F<n>.<name>`
+  has a new ID), so route tables can be updated mechanically.
+  See the [Detector reference](#detector-reference) for the new
+  IDs.
 - **More detector suggestions welcome** — see [Contributing](#contributing).
 
 The public Kotlin surface (`DeviceIntelligence.collect`, `DeviceIntelligence.collectJson`,
@@ -1066,14 +948,15 @@ research. Specific things we lean on or learn from:
 - [Google's Android Key Attestation sample](https://github.com/google/android-key-attestation)
   — reference for parsing the `KeyDescription` extension.
 - [AOSP's Verified Boot documentation](https://source.android.com/docs/security/features/verifiedboot)
-  — semantics of `verified_boot_state` and the bootloader-lock signals F14
-  surfaces.
+  — semantics of `verified_boot_state` and the bootloader-lock signals
+  `attestation.key` surfaces.
 - [Tricky Store](https://github.com/5ec1cff/TrickyStore) and the broader LSPosed
-  / Magisk research community — the bypass model F15 is built around.
+  / Magisk research community — the bypass model `integrity.bootloader` is built around.
 - [RootBeer](https://github.com/scottyab/rootbeer) and [SafetyNetSamples](https://github.com/googlesamples/android-play-safetynet)
-  — prior art for the F17 signal vocabulary.
+  — prior art for the `runtime.root` signal vocabulary.
 - [Frida](https://frida.re/) and [LSPosed](https://github.com/LSPosed/LSPosed)
-  themselves — the canonical hooking-framework signatures F16 watches for.
+  themselves — the canonical hooking-framework signatures
+  `runtime.environment` watches for.
 
 If your project is a direct inspiration and isn't credited here, please open a
 PR — happy to add it.

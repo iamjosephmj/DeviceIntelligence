@@ -7,7 +7,7 @@ import java.security.cert.X509Certificate
  * X.509 chain plus its parsed [KeyDescription][ParsedKeyDescription]
  * extension.
  *
- * Used by [BootloaderIntegrityDetector] (F15) to surface specific,
+ * Used by [BootloaderIntegrityDetector] (`integrity.bootloader`) to surface specific,
  * stable subreason codes when the chain looks tampered — e.g. cached
  * (Tricky Store style replay), forged structurally, or internally
  * inconsistent with the device state the TEE itself claims.
@@ -22,8 +22,8 @@ import java.security.cert.X509Certificate
  *    something it can't actually verify
  *
  * The stable subreason vocabulary is the wire contract that backends
- * key on, so every code added here is documented in the README under
- * F15.
+ * key on, so every code added here is documented under
+ * `integrity.bootloader` in `docs/DETECTORS.md`.
  *
  * **A note on KeyMint leaf-cert quirks.** Real Android KeyMint
  * implementations populate the attestation leaf cert with intentionally

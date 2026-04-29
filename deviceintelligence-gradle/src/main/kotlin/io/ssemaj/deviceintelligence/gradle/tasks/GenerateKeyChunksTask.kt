@@ -38,7 +38,7 @@ import java.security.SecureRandom
  * Threat model framing: the XOR-with-codegen-chunks scheme is a *cost
  * amplifier*, not encryption. It defeats `unzip + grep` and naive blob
  * substitution. It does not defeat a determined reverse engineer with
- * IDA/Frida; runtime hooking detection is the job of the F16
+ * IDA/Frida; runtime hooking detection is the job of the runtime.environment
  * `runtime_environment` detector.
  */
 abstract class GenerateKeyChunksTask : DefaultTask() {

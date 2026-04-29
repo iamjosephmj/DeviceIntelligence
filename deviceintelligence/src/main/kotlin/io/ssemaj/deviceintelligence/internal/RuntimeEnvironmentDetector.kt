@@ -10,7 +10,7 @@ import io.ssemaj.deviceintelligence.Severity
 import java.io.File
 
 /**
- * F16 — In-process runtime-environment detector.
+ * `runtime.environment` — In-process runtime-environment detector.
  *
  * Surfaces tampering signals that show up *inside our own process*
  * the moment something attaches to or injects into us:
@@ -46,7 +46,7 @@ internal object RuntimeEnvironmentDetector : Detector {
 
     private const val TAG = "DeviceIntelligence.RuntimeEnv"
 
-    override val id: String = "F16.runtime_environment"
+    override val id: String = "runtime.environment"
 
     private const val KIND_DEBUGGER = "debugger_attached"
     private const val KIND_DEBUGGABLE_MISMATCH = "ro_debuggable_mismatch"
@@ -64,7 +64,7 @@ internal object RuntimeEnvironmentDetector : Detector {
         val findings = synchronized(lock) {
             cached ?: doEvaluate(ctx).also { cached = it }
         }
-        Log.i(TAG, "F16 ran: ${findings.size} finding(s)")
+        Log.i(TAG, "ran: ${findings.size} finding(s)")
         return ok(id, findings, dur())
     }
 
@@ -78,7 +78,7 @@ internal object RuntimeEnvironmentDetector : Detector {
         // Single maps read shared by both the hook and RWX checks.
         // If the native bridge isn't ready, we silently skip both;
         // refusing to read /proc/self/maps from Kotlin keeps this
-        // detector consistent with F12/F13 (Kotlin never touches
+        // detector consistent with runtime.emulator / runtime.cloner (Kotlin never touches
         // procfs in this codebase).
         if (ctx.nativeReady) {
             val mapsContent = runCatching { NativeBridge.procSelfMaps() }
@@ -210,11 +210,27 @@ internal object RuntimeEnvironmentDetector : Detector {
      * one such region is already a hard signal; the count is in
      * `details.region_count` and the first few descriptors are in
      * `details.region_*` for forensics.
+     *
+     * On post-API-28 Android the dynamic loader never produces an
+     * `rwxp`/`rwxs` mapping, ART's JIT code cache uses dual-mapping
+     * (an RX view and a RW view of the same physical pages, never
+     * RWX), and ordinary native libraries split into discrete
+     * `r-xp` / `rw-p` / `r--p` segments. The remaining producers
+     * are almost exclusively in-process hooking frameworks that
+     * allocate RWX trampoline pages: LSPosed (via YAHFA / SandHook),
+     * Pine, Whale, EdXposed, Riru hookers, Frida's agent, Cydia
+     * Substrate, and similar. We therefore classify the finding
+     * as a likely hook-trampoline signal in the human-readable
+     * message and add a `likely_cause` detail field to make the
+     * intent unambiguous to backend reviewers.
      */
     private fun rwxMappingFinding(pkg: String, scan: MapsParser.ScanResult): Finding? {
         if (scan.rwxRegions.isEmpty()) return null
         val details = LinkedHashMap<String, String>()
         details["region_count"] = scan.rwxRegions.size.toString()
+        details["likely_cause"] =
+            "in-process hooking framework trampoline page " +
+                "(LSPosed / YAHFA / SandHook / Pine / Whale / Frida agent / Substrate)"
         scan.rwxRegions.forEachIndexed { idx, region ->
             details["region_$idx"] = region
         }
@@ -222,7 +238,12 @@ internal object RuntimeEnvironmentDetector : Detector {
             kind = KIND_RWX_MAPPING,
             severity = Severity.HIGH,
             subject = pkg,
-            message = "Read-write-executable memory mapping(s) detected in process address space",
+            message =
+                "Read-write-executable memory mapping detected — strong signature of an " +
+                    "in-process hooking framework trampoline (LSPosed/YAHFA/SandHook/Frida " +
+                    "agent/Substrate). The Android loader and ART JIT do not produce RWX " +
+                    "pages on API 28+; this is the canonical fingerprint left behind when " +
+                    "a hooker allocates an RWX page to host its method-redirect trampolines.",
             details = details,
         )
     }

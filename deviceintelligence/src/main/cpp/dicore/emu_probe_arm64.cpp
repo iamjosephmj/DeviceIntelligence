@@ -42,7 +42,7 @@ namespace {
 
 // Process-global trampoline for the SIGILL handler. The probe is
 // single-threaded by construction (called once at SDK init from
-// the F10 detector), so a global is fine.
+// the runtime.emulator detector), so a global is fine.
 sigjmp_buf g_mrs_trap;
 volatile sig_atomic_t g_mrs_trapped = 0;
 
