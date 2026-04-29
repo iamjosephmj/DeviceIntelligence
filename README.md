@@ -21,10 +21,21 @@
 ## Install
 
 Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
-**One plugin, one version** — for a normal external app there is no second
-`implementation(...)` line: the plugin auto-applies the matching runtime AAR,
-locked to the same version. (Monorepos that also include `:deviceintelligence`
-as a project are a special case — see [Quickstart](#quickstart).)
+**One plugin, one version** — for a **normal external app** the plugin adds the
+matching runtime AAR to `implementation` for you, so you do **not** declare a
+second `implementation("…:deviceintelligence:…")` line.
+
+> **When you *do* add `implementation` yourself:** only if your root build also
+> `include`s the upstream `:deviceintelligence` project (monorepo or vendor fork).
+> In that case the plugin would otherwise wire `project(":deviceintelligence")`
+> for fast local iteration. To use the **published** JitPack AAR instead — same
+> as a real consumer — set `deviceintelligence { disableAutoRuntimeDependency.set(true) }`
+> **and** add  
+> `implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:<plugin version>")`  
+> (same version string as the plugin, e.g. `0.2.0`). This repository’s
+> [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts) uses
+> that pattern (`libs.deviceintelligence` in the version catalog). Full rationale:
+> [Quickstart → Add it to your own app](#add-it-to-your-own-app).
 
 **1. `settings.gradle.kts`** — declare the JitPack repo and map the plugin id to its JitPack-published module ([why](#quickstart)):
 
@@ -56,7 +67,8 @@ dependencyResolutionManagement {
 }
 ```
 
-**2. `app/build.gradle.kts`** — apply the plugin. That's it.
+**2. `app/build.gradle.kts`** — apply the plugin (version = JitPack tag, e.g.
+`0.2.0`). For a standalone app, **nothing else** — skip the monorepo note above.
 
 ```kotlin
 plugins {
