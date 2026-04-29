@@ -260,21 +260,20 @@ report is unaffected.
 † Requires consumer to opt in via the Gradle DSL — see [Permissions](#permissions).
 
 <details>
-<summary>Click to expand a representative report (clean Pixel 9 Pro + a tripped F13 finding for illustration)</summary>
+<summary>Click to expand the full unedited JSON from a clean Pixel 9 Pro running the sample app (zero findings, every device.* / app.* field shown, no fields trimmed)</summary>
 
 ```json
 {
   "schema_version": 1,
   "library_version": "0.1.0-dev",
-  "collected_at_epoch_ms": 1777338414219,
-  "collection_duration_ms": 277,
+  "collected_at_epoch_ms": 1777458331985,
+  "collection_duration_ms": 8325,
   "device": {
     "manufacturer": "Google",
     "model": "Pixel 9 Pro",
     "sdk_int": 36,
     "abi": "arm64-v8a",
     "fingerprint": "google/caiman/caiman:16/CP1A.260405.005/15001963:user/release-keys",
-
     "total_ram_mb": 15583,
     "cpu_cores": 8,
     "screen_density_dpi": 480,
@@ -283,9 +282,8 @@ report is unaffected.
     "has_telephony_hw": true,
     "sensor_count": 41,
     "boot_count": 66,
-    "vpn_active": false,
+    "vpn_active": true,
     "strongbox_available": true,
-
     "brand": "google",
     "board": "caiman",
     "hardware": "caiman",
@@ -298,71 +296,76 @@ report is unaffected.
     "build_type": "user",
     "build_tags": "release-keys",
     "build_time_epoch_ms": 1773135125000,
-    "supported_abis_all": ["arm64-v8a"],
+    "supported_abis_all": [
+      "arm64-v8a"
+    ],
     "soc_manufacturer": "Google",
     "soc_model": "Tensor G4",
-
     "gl_es_version": "3.2",
     "egl_implementation": "mali",
-
     "default_locale": "en-DE",
-    "system_locales": ["en-DE"],
+    "system_locales": [
+      "en-DE"
+    ],
     "timezone_id": "Europe/Berlin",
     "timezone_offset_minutes": 120,
     "auto_time_enabled": true,
     "auto_time_zone_enabled": true,
-
     "display_refresh_rate_hz": 120.0,
     "display_supported_refresh_rates_hz": [1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 24.0, 30.0, 40.0, 60.0, 120.0],
-    "display_hdr_types": ["HDR10", "HLG", "HDR10_PLUS"],
-
+    "display_hdr_types": [
+      "HDR10",
+      "HLG",
+      "HDR10_PLUS"
+    ],
     "device_secure": true,
     "biometrics_enrolled": true,
-    "adb_enabled": false,
-    "developer_options_enabled": false,
-
+    "adb_enabled": true,
+    "developer_options_enabled": true,
     "battery_present": true,
     "battery_technology": "Li-ion",
     "battery_health": "good",
     "battery_plug_type": "none",
     "thermal_status": "none",
-
-    "boot_epoch_ms": 1776535244178,
-
+    "boot_epoch_ms": 1776535244179,
     "play_services_availability": "success",
     "play_services_version_code": 261533035,
     "play_store_version_code": 85101930,
     "gms_signer_sha256": "5f2391277b1dbd489000467e4c2fa6af802430080457dce2f618992e9dfb5402"
   },
   "app": {
-    "package_name": "com.example.app",
-    "apk_path": "/data/app/.../base.apk",
-    "installer_package": "com.android.vending",
-    "signer_cert_sha256": ["a91535782adb..."],
-    "build_variant": "release",
-    "library_plugin_version": "0.1.0",
-    "first_install_epoch_ms": 1777380000000,
-    "last_update_epoch_ms": 1777407200000,
+    "package_name": "io.ssemaj.sample",
+    "apk_path": "/data/app/~~77zqhL9tfGLX8b93zVHdrw==/io.ssemaj.sample-mbA1r5aGHJGBbBQxRqe61A==/base.apk",
+    "installer_package": null,
+    "signer_cert_sha256": [
+      "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"
+    ],
+    "build_variant": "debug",
+    "library_plugin_version": "0.0.0-dev",
+    "first_install_epoch_ms": 1777338413049,
+    "last_update_epoch_ms": 1777457014092,
     "target_sdk_version": 36,
     "install_source": {
-      "installing_package": "com.android.vending",
+      "installing_package": null,
       "originating_package": null,
-      "initiating_package": "com.android.vending"
+      "initiating_package": "com.android.shell"
     },
     "signer_cert_validity": [
-      { "not_before_epoch_ms": 1700000000000, "not_after_epoch_ms": 2030000000000 }
+      { "not_before_epoch_ms": 1771714645000, "not_after_epoch_ms": 2717794645000 }
     ],
     "attestation": {
-      "chain_sha256": "f0e1...64-hex-chars...",
-      "chain_length": 3,
+      "chain_sha256": "dd12ccf2a857860f3712b45bcfebb7b917d4e0b9187cca0d0e50e9b119f5c9b8",
+      "chain_length": 5,
       "attestation_security_level": "StrongBox",
       "keymaster_security_level": "StrongBox",
       "software_backed": false,
       "verified_boot_state": "Verified",
       "device_locked": true,
       "os_patch_level": 202604,
-      "attested_package_name": "com.example.app",
-      "attested_signer_cert_sha256": ["a91535782adb..."],
+      "attested_package_name": "io.ssemaj.sample",
+      "attested_signer_cert_sha256": [
+        "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"
+      ],
       "verdict_device_recognition": "MEETS_BASIC_INTEGRITY,MEETS_DEVICE_INTEGRITY,MEETS_STRONG_INTEGRITY",
       "verdict_app_recognition": "RECOGNIZED",
       "verdict_reason": null,
@@ -372,29 +375,33 @@ report is unaffected.
   },
   "detectors": [
     {
-      "id": "F13.cloner_probe",
+      "id": "F10.apk_integrity",
       "status": "ok",
-      "duration_ms": 2,
+      "duration_ms": 841,
       "inconclusive_reason": null,
       "error_message": null,
-      "findings": [
-        {
-          "kind": "running_inside_app_cloner",
-          "severity": "critical",
-          "subject": "com.example.app",
-          "message": "Foreign APK mapping detected in process address space",
-          "details": {
-            "signal": "foreign_apk_in_maps",
-            "expected_package": "com.example.app",
-            "foreign_apk_path": "/data/app/.../com.waxmoon.ma.gp-.../base.apk"
-          }
-        }
-      ]
+      "findings": []
+    },
+    {
+      "id": "F12.emulator_probe",
+      "status": "ok",
+      "duration_ms": 0,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
+    },
+    {
+      "id": "F13.cloner_probe",
+      "status": "ok",
+      "duration_ms": 0,
+      "inconclusive_reason": null,
+      "error_message": null,
+      "findings": []
     },
     {
       "id": "F14.key_attestation",
       "status": "ok",
-      "duration_ms": 4,
+      "duration_ms": 495,
       "inconclusive_reason": null,
       "error_message": null,
       "findings": []
@@ -402,7 +409,7 @@ report is unaffected.
     {
       "id": "F15.bootloader_integrity",
       "status": "ok",
-      "duration_ms": 312,
+      "duration_ms": 243,
       "inconclusive_reason": null,
       "error_message": null,
       "findings": []
@@ -410,7 +417,7 @@ report is unaffected.
     {
       "id": "F16.runtime_environment",
       "status": "ok",
-      "duration_ms": 2,
+      "duration_ms": 5525,
       "inconclusive_reason": null,
       "error_message": null,
       "findings": []
@@ -418,24 +425,39 @@ report is unaffected.
     {
       "id": "F17.root_indicators",
       "status": "ok",
-      "duration_ms": 5,
+      "duration_ms": 458,
       "inconclusive_reason": null,
       "error_message": null,
       "findings": []
     }
   ],
   "summary": {
-    "total_findings": 1,
-    "findings_by_severity": { "low": 0, "medium": 0, "high": 0, "critical": 1 },
-    "findings_by_kind": {
-      "running_inside_app_cloner": 1
+    "total_findings": 0,
+    "findings_by_severity": {
+      "low": 0,
+      "medium": 0,
+      "high": 0,
+      "critical": 0
     },
-    "detectors_with_findings": ["F13.cloner_probe"],
+    "findings_by_kind": {},
+    "detectors_with_findings": [],
     "detectors_inconclusive": [],
     "detectors_errored": []
   }
 }
 ```
+
+> **About this dump.** Captured live from the project's dev Pixel 9 Pro
+> running `samples/minimal` (Android 16, Tensor G4, en-DE locale, on
+> WireGuard VPN, ADB + dev options enabled). It's the **full unedited
+> JSON** — every `device.*` field, every `app.*` field, every detector
+> stanza. The `adb_enabled: true` / `developer_options_enabled: true` /
+> `vpn_active: true` are real signals from a real dev environment;
+> they're not removed because the whole point of this section is to
+> show you exactly what the wire format looks like in the wild. For
+> what a *tripped* finding looks like, see the
+> [Bootloader integrity](#bootloader-integrity-f15) and
+> [Root indicators](#root-indicators-f17) sections below.
 
 </details>
 
