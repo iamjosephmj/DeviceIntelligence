@@ -63,7 +63,6 @@ your backend / data warehouse  →  dashboards, cohorts, fraud signals
 - [Permissions](#permissions)
 - [Performance, threading, caching](#performance-threading-caching)
 - [The sample app](#the-sample-app)
-- [Demo APKs (`dist/`)](#demo-apks-dist)
 - [Building from source](#building-from-source)
 - [Project layout](#project-layout)
 - [Roadmap](#roadmap)
@@ -800,22 +799,6 @@ adb shell am start -n io.ssemaj.sample/.MainActivity
 The `Re-collect` button re-runs every detector and re-renders. The `Copy JSON`
 button puts the canonical JSON on the clipboard — exactly what your backend
 would receive, byte for byte.
-
-## Demo APKs (`dist/`)
-
-The `dist/` folder ships pre-built APKs that demonstrate F10's tamper detection
-end-to-end without you having to set up a fake-keystore signing pipeline:
-
-| APK                                | Scenario                                                                                                                                |
-|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `minimal-debug-genuine.apk`        | The instrumented sample as the Gradle plugin produced it. F10 sees the runtime cert match the baked fingerprint → `findings: []`.       |
-| `minimal-debug-farm-resigned.apk`  | Same APK byte-for-byte, META-INF stripped, re-signed with `samples/minimal/keystore/fake.jks`. F10 emits `apk_signer_mismatch` + `critical`. |
-| `minimal-debug-asset-stripped.apk` | The fingerprint asset removed. F10 reports the missing baseline.                                                                        |
-| `minimal-debug-entry-modified.apk` | One APK entry's bytes mutated post-fingerprint. F10 emits a per-entry hash mismatch.                                                    |
-| `minimal-debug-payload-injected.apk` | A new entry added post-fingerprint. F10 emits `apk_unknown_entry`.                                                                    |
-
-See [`dist/README.md`](dist/README.md) for the regeneration recipe (it's a
-~10-line `apksigner` invocation).
 
 ## Building from source
 
