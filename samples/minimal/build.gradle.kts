@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("io.ssemaj.deviceintelligence") version "0.2.0"
+    alias(libs.plugins.deviceintelligence)
 }
 
 android {
@@ -73,6 +73,6 @@ deviceintelligence {
 // build for `./gradlew :deviceintelligence:*`; use `disableAutoRuntimeDependency`
 // here to avoid the plugin's in-tree :deviceintelligence substitution.
 dependencies {
-    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.2.0")
+    implementation(libs.deviceintelligence)
 }
 

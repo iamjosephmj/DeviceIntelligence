@@ -1,12 +1,15 @@
 [versions]
 agp = "8.13.2"
+deviceintelligence = "0.2.0"
 kotlin = "2.0.21"
 junit = "4.13.2"
 
 [libraries]
+deviceintelligence = { module = "com.github.iamjosephmj.DeviceIntelligence:deviceintelligence", version.ref = "deviceintelligence" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+deviceintelligence = { id = "io.ssemaj.deviceintelligence", version.ref = "deviceintelligence" }
