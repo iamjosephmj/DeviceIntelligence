@@ -37,6 +37,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             verbose.convention(false)
             detectors.convention(emptySet())
             enableVpnDetection.convention(false)
+            enableBiometricsDetection.convention(false)
         }
 
         project.plugins.withId("com.android.application") {
@@ -255,6 +256,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
 
             variantName.set(variant.name)
             needsAccessNetworkState.set(ext.enableVpnDetection)
+            needsUseBiometric.set(ext.enableBiometricsDetection)
             outputManifest.set(outFile)
         }
 
@@ -263,7 +265,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
         project.afterEvaluate {
             if (ext.verbose.getOrElse(false)) {
                 project.logger.lifecycle(
-                    "io.ssemaj: registered ${task.name} (vpnDetection=${ext.enableVpnDetection.getOrElse(false)})"
+                    "io.ssemaj: registered ${task.name} (vpnDetection=${ext.enableVpnDetection.getOrElse(false)}, biometricsDetection=${ext.enableBiometricsDetection.getOrElse(false)})"
                 )
             }
         }

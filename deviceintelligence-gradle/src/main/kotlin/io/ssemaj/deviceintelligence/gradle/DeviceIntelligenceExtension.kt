@@ -35,4 +35,27 @@ abstract class DeviceIntelligenceExtension {
      * prompt, no Play Store sensitive-permission review.
      */
     abstract val enableVpnDetection: Property<Boolean>
+
+    /**
+     * Opt in to biometrics-enrollment detection on the consumer's APK.
+     *
+     * When `true`, the plugin injects
+     * `<uses-permission android:name="android.permission.USE_BIOMETRIC" />`
+     * into the consumer's variant manifest. That's the gate
+     * `BiometricManager.canAuthenticate(BIOMETRIC_STRONG)` checks
+     * before answering — without it, the call throws SecurityException
+     * and `DeviceContext.biometricsEnrolled` reports `null` (graceful
+     * degradation).
+     *
+     * Default is `false` for parity with the rest of the opt-in
+     * surface — apps that don't use the biometric prompt and don't
+     * care about cohorting on enrollment status ship without the
+     * permission.
+     *
+     * `USE_BIOMETRIC` is `normal`-protection — no runtime prompt, no
+     * Play Store sensitive-permission review. Banking / wallet apps
+     * that already wire `BiometricPrompt` declare it anyway, in which
+     * case the merge is a no-op.
+     */
+    abstract val enableBiometricsDetection: Property<Boolean>
 }
