@@ -159,6 +159,9 @@ internal object TelemetryCollector {
             sensorCount = sensorCount,
             bootCount = bootCount,
             vpnActive = vpnActive,
+            strongboxAvailable = runCatching {
+                pm.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+            }.getOrNull(),
         )
     }
 

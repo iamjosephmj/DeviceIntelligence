@@ -108,6 +108,24 @@ public data class DeviceContext(
      * or the lookup fails.
      */
     public val vpnActive: Boolean? = null,
+    /**
+     * True iff the device advertises
+     * [PackageManager.FEATURE_STRONGBOX_KEYSTORE] — i.e. it has a
+     * discrete StrongBox / Titan-M-class secure element capable of
+     * backing keystore keys. Pure capability flag; independent of
+     * whether F14's attestation actually used StrongBox (that's
+     * [AttestationReport.attestationSecurityLevel]).
+     *
+     * Useful for cohorting: a backend can compare the `MEETS_STRONG_INTEGRITY`
+     * rate across `strongbox_available = true` vs `false` cohorts to
+     * detect StrongBox bypasses on devices that *should* attest at
+     * STRONG_BOX. F15 also consumes this flag to broaden its
+     * `bootloader_strongbox_unavailable` trigger beyond the
+     * hardcoded Pixel-3+ denylist.
+     *
+     * Null if the lookup failed (rare).
+     */
+    public val strongboxAvailable: Boolean? = null,
 )
 
 /**
@@ -269,6 +287,20 @@ public data class AttestationReport(
     public val attestationSecurityLevel: String?,
     /** Hardware tier of the attested key: same vocabulary as [attestationSecurityLevel]. */
     public val keymasterSecurityLevel: String?,
+    /**
+     * Convenience boolean derived from the two security-level fields
+     * above: `true` iff EITHER [attestationSecurityLevel] OR
+     * [keymasterSecurityLevel] is `"Software"`. A software-backed
+     * KeyMint implementation means there is no real TEE backing the
+     * keys at all — the device is either a stripped AOSP build, an
+     * emulator, or a soft-keymint shim and the attestation chain
+     * carries effectively zero hardware guarantees.
+     *
+     * Null when neither security level was readable (e.g. the
+     * attestation extension failed to parse). Non-software backings
+     * (TrustedEnvironment, StrongBox) report `false`.
+     */
+    public val softwareBacked: Boolean?,
     /** KeyMaster / KeyMint version (e.g. `41`, `100`, `200`, `300`). Diagnostic; not in default JSON. */
     public val keymasterVersion: Int?,
     /** Base64 of the per-keygen nonce the TEE echoed into the leaf. Diagnostic; not in default JSON. */

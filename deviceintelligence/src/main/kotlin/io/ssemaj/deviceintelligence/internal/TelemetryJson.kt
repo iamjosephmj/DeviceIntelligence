@@ -71,7 +71,8 @@ internal object TelemetryJson {
         kvBoolOrNull("has_telephony_hw", d.hasTelephonyHw, indent); append(",\n")
         kvIntOrNull("sensor_count", d.sensorCount, indent); append(",\n")
         kvIntOrNull("boot_count", d.bootCount, indent); append(",\n")
-        kvBoolOrNull("vpn_active", d.vpnActive, indent); append('\n')
+        kvBoolOrNull("vpn_active", d.vpnActive, indent); append(",\n")
+        kvBoolOrNull("strongbox_available", d.strongboxAvailable, indent); append('\n')
     }
 
     private fun StringBuilder.encodeApp(a: AppContext, indent: String) {
@@ -173,6 +174,7 @@ internal object TelemetryJson {
         kvInt("chain_length", att.chainLength, indent); append(",\n")
         kvStrOrNull("attestation_security_level", att.attestationSecurityLevel, indent); append(",\n")
         kvStrOrNull("keymaster_security_level", att.keymasterSecurityLevel, indent); append(",\n")
+        kvBoolOrNull("software_backed", att.softwareBacked, indent); append(",\n")
         kvStrOrNull("verified_boot_state", att.verifiedBootState, indent); append(",\n")
         kvBoolOrNull("device_locked", att.deviceLocked, indent); append(",\n")
         kvIntOrNull("os_patch_level", att.osPatchLevel, indent); append(",\n")

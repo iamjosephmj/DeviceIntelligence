@@ -414,6 +414,13 @@ class MainActivity : Activity() {
                     if (it) Ui.Tone.WARN else Ui.Tone.NEUTRAL),
             )
         }
+        device.strongboxAvailable?.let {
+            ui.addToBadgeRow(
+                badges,
+                ui.badge(this, if (it) "strongbox hw" else "no strongbox",
+                    if (it) Ui.Tone.OK else Ui.Tone.NEUTRAL),
+            )
+        }
         if (badges.childCount > 0) deviceCardBody.addView(badges)
     }
 
@@ -456,6 +463,14 @@ class MainActivity : Activity() {
                     else -> Ui.Tone.NEUTRAL
                 }
                 ui.addToBadgeRow(badges, ui.badge(this, "tee: $it", tone))
+            }
+            att.softwareBacked?.let { soft ->
+                if (soft) {
+                    ui.addToBadgeRow(
+                        badges,
+                        ui.badge(this, "software-backed keymint", Ui.Tone.WARN),
+                    )
+                }
             }
             att.verifiedBootState?.let {
                 val tone = when (it) {

@@ -444,6 +444,7 @@ internal object KeyAttestationDetector : Detector {
             chainLength = c.chainLength,
             attestationSecurityLevel = p?.attestationSecurityLevel?.wire,
             keymasterSecurityLevel = p?.keymasterSecurityLevel?.wire,
+            softwareBacked = deriveSoftwareBacked(p),
             keymasterVersion = p?.keymasterVersion,
             attestationChallengeB64 = p?.attestationChallenge?.let {
                 Base64.getEncoder().encodeToString(it)
@@ -466,12 +467,30 @@ internal object KeyAttestationDetector : Detector {
         )
     }
 
+    /**
+     * `true` iff either the attestation cert itself OR the attested
+     * key reports security level `SOFTWARE`. Either being software
+     * means the chain carries no real hardware guarantees, so we
+     * surface that conservatively as a single boolean. Returns
+     * `null` only when [parsed] is null OR both levels parsed as
+     * `UNKNOWN` — i.e. we genuinely couldn't read the field, vs.
+     * confirming a non-software backing.
+     */
+    private fun deriveSoftwareBacked(parsed: ParsedKeyDescription?): Boolean? {
+        if (parsed == null) return null
+        val a = parsed.attestationSecurityLevel
+        val k = parsed.keymasterSecurityLevel
+        if (a == SecurityLevel.UNKNOWN && k == SecurityLevel.UNKNOWN) return null
+        return a == SecurityLevel.SOFTWARE || k == SecurityLevel.SOFTWARE
+    }
+
     private fun emptyAttestationReport(reason: String): AttestationReport = AttestationReport(
         chainB64 = null,
         chainSha256 = null,
         chainLength = 0,
         attestationSecurityLevel = null,
         keymasterSecurityLevel = null,
+        softwareBacked = null,
         keymasterVersion = null,
         attestationChallengeB64 = null,
         verifiedBootState = null,

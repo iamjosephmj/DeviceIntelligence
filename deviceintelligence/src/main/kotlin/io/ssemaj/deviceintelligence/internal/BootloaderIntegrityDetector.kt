@@ -1,5 +1,7 @@
 package io.ssemaj.deviceintelligence.internal
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -47,12 +49,17 @@ import java.security.cert.X509Certificate
  *     intermediate validity windows must nest properly. Lazy
  *     forgers cut corners here. (The leaf's own validity window is
  *     deliberately ignored — see [ChainValidator] for why.)
- *  5. **StrongBox unexpectedly unavailable** — known StrongBox-
- *     equipped Pixels (3 and later) MUST attest with security level
- *     `STRONG_BOX`. If the attestation comes back as `TRUSTED_ENVIRONMENT`
- *     or `SOFTWARE` on such a device, the StrongBox surface was
- *     bypassed (attackers can't fake Titan M signatures, so they
- *     usually downgrade to TEE attestation only).
+ *  5. **StrongBox unexpectedly unavailable** — devices that should
+ *     expose a StrongBox-class secure element MUST attest with
+ *     security level `STRONG_BOX`. The detector triggers when EITHER
+ *     the platform self-reports `FEATURE_STRONGBOX_KEYSTORE`
+ *     (the canonical OEM-agnostic capability flag) OR the device
+ *     matches the hardcoded Pixel-3+ denylist (paranoid fallback for
+ *     when an attacker also hooks the PackageManager feature surface
+ *     to hide StrongBox), AND the actual attestation comes back as
+ *     `TRUSTED_ENVIRONMENT` or `SOFTWARE`. Attackers can't fake
+ *     Titan M signatures, so they usually downgrade to TEE attestation
+ *     only — making this a load-bearing tamper signal.
  *
  * Output policy (defense-in-depth):
  *  - On a clean device, F15 emits **zero findings**. The detector
@@ -133,7 +140,7 @@ internal object BootloaderIntegrityDetector : Detector {
         }
 
         val result = synchronized(lock) {
-            cached ?: computeOnce().also { cached = it }
+            cached ?: computeOnce(ctx.applicationContext).also { cached = it }
         }
 
         return when (result) {
@@ -147,7 +154,7 @@ internal object BootloaderIntegrityDetector : Detector {
      * outcomes against F14's cached attestation. Called at most once
      * per process; subsequent [evaluate] calls hit [cached].
      */
-    private fun computeOnce(): Cached {
+    private fun computeOnce(appContext: Context): Cached {
         val f14 = KeyAttestationDetector.lastResult()
             ?: return Cached.Failure(
                 "f14_unavailable",
@@ -225,11 +232,26 @@ internal object BootloaderIntegrityDetector : Detector {
         }
 
         // ---- StrongBox-required denylist ----
-        // Known StrongBox-equipped Pixels MUST attest with STRONG_BOX
-        // security level. Anything else means the StrongBox surface
-        // was bypassed (Tricky Store can't fake Titan M signatures
-        // and downgrades to TEE attestation only).
-        if (expectsStrongBox()) {
+        // Devices that should expose a StrongBox-class secure element
+        // MUST attest with security level STRONG_BOX. Anything else
+        // means the StrongBox surface was bypassed (Tricky Store
+        // can't fake Titan M / discrete-SE signatures and downgrades
+        // to TEE attestation only). Two complementary triggers:
+        //
+        //   1. Platform self-reports FEATURE_STRONGBOX_KEYSTORE — the
+        //      canonical OEM-agnostic capability flag (Android 9+).
+        //   2. The Pixel-3+ hardcoded denylist — a paranoid fallback
+        //      for the case where an attacker also hooked the
+        //      PackageManager feature surface to hide StrongBox.
+        //
+        // Either trigger is enough to fire the finding, but we prefer
+        // the platform flag in the diagnostics (it's what backends
+        // can pivot on — `device.strongbox_available`).
+        val platformStrongBox = runCatching {
+            appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+        }.getOrDefault(false)
+        val pixelStrongBox = expectsStrongBox()
+        if (platformStrongBox || pixelStrongBox) {
             val actual = f14.parsed?.attestationSecurityLevel
             if (actual != null && actual != SecurityLevel.STRONG_BOX) {
                 outcomes += CheckOutcome(
@@ -240,10 +262,12 @@ internal object BootloaderIntegrityDetector : Detector {
                     // damning — that's a backend correlation job.
                     severity = Severity.MEDIUM,
                     kind = KIND_STRONGBOX,
-                    message = "Device is a known StrongBox-equipped Pixel but TEE attestation came back at security level ${actual.wire} — StrongBox surface may have been bypassed",
+                    message = "Device advertises StrongBox capability (platform=$platformStrongBox, pixel_denylist=$pixelStrongBox) but TEE attestation came back at security level ${actual.wire} — StrongBox surface may have been bypassed",
                     extraDetails = mapOf(
                         "device_model" to (Build.MODEL ?: ""),
                         "attestation_security_level" to actual.wire,
+                        "strongbox_platform_available" to platformStrongBox.toString(),
+                        "strongbox_pixel_denylist_match" to pixelStrongBox.toString(),
                     ),
                 )
             }

@@ -255,7 +255,8 @@ Per variant, the plugin:
     "has_telephony_hw": true,
     "sensor_count": 28,
     "boot_count": 142,
-    "vpn_active": false
+    "vpn_active": false,
+    "strongbox_available": true
   },
   "app": {
     "package_name": "com.example.app",
@@ -280,6 +281,7 @@ Per variant, the plugin:
       "chain_length": 3,
       "attestation_security_level": "StrongBox",
       "keymaster_security_level": "StrongBox",
+      "software_backed": false,
       "verified_boot_state": "Verified",
       "device_locked": true,
       "os_patch_level": 202604,
@@ -398,10 +400,15 @@ Its output lives in **two places**, on purpose:
   device supports hardware attestation), even on perfectly clean
   devices. The JSON ships a compact actionable subset: a SHA-256
   correlation key for the chain (`chain_sha256`), the security level
-  the chain came back at, Verified Boot state, `device_locked`, OS
-  patch level, attested package + signer, and the Play-Integrity-shaped
-  advisory (`verdict_device_recognition` / `verdict_app_recognition` /
-  `verdict_reason`). A backend that needs an authoritative verdict
+  the chain came back at (`attestation_security_level` /
+  `keymaster_security_level` — `StrongBox` / `TrustedEnvironment` /
+  `Software` — plus a derived `software_backed` boolean that's `true`
+  iff *either* level is `Software`, useful for one-key cohort filters
+  on backends that don't want to OR two strings), Verified Boot state,
+  `device_locked`, OS patch level, attested package + signer, and the
+  Play-Integrity-shaped advisory (`verdict_device_recognition` /
+  `verdict_app_recognition` / `verdict_reason`). A backend that needs
+  an authoritative verdict
   MUST re-verify the **chain bytes** against Google's
   hardware-attestation root and the
   [attestation revocation list](https://android.googleapis.com/attestation/status)
@@ -479,7 +486,7 @@ checks trip, it emits one finding per tripped check with a stable
 | `bootloader_integrity_anomaly`          | `freshness_challenge_identical`      | high     | Two consecutive keygens (with different nonces) produced leaf certs that echo the same attestation challenge                                |
 | `bootloader_integrity_anomaly`          | `leaf_pubkey_mismatch`               | high     | The leaf cert's SubjectPublicKey doesn't match the public key the AndroidKeyStore actually holds for our alias                              |
 | `bootloader_integrity_anomaly`          | `leaf_pubkey_unreadable`             | medium   | Defensive: leaf's pubkey couldn't be decoded for comparison                                                                                 |
-| `bootloader_strongbox_unavailable`      | `strongbox_unexpectedly_unavailable` | medium   | Device is a known StrongBox-equipped Pixel (3+) but the attestation came back at TEE / SOFTWARE security level                              |
+| `bootloader_strongbox_unavailable`      | `strongbox_unexpectedly_unavailable` | medium   | Device advertises StrongBox capability — either via `PackageManager.FEATURE_STRONGBOX_KEYSTORE` or by being on the Pixel-3+ denylist — but the attestation came back at TEE / SOFTWARE security level |
 
 > **Why no leaf-validity / leaf-serial / leaf-age checks?** Real Android
 > KeyMint sets the attestation leaf cert's `notBefore = 1970-01-01`,
@@ -501,12 +508,14 @@ A tripped F15 finding looks like this in the JSON output:
       "kind": "bootloader_strongbox_unavailable",
       "severity": "medium",
       "subject": "com.example.app",
-      "message": "Device is a known StrongBox-equipped Pixel but TEE attestation came back at security level TrustedEnvironment — StrongBox surface may have been bypassed",
+      "message": "Device advertises StrongBox capability (platform=true, pixel_denylist=true) but TEE attestation came back at security level TrustedEnvironment — StrongBox surface may have been bypassed",
       "details": {
         "subreason": "strongbox_unexpectedly_unavailable",
         "verdict_authoritative": "false",
         "device_model": "Pixel 6 Pro",
-        "attestation_security_level": "TrustedEnvironment"
+        "attestation_security_level": "TrustedEnvironment",
+        "strongbox_platform_available": "true",
+        "strongbox_pixel_denylist_match": "true"
       }
     }
   ]
