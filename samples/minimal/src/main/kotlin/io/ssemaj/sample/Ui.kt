@@ -1,21 +1,29 @@
 package io.ssemaj.sample
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
+import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.max
 
 /**
  * Tiny programmatic-UI toolkit for the sample app. Kept self-contained
- * (no AndroidX, no resources) so the sample stays a one-jar
- * smoke-test artifact rather than a full app project.
+ * (no AndroidX in the UI layer, no XML layouts) so the sample stays a
+ * one-file smoke-test artifact rather than a full app project.
  *
  * Instantiated once per [android.app.Activity] via [forContext], which
  * picks a light or dark [Palette] based on the current
@@ -24,7 +32,7 @@ import kotlin.math.max
  */
 internal class Ui(val palette: Palette) {
 
-    enum class Tone { OK, BAD, WARN, INFO, NEUTRAL }
+    enum class Tone { OK, BAD, WARN, INFO, NEUTRAL, ACCENT }
 
     private fun tonePair(t: Tone): Pair<Int, Int> = when (t) {
         Tone.OK -> palette.toneOk
@@ -32,7 +40,11 @@ internal class Ui(val palette: Palette) {
         Tone.WARN -> palette.toneWarn
         Tone.INFO -> palette.toneInfo
         Tone.NEUTRAL -> palette.toneNeutral
+        Tone.ACCENT -> palette.toneAccent
     }
+
+    /** Foreground colour for a tone, used to tint icons drawn next to a label. */
+    fun toneFg(t: Tone): Int = tonePair(t).first
 
     /**
      * Vertical card container with a rounded background and a 1dp
@@ -84,9 +96,26 @@ internal class Ui(val palette: Palette) {
         }
     }
 
-    /** Re-color a hero produced by [heroBanner] to the given tone. */
-    fun tintHero(hero: LinearLayout, tone: Tone) {
-        (hero.background as GradientDrawable).setColor(tonePair(tone).second)
+    /**
+     * Re-color a hero produced by [heroBanner] to the given tone.
+     * Crossfades the background color over [animDurationMs] using
+     * [ValueAnimator] + [android.animation.ArgbEvaluator] so a tone
+     * change feels like a tint, not a flash.
+     */
+    fun tintHero(hero: LinearLayout, tone: Tone, animDurationMs: Long = 240) {
+        val drawable = hero.background as GradientDrawable
+        val target = tonePair(tone).second
+        // Best-effort read of the current colour. GradientDrawable doesn't
+        // expose its current solid color via a public API across all
+        // platform levels, so we tag it ourselves on every transition.
+        val current = (hero.getTag(R_ID_HERO_COLOR) as? Int) ?: target
+        if (current == target) return
+        ValueAnimator.ofArgb(current, target).apply {
+            duration = animDurationMs
+            addUpdateListener { drawable.setColor(it.animatedValue as Int) }
+            start()
+        }
+        hero.setTag(R_ID_HERO_COLOR, target)
     }
 
     fun title(context: Context, text: String): TextView = TextView(context).apply {
@@ -152,12 +181,42 @@ internal class Ui(val palette: Palette) {
     }
 
     /**
+     * Square [ImageView] holding a vector drawable, sized in dp and
+     * tinted with [tint]. The default tint pulls from the palette's
+     * subtitle colour so the icon reads as secondary unless callers
+     * explicitly upgrade it (via [Tone] -> [toneFg]).
+     */
+    fun iconView(
+        context: Context,
+        drawableRes: Int,
+        sizeDp: Int = 18,
+        tint: Int = palette.subtitle,
+    ): ImageView = ImageView(context).apply {
+        setImageResource(drawableRes)
+        imageTintList = ColorStateList.valueOf(tint)
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        layoutParams = LinearLayout.LayoutParams(dp(context, sizeDp), dp(context, sizeDp))
+    }
+
+    /**
      * Horizontal row that places the [titleText] flush-left and an
      * optional list of [accessories] (typically badges) flush-right.
      * Used for card title bars.
      */
     fun titleRow(
         context: Context,
+        titleText: String,
+        accessories: List<View> = emptyList(),
+    ): LinearLayout = titleRowWithIcon(context, iconRes = null, titleText = titleText, accessories = accessories)
+
+    /**
+     * Like [titleRow] but with an optional leading icon glyph that
+     * tints to match [palette.title]. Used to give every card a
+     * recognisable mark next to its title.
+     */
+    fun titleRowWithIcon(
+        context: Context,
+        iconRes: Int?,
         titleText: String,
         accessories: List<View> = emptyList(),
     ): LinearLayout {
@@ -168,6 +227,12 @@ internal class Ui(val palette: Palette) {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
+        }
+        if (iconRes != null) {
+            val iv = iconView(context, iconRes, sizeDp = 18, tint = palette.title)
+            iv.layoutParams = LinearLayout.LayoutParams(dp(context, 18), dp(context, 18))
+                .apply { rightMargin = dp(context, 8) }
+            row.addView(iv)
         }
         row.addView(
             title(context, titleText).apply {
@@ -252,9 +317,9 @@ internal class Ui(val palette: Palette) {
     }
 
     /**
-     * One row in the Findings list: severity pill on the left, then a
-     * vertical block of `kind` (mono bold), `subject` (muted), and
-     * `message` (subtitle color).
+     * One row in the Findings list: severity icon + pill on the left,
+     * then a vertical block of `kind` (mono bold), `subject` (muted),
+     * and `message` (subtitle color).
      */
     fun findingRow(
         context: Context,
@@ -263,6 +328,7 @@ internal class Ui(val palette: Palette) {
         kind: String,
         subject: String?,
         message: String,
+        severityIcon: Int? = null,
     ): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -270,6 +336,18 @@ internal class Ui(val palette: Palette) {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = dp(context, 10) }
+        }
+        // Icon column (16dp wide, tone-tinted). Sits flush with the
+        // first line of the kind text so readers' eyes go icon -> kind.
+        if (severityIcon != null) {
+            val ic = iconView(context, severityIcon, sizeDp = 16, tint = toneFg(tone))
+            ic.layoutParams = LinearLayout.LayoutParams(
+                dp(context, 16), dp(context, 16),
+            ).apply {
+                rightMargin = dp(context, 8)
+                topMargin = dp(context, 2)
+            }
+            row.addView(ic)
         }
         row.addView(
             badge(context, severityLabel, tone).apply {
@@ -329,8 +407,8 @@ internal class Ui(val palette: Palette) {
     }
 
     /**
-     * One row in the Detectors list: id (mono), status pill, then
-     * `Nms · K finding(s)` on the right.
+     * One row in the Detectors list: status icon + id (mono), status
+     * pill, then `Nms · K finding(s)` on the right.
      */
     fun detectorRow(
         context: Context,
@@ -338,6 +416,7 @@ internal class Ui(val palette: Palette) {
         statusLabel: String,
         statusTone: Tone,
         rightLabel: String,
+        statusIcon: Int? = null,
     ): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -346,6 +425,13 @@ internal class Ui(val palette: Palette) {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = dp(context, 8) }
+        }
+        if (statusIcon != null) {
+            val ic = iconView(context, statusIcon, sizeDp = 14, tint = toneFg(statusTone))
+            ic.layoutParams = LinearLayout.LayoutParams(
+                dp(context, 14), dp(context, 14),
+            ).apply { rightMargin = dp(context, 8) }
+            row.addView(ic)
         }
         row.addView(
             TextView(context).apply {
@@ -379,6 +465,36 @@ internal class Ui(val palette: Palette) {
         return row
     }
 
+    /**
+     * "Live" indicator: a small filled circle whose alpha pulses
+     * 0.35 -> 1.0 forever on a 900ms cycle. Used next to the
+     * Auto button label so the user can see at a glance that the
+     * observe() Flow is emitting.
+     */
+    fun pulsingDot(context: Context, tone: Tone = Tone.OK): ImageView {
+        val view = iconView(context, R.drawable.ic_pulse_dot, sizeDp = 10, tint = toneFg(tone))
+        val anim = ObjectAnimator.ofFloat(view, "alpha", 1f, 0.35f, 1f).apply {
+            duration = 900
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+        }
+        view.setTag(R_ID_PULSE_ANIM, anim)
+        return view
+    }
+
+    fun startPulsingDot(view: View) {
+        (view.getTag(R_ID_PULSE_ANIM) as? ObjectAnimator)?.let {
+            if (!it.isStarted) it.start()
+        }
+    }
+
+    fun stopPulsingDot(view: View) {
+        (view.getTag(R_ID_PULSE_ANIM) as? ObjectAnimator)?.let {
+            if (it.isStarted) it.cancel()
+            view.alpha = 1f
+        }
+    }
+
     companion object {
         fun forContext(context: Context): Ui {
             val night = (context.resources.configuration.uiMode and
@@ -392,6 +508,13 @@ internal class Ui(val palette: Palette) {
                 value.toFloat(),
                 context.resources.displayMetrics,
             ).toInt()
+
+        // View tag keys. Picked from the framework-reserved range
+        // (0x7F... is the AAPT app range) but high enough that the
+        // generated R class won't collide. Kept private to Ui so
+        // nobody else accidentally reads them.
+        private const val R_ID_HERO_COLOR = 0x7F4D0001
+        private const val R_ID_PULSE_ANIM = 0x7F4D0002
     }
 }
 
@@ -413,6 +536,7 @@ internal data class Palette(
     val toneWarn: Pair<Int, Int>,
     val toneInfo: Pair<Int, Int>,
     val toneNeutral: Pair<Int, Int>,
+    val toneAccent: Pair<Int, Int>,
 ) {
     companion object {
         val LIGHT = Palette(
@@ -428,6 +552,10 @@ internal data class Palette(
             toneWarn = 0xFFA5560A.toInt() to 0xFFFFF1DD.toInt(),
             toneInfo = 0xFF1A56A8.toInt() to 0xFFE3EEFB.toInt(),
             toneNeutral = 0xFF53575E.toInt() to 0xFFEDEEF0.toInt(),
+            // Accent matches the launcher icon (cyan glow over violet
+            // chip body). Used by the brand chip in the hero and the
+            // "live" pulsing dot when auto-collect is on.
+            toneAccent = 0xFF0E5C8C.toInt() to 0xFFD8F1FA.toInt(),
         )
 
         val DARK = Palette(
@@ -443,6 +571,7 @@ internal data class Palette(
             toneWarn = 0xFFF0B265.toInt() to 0xFF2D2419.toInt(),
             toneInfo = 0xFF7BB7FF.toInt() to 0xFF15243A.toInt(),
             toneNeutral = 0xFFA6ABB5.toInt() to 0xFF222630.toInt(),
+            toneAccent = 0xFF7BFFE3.toInt() to 0xFF103039.toInt(),
         )
     }
 }

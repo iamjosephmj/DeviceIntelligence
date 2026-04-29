@@ -1,0 +1,29 @@
+<resources>
+    <!--
+      Light theme. Window background matches Ui.Palette.LIGHT.pageBg so
+      the launch splash and the activity bg agree (no "white flash"
+      between cold start and the first frame). NoActionBar because the
+      sample draws its own header in the hero card.
+    -->
+    <style name="Theme.Sample" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/sample_page_bg</item>
+        <item name="android:statusBarColor">@color/sample_page_bg</item>
+        <item name="android:navigationBarColor">@color/sample_page_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <!--
+          Default activity transition: a quick cross-fade in / out so
+          the launcher-to-app handoff doesn't feel abrupt. The fade
+          duration is taken from the platform's
+          shortAnimTime (~150ms).
+        -->
+        <item name="android:windowAnimationStyle">@style/SampleWindowAnimations</item>
+    </style>
+
+    <style name="SampleWindowAnimations" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/fade_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/fade_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/fade_out</item>
+    </style>
+</resources>

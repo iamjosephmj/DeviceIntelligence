@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon (Android 13+) silhouette of the chip + concentric scan
+  rings. Single-colour shape; the launcher tints it to match the user's
+  Material You palette. Drawn at viewport 108x108 (adaptive-icon coords)
+  with the chip body kept inside the 66x66 safe zone.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group>
+        <path android:fillColor="#FFFFFF" android:pathData="M40,26 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M48,26 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M56,26 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M64,26 h4 v6 h-4 z" />
+
+        <path android:fillColor="#FFFFFF" android:pathData="M40,76 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M48,76 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M56,76 h4 v6 h-4 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M64,76 h4 v6 h-4 z" />
+
+        <path android:fillColor="#FFFFFF" android:pathData="M26,40 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M26,48 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M26,56 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M26,64 h6 v4 h-6 z" />
+
+        <path android:fillColor="#FFFFFF" android:pathData="M76,40 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M76,48 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M76,56 h6 v4 h-6 z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M76,64 h6 v4 h-6 z" />
+    </group>
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M39,42 a10,10 0 0 1 10,-10 h20 a10,10 0 0 1 10,10 v20 a10,10 0 0 1 -10,10 h-20 a10,10 0 0 1 -10,-10 z" />
+
+    <path
+        android:fillColor="#0E1029"
+        android:fillType="evenOdd"
+        android:pathData="M68,54 a14,14 0 1 1 -28,0 a14,14 0 1 1 28,0 z M65.5,54 a11.5,11.5 0 1 0 -23,0 a11.5,11.5 0 1 0 23,0 z" />
+    <path
+        android:fillColor="#0E1029"
+        android:fillType="evenOdd"
+        android:pathData="M62,54 a8,8 0 1 1 -16,0 a8,8 0 1 1 16,0 z M59.5,54 a5.5,5.5 0 1 0 -11,0 a5.5,5.5 0 1 0 11,0 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M56,54 a2,2 0 1 1 -4,0 a2,2 0 1 1 4,0 z" />
+</vector>
