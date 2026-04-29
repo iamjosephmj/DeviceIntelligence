@@ -77,9 +77,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
-
-// Standalone app (default): no `dependencies { implementation("...:deviceintelligence:0.2.0") }`
-// line. The plugin auto-wires the matching runtime AAR.
 ```
 
 <details>
