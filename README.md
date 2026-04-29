@@ -60,7 +60,7 @@ dependencyResolutionManagement {
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("io.ssemaj.deviceintelligence") version "0.1.0"
+    id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
 ```
 
@@ -235,7 +235,7 @@ reports `status: "ok"` with `findings: []`.
 
 ### Add it to your own app
 
-Replace `0.1.0` below with the latest tag on
+Replace `0.2.0` below with the latest tag on
 [the JitPack page](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
 
 **`settings.gradle.kts`** — declare the JitPack repo and map the plugin id to its
@@ -274,14 +274,14 @@ dependencyResolutionManagement {
 ```
 
 **`app/build.gradle.kts`** — apply the plugin, configure detectors. Notice
-**no `implementation("...:deviceintelligence:0.1.0")` line** — the plugin auto-adds
+**no `implementation("...:deviceintelligence:0.2.0")` line** — the plugin auto-adds
 the matching runtime AAR for you, locked to the same version as itself.
 
 ```kotlin
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("io.ssemaj.deviceintelligence") version "0.1.0"
+    id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
 
 deviceintelligence {
@@ -328,7 +328,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.1.0")
+    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.2.0")
 }
 ```
 
@@ -395,7 +395,7 @@ exactly what the SDK emits.
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.1.0",
+  "library_version": "0.2.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -471,7 +471,7 @@ exactly what the SDK emits.
       "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"
     ],
     "build_variant": "debug",
-    "library_plugin_version": "0.1.0",
+    "library_plugin_version": "0.2.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
