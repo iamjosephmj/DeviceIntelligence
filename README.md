@@ -54,6 +54,7 @@ your backend / data warehouse  →  dashboards, cohorts, fraud signals
 - [Quickstart](#quickstart)
 - [Output shape](#output-shape)
 - [Stable contract](#stable-contract)
+  - [`status` vs `findings` — read this once](#status-vs-findings--read-this-once)
 - [Detector deep dives](#detector-deep-dives)
   - [F14 — Hardware key attestation](#hardware-key-attestation-f14-and-appattestation)
   - [F15 — Bootloader integrity](#bootloader-integrity-f15)
@@ -383,6 +384,53 @@ from a backend) across releases that share the same `schema_version`:
 between releases without a `schema_version` bump — don't key on them server-side.
 
 A wire-format-breaking change bumps `schema_version`. The current version is `1`.
+
+### `status` vs `findings` — read this once
+
+A common gotcha: a detector can report `status: "ok"` *and* still have a non-empty
+`findings` array. That is **not** a bug. The two fields answer different questions:
+
+- `status` answers **"did the detector run?"**
+  - `ok` — detector executed cleanly
+  - `inconclusive` — detector tried but couldn't reach a verdict (missing native
+    lib, unreadable `/proc` file, format skew on a weird OEM fork) →
+    `inconclusive_reason` explains
+  - `error` — detector threw → `error_message` has the trace
+- `findings[]` answers **"what did it see?"** Each entry is one signal it picked up.
+
+So a rooted device looks like this (truncated):
+
+```json
+{
+  "id": "F17.root_indicators",
+  "status": "ok",
+  "findings": [
+    { "kind": "root_manager_app_installed", "severity": "high", ... }
+  ]
+}
+```
+
+`status: "ok"` means F17 ran successfully. The `findings` entry means it found a
+root manager app installed. Both facts are independently true.
+
+**Why split it?** A backend has to distinguish three different "no findings"
+cases that look identical if you collapse them: clean device (`status=ok,
+findings=[]`), broken on this device (`status=inconclusive`), and crashed on this
+device (`status=error`). Using `status` to mean "no findings" would silently let
+broken detectors on weird ROMs count toward your clean-rate metric.
+
+The roll-up that *does* answer "did anything trip?" lives in `summary`:
+
+```json
+"summary": {
+  "total_findings": 3,
+  "findings_by_severity": { "low": 0, "medium": 1, "high": 2, "critical": 0 },
+  "detectors_with_findings": ["F14.key_attestation", "F15.bootloader_integrity", "F17.root_indicators"]
+}
+```
+
+`detectors_with_findings` is the list to drive a "device looks tampered"
+decision off — not `status`.
 
 ## Detector deep dives
 
