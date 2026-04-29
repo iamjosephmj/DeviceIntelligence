@@ -18,6 +18,70 @@
 
 ---
 
+## Install
+
+Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
+**One plugin, one version** — no second `implementation(...)` line. The plugin
+auto-applies the matching runtime AAR for you, locked to the same version.
+
+**1. `settings.gradle.kts`** — declare the JitPack repo and map the plugin id to its JitPack-published module ([why](#quickstart)):
+
+```kotlin
+pluginManagement {
+    repositories {
+        maven("https://jitpack.io")
+        gradlePluginPortal()
+        google()
+    }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "io.ssemaj.deviceintelligence") {
+                useModule(
+                    "com.github.iamjosephmj.DeviceIntelligence:" +
+                        "deviceintelligence-gradle:${requested.version}"
+                )
+            }
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
+```
+
+**2. `app/build.gradle.kts`** — apply the plugin. That's it.
+
+```kotlin
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("io.ssemaj.deviceintelligence") version "0.1.0"
+}
+```
+
+**3. Collect at runtime** — anywhere in your app, off the main thread:
+
+```kotlin
+val report = DeviceIntelligence.collect(context)        // typed object
+val json = DeviceIntelligence.collectJson(context)      // canonical JSON
+```
+
+The library auto-initializes via a manifest-merged `ContentProvider` and pre-warms
+in the background, so the first user-visible `collect` returns from cached state
+in single-digit ms.
+
+For configuration options (VPN detection, biometrics-enrollment detection,
+opt-out flags), the library-only mode (skip the plugin), and the full deep dive
+on what the Gradle plugin does at build time, see [Quickstart](#quickstart) and
+[Permissions](#permissions) below.
+
+---
+
 DeviceIntelligence is a **device-intelligence telemetry SDK** for Android. It
 collects structured facts about the runtime environment of your app — APK
 integrity, in-process tampering, hardware-backed device attestation, bootloader
@@ -49,6 +113,7 @@ your backend / data warehouse  →  dashboards, cohorts, fraud signals
 
 ## Table of contents
 
+- [Install](#install)
 - [Why DeviceIntelligence?](#why-deviceintelligence)
   - [Why telemetry, not RASP?](#why-telemetry-not-rasp)
 - [What it collects](#what-it-collects)
