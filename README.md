@@ -260,16 +260,19 @@ report is unaffected.
 
 ### What a real report looks like
 
-Below is the **full unedited JSON** captured live from a clean Pixel 9 Pro
-running the sample app — zero findings, every `device.*` and `app.*` field
-shown, no fields trimmed. Use it as a reference for what your backend will
-actually receive on the wire.
+Below is a **representative report** in the exact wire format your backend
+will receive — zero findings, every `device.*` and `app.*` field shown, no
+fields trimmed. Captured live from a clean Pixel 9 Pro and then lightly
+sanitised (locale / timezone / install timestamps / `vpn_active` / `boot_count`
+/ APK random suffixes) so this README example doesn't pin to one specific
+maintainer's device. The structure, field types, and value vocabularies are
+exactly what the SDK emits.
 
 ```json
 {
   "schema_version": 1,
   "library_version": "0.1.0-dev",
-  "collected_at_epoch_ms": 1777458331985,
+  "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
     "manufacturer": "Google",
@@ -284,8 +287,8 @@ actually receive on the wire.
     "has_fingerprint_hw": true,
     "has_telephony_hw": true,
     "sensor_count": 41,
-    "boot_count": 66,
-    "vpn_active": true,
+    "boot_count": 142,
+    "vpn_active": false,
     "strongbox_available": true,
     "brand": "google",
     "board": "caiman",
@@ -306,12 +309,12 @@ actually receive on the wire.
     "soc_model": "Tensor G4",
     "gl_es_version": "3.2",
     "egl_implementation": "mali",
-    "default_locale": "en-DE",
+    "default_locale": "en-US",
     "system_locales": [
-      "en-DE"
+      "en-US"
     ],
-    "timezone_id": "Europe/Berlin",
-    "timezone_offset_minutes": 120,
+    "timezone_id": "America/Los_Angeles",
+    "timezone_offset_minutes": -480,
     "auto_time_enabled": true,
     "auto_time_zone_enabled": true,
     "display_refresh_rate_hz": 120.0,
@@ -323,14 +326,14 @@ actually receive on the wire.
     ],
     "device_secure": true,
     "biometrics_enrolled": true,
-    "adb_enabled": true,
-    "developer_options_enabled": true,
+    "adb_enabled": false,
+    "developer_options_enabled": false,
     "battery_present": true,
     "battery_technology": "Li-ion",
     "battery_health": "good",
     "battery_plug_type": "none",
     "thermal_status": "none",
-    "boot_epoch_ms": 1776535244179,
+    "boot_epoch_ms": 1776800000000,
     "play_services_availability": "success",
     "play_services_version_code": 261533035,
     "play_store_version_code": 85101930,
@@ -338,15 +341,15 @@ actually receive on the wire.
   },
   "app": {
     "package_name": "io.ssemaj.sample",
-    "apk_path": "/data/app/~~77zqhL9tfGLX8b93zVHdrw==/io.ssemaj.sample-mbA1r5aGHJGBbBQxRqe61A==/base.apk",
+    "apk_path": "/data/app/.../io.ssemaj.sample-.../base.apk",
     "installer_package": null,
     "signer_cert_sha256": [
       "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"
     ],
     "build_variant": "debug",
     "library_plugin_version": "0.0.0-dev",
-    "first_install_epoch_ms": 1777338413049,
-    "last_update_epoch_ms": 1777457014092,
+    "first_install_epoch_ms": 1775000000000,
+    "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
     "install_source": {
       "installing_package": null,
@@ -450,15 +453,21 @@ actually receive on the wire.
 }
 ```
 
-> **About this dump.** Captured live from the project's dev Pixel 9 Pro
-> running `samples/minimal` (Android 16, Tensor G4, en-DE locale, on
-> WireGuard VPN, ADB + dev options enabled). It's the **full unedited
-> JSON** — every `device.*` field, every `app.*` field, every detector
-> stanza. The `adb_enabled: true` / `developer_options_enabled: true` /
-> `vpn_active: true` are real signals from a real dev environment;
-> they're not removed because the whole point of this section is to
-> show you exactly what the wire format looks like in the wild. For
-> what a *tripped* finding looks like, see the
+> **About this dump.** Captured live from a clean Pixel 9 Pro running
+> `samples/minimal` (Android 16, Tensor G4) and then lightly sanitised
+> for this README. The structure, field names, types, value vocabularies,
+> and ordering are **byte-exact** to what the SDK emits — nothing was
+> reshaped or reordered. What *was* changed: `default_locale` /
+> `system_locales` / `timezone_id` / `timezone_offset_minutes` swapped
+> to a generic `en-US` / `America/Los_Angeles`, `vpn_active` / `adb_enabled`
+> / `developer_options_enabled` flipped to `false` (so this isn't pinned
+> to one maintainer's dev environment), `boot_count` rounded, the four
+> install / boot / collection epoch timestamps replaced with plausible
+> fixed values, and the random suffixes in `apk_path` shortened to `...`.
+> Everything else — including the StrongBox-backed attestation block,
+> the Tensor G4 SoC identity, the Pixel 9 Pro Mali GPU + 120 Hz panel +
+> 11-rate refresh ladder, and the GMS signer SHA — is the unmodified
+> real value. For what a *tripped* finding looks like, see the
 > [Bootloader integrity](#bootloader-integrity-f15) and
 > [Root indicators](#root-indicators-f17) sections below.
 
