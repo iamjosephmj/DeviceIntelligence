@@ -1,0 +1,51 @@
+# JitPack build configuration.
+#
+# JitPack's default install command (`./gradlew install`) doesn't work for
+# this repo because:
+#
+#   1. The runtime AAR has a CMake/NDK build step that needs the Android
+#      SDK + NDK 27.0.12077973 + CMake 3.22.1, none of which JitPack's
+#      base image ships with.
+#
+#   2. There are two publishable modules and one of them is wired through
+#      `pluginManagement.includeBuild(...)` rather than `include(...)`, so a
+#      single root invocation doesn't reach the plugin module's
+#      `publishToMavenLocal` task. We invoke each half in turn so both
+#      land in `~/.m2/repository/$GROUP_PATH/...` for JitPack to pick up.
+#
+# JitPack picks up VERSION_NAME from the git tag automatically and exposes
+# it as a Gradle property; both build files read it via providers.gradleProperty
+# (root) / Properties() in deviceintelligence-gradle/build.gradle.kts (included
+# build). No manual version bump needed at tag time.
+
+jdk:
+  - openjdk17
+
+before_install:
+  # Pull a slim Android SDK + the exact NDK / CMake / build-tools / platform
+  # we use locally. This step is the bulk of JitPack's per-tag build time
+  # (~6-8 min on a cold cache, ~2 min once JitPack caches sdkmanager).
+  - export ANDROID_SDK_ROOT="$HOME/android-sdk"
+  - export ANDROID_HOME="$ANDROID_SDK_ROOT"
+  - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+  - curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+  - unzip -qo /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+  - mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+  - export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+  - yes | sdkmanager --licenses > /dev/null
+  - sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
+
+install:
+  # Two-step publish — JitPack picks up everything that lands in mavenLocal
+  # under our group (com.github.iamjosephmj.DeviceIntelligence).
+  #
+  # Step 1: the runtime AAR (`deviceintelligence` module). This compiles
+  # libdicore.so for arm64-v8a + x86_64 via CMake+NDK and packages the
+  # release variant + sources + javadoc.
+  - ANDROID_HOME="$HOME/android-sdk" ./gradlew :deviceintelligence:publishToMavenLocal --no-daemon -x test
+  # Step 2: the Gradle plugin (`deviceintelligence-gradle` included build).
+  # Publishes the plugin JAR, the auto-generated marker POM (which makes
+  # `id("io.ssemaj.deviceintelligence") version "X"` resolvable for
+  # consumers without a settings-time resolutionStrategy hack), and the
+  # main + sources + javadoc artifacts.
+  - ANDROID_HOME="$HOME/android-sdk" ./gradlew -p deviceintelligence-gradle publishToMavenLocal --no-daemon

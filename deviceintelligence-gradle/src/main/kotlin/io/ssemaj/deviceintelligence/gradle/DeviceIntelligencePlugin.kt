@@ -5,6 +5,7 @@ import com.android.build.api.dsl.ApkSigningConfig
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import io.ssemaj.deviceintelligence.gradle.internal.PluginCoordinates
 import io.ssemaj.deviceintelligence.gradle.tasks.BakeFingerprintTask
 import io.ssemaj.deviceintelligence.gradle.tasks.ComputeFingerprintTask
 import io.ssemaj.deviceintelligence.gradle.tasks.GenerateKeyChunksTask
@@ -38,13 +39,105 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             detectors.convention(emptySet())
             enableVpnDetection.convention(false)
             enableBiometricsDetection.convention(false)
+            disableAutoRuntimeDependency.convention(false)
         }
+
+        // Auto-apply the matching runtime AAR. Eager registration (not
+        // afterEvaluate) is required because Android source-set
+        // resolution against `implementation` reads dependencies during
+        // configuration; an afterEvaluate add lands too late and the
+        // runtime classes don't make it onto the consumer's classpath.
+        wireRuntimeDependency(project, ext)
 
         project.plugins.withId("com.android.application") {
             wireApplication(project, ext)
         }
         project.plugins.withId("com.android.library") {
             wireLibrary(project, ext)
+        }
+    }
+
+    /**
+     * Add the matching DeviceIntelligence runtime AAR to the consumer's
+     * `implementation` configuration so applying the plugin alone is
+     * enough — no `implementation("...:deviceintelligence:X")` line
+     * needed in the consumer's `dependencies {}` block.
+     *
+     * Three resolution paths, in order:
+     *
+     * 1. **Opted out.** If the consumer set
+     *    `deviceintelligence { disableAutoRuntimeDependency = true }`
+     *    or passed `-Pdeviceintelligence.disableAutoRuntimeDependency=true`,
+     *    we do nothing — the consumer manages the AAR themselves.
+     *
+     * 2. **In-tree (monorepo) substitution.** If
+     *    `:deviceintelligence` exists as a sibling project of the
+     *    consumer (true inside this repo's `samples/minimal`), we add
+     *    a project-dependency on it. This keeps the dev loop fast: a
+     *    change in `deviceintelligence/src/main/kotlin/...` is picked
+     *    up by the next `assembleDebug` without a publish step.
+     *
+     * 3. **Published coordinate.** Otherwise we add the published AAR
+     *    coordinate, locked to the same version the plugin itself was
+     *    built under. Same-version-as-plugin is what makes the
+     *    fingerprint-binary format stable: the plugin bakes a baseline
+     *    that the runtime reads, and a version mismatch between the
+     *    two would silently corrupt F10's verdict.
+     *
+     * The dependency is only added if a `com.android.application` or
+     * `com.android.library` plugin is also applied — without an Android
+     * plugin there's no `implementation` configuration to add to.
+     */
+    private fun wireRuntimeDependency(project: Project, ext: DeviceIntelligenceExtension) {
+        val cliOptOut = project.providers.gradleProperty(
+            "deviceintelligence.disableAutoRuntimeDependency"
+        ).map { it.toBoolean() }.getOrElse(false)
+
+        project.plugins.withId("com.android.application") { addRuntimeDep(project, ext, cliOptOut) }
+        project.plugins.withId("com.android.library") { addRuntimeDep(project, ext, cliOptOut) }
+    }
+
+    private fun addRuntimeDep(
+        project: Project,
+        ext: DeviceIntelligenceExtension,
+        cliOptOut: Boolean,
+    ) {
+        if (cliOptOut || ext.disableAutoRuntimeDependency.getOrElse(false)) {
+            if (ext.verbose.getOrElse(false)) {
+                project.logger.lifecycle(
+                    "io.ssemaj: auto-runtime-dependency disabled; consumer must add " +
+                        "implementation(\"${PluginCoordinates.GROUP_ID}:" +
+                        "${PluginCoordinates.LIBRARY_ARTIFACT_ID}:" +
+                        "${PluginCoordinates.VERSION}\") themselves."
+                )
+            }
+            return
+        }
+
+        // In-tree (monorepo) substitution. The plugin's apply() is invoked in
+        // the consumer's build context, so `rootProject.findProject(":deviceintelligence")`
+        // returns non-null only when the consumer's root build also contains
+        // our AAR module. That's exactly the dev-loop case (samples/minimal).
+        val inTree = project.rootProject.findProject(":${PluginCoordinates.LIBRARY_ARTIFACT_ID}")
+        if (inTree != null && inTree != project) {
+            project.dependencies.add(
+                "implementation",
+                project.dependencies.project(mapOf("path" to inTree.path))
+            )
+            if (ext.verbose.getOrElse(false)) {
+                project.logger.lifecycle(
+                    "io.ssemaj: auto-runtime-dependency wired as project(${inTree.path}) (in-tree dev loop)"
+                )
+            }
+            return
+        }
+
+        val coord = "${PluginCoordinates.GROUP_ID}:" +
+            "${PluginCoordinates.LIBRARY_ARTIFACT_ID}:" +
+            PluginCoordinates.VERSION
+        project.dependencies.add("implementation", coord)
+        if (ext.verbose.getOrElse(false)) {
+            project.logger.lifecycle("io.ssemaj: auto-runtime-dependency wired as $coord")
         }
     }
 
@@ -300,6 +393,11 @@ class DeviceIntelligencePlugin : Plugin<Project> {
     }
 
     private companion object {
-        const val PLUGIN_VERSION: String = "0.0.0-dev"
+        // The plugin version is sourced from the parent build's gradle.properties
+        // via the generated `PluginCoordinates` object — see the
+        // `generatePluginVersion` task in deviceintelligence-gradle/build.gradle.kts.
+        // This guarantees the value baked into every consumer's fingerprint.bin
+        // matches the JitPack tag the plugin was published under.
+        val PLUGIN_VERSION: String get() = PluginCoordinates.VERSION
     }
 }

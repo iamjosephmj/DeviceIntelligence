@@ -58,4 +58,27 @@ abstract class DeviceIntelligenceExtension {
      * case the merge is a no-op.
      */
     abstract val enableBiometricsDetection: Property<Boolean>
+
+    /**
+     * Opt OUT of the plugin's auto-applied runtime AAR dependency.
+     *
+     * By default the plugin adds the matching `deviceintelligence`
+     * runtime AAR to the consumer's `implementation` configuration —
+     * same group + same version as the plugin itself. This is the
+     * single-line-integration story documented in the README and the
+     * mechanism that makes plugin-vs-runtime version skew impossible.
+     *
+     * Set to `true` only when you want to manage the runtime
+     * dependency by hand — for example when consuming a SNAPSHOT AAR
+     * from a private repo, or when shipping the runtime as a transitive
+     * dependency of a wrapper module the plugin can't see. When opted
+     * out, the build-time work (fingerprint baking, manifest injection)
+     * still runs; the consumer is responsible for adding
+     * `implementation("...:deviceintelligence:<matching version>")`
+     * themselves.
+     *
+     * Default `false`. Equivalent escape hatch via the command line:
+     * `-Pdeviceintelligence.disableAutoRuntimeDependency=true`.
+     */
+    abstract val disableAutoRuntimeDependency: Property<Boolean>
 }

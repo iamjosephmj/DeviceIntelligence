@@ -64,6 +64,9 @@ deviceintelligence {
     enableBiometricsDetection.set(true)
 }
 
-dependencies {
-    implementation(project(":deviceintelligence"))
-}
+// Notice the absence of `dependencies { implementation(project(":deviceintelligence")) }` here.
+// The DeviceIntelligence Gradle plugin's apply() auto-adds the runtime AAR for us — and
+// because :deviceintelligence is a sibling project of this sample (in-tree dev loop), the
+// plugin substitutes a project-dependency rather than the published JitPack coordinate. This
+// is the single-line-integration story that matches what real consumers get from JitPack;
+// it just resolves locally during this repo's own dev loop.

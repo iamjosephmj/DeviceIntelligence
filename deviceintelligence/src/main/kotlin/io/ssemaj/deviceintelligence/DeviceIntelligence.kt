@@ -23,7 +23,21 @@ import io.ssemaj.deviceintelligence.internal.TelemetryCollector
  */
 public object DeviceIntelligence {
 
-    public const val VERSION: String = "0.1.0-dev"
+    /**
+     * The published library version this build was packaged under.
+     *
+     * Sourced from `BuildConfig.LIBRARY_VERSION`, which is fed at build
+     * time from the `VERSION_NAME` Gradle property in
+     * `gradle.properties`. JitPack rewrites that property to match the
+     * git tag on tag builds, so a JitPack-published artifact reports
+     * exactly its Maven coordinate version here. Local development
+     * builds report whatever `VERSION_NAME` is checked in.
+     *
+     * Surfaces in [TelemetryReport.libraryVersion]. Backends use this to
+     * detect schema-version skew across a fleet.
+     */
+    @JvmField
+    public val VERSION: String = BuildConfig.LIBRARY_VERSION
 
     /**
      * Run every detector and return a [TelemetryReport] reflecting

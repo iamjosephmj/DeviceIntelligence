@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://jitpack.io/#iamjosephmj/DeviceIntelligence"><img alt="JitPack" src="https://jitpack.io/v/iamjosephmj/DeviceIntelligence.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28%20(Android%209.0)-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
@@ -148,9 +149,9 @@ interface — no public-API changes, no JSON-serializer changes, no policy chang
 
 ## Quickstart
 
-> The library is currently consumed via composite include from this repo (no Maven
-> Central artifact yet — see [Roadmap](#roadmap)). The fastest way to try it is to
-> clone, run the sample, and confirm the JSON looks right on your device.
+> Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
+> One plugin, one version. The plugin auto-applies the matching runtime AAR for
+> you, so there's no second `implementation(...)` line to keep in sync.
 
 ### Run the sample app in 30 seconds
 
@@ -167,28 +168,53 @@ reports `status: "ok"` with `findings: []`.
 
 ### Add it to your own app
 
-Once you've cloned this repo, include it in your project's `settings.gradle.kts`:
+Replace `0.1.0` below with the latest tag on
+[the JitPack page](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
+
+**`settings.gradle.kts`** — declare the JitPack repo and map the plugin id to its
+JitPack-published module coordinate. The 5-line `eachPlugin` block is the
+[standard JitPack-Gradle-plugin pattern](https://docs.jitpack.io/building/#gradle-plugins);
+it's needed because Gradle's plugin-marker resolution lives at a different
+group (`io.ssemaj.deviceintelligence`) than where JitPack serves artifacts
+(`com.github.iamjosephmj.DeviceIntelligence`):
 
 ```kotlin
 pluginManagement {
-    includeBuild("path/to/DeviceIntelligence/deviceintelligence-gradle")
     repositories {
-        google()
-        mavenCentral()
+        maven("https://jitpack.io")
         gradlePluginPortal()
+        google()
+    }
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "io.ssemaj.deviceintelligence") {
+                useModule(
+                    "com.github.iamjosephmj.DeviceIntelligence:" +
+                        "deviceintelligence-gradle:${requested.version}"
+                )
+            }
+        }
     }
 }
 
-include(":deviceintelligence")
-project(":deviceintelligence").projectDir =
-    file("path/to/DeviceIntelligence/deviceintelligence")
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
 ```
 
-Then in your app module's `build.gradle.kts`:
+**`app/build.gradle.kts`** — apply the plugin, configure detectors. Notice
+**no `implementation("...:deviceintelligence:0.1.0")` line** — the plugin auto-adds
+the matching runtime AAR for you, locked to the same version as itself.
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence")
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("io.ssemaj.deviceintelligence") version "0.1.0"
 }
 
 deviceintelligence {
@@ -202,10 +228,6 @@ deviceintelligence {
     // (DeviceContext.biometricsEnrolled). Off by default because it
     // injects USE_BIOMETRIC. Normal-protection, no Play review impact.
     enableBiometricsDetection.set(true)
-}
-
-dependencies {
-    implementation(project(":deviceintelligence"))
 }
 ```
 
@@ -221,6 +243,37 @@ is safe to call from any thread without explicit setup. The init provider also
 kicks off a background pre-warm pass so the first user-visible `collect` returns
 from cached state in single-digit ms.
 
+### Library-only mode (advanced)
+
+If you want the runtime AAR without the Gradle plugin's build-time work — for
+example, you want to **skip F10 (APK integrity) entirely** and just collect
+device intelligence at runtime — drop the plugin and pull the AAR directly:
+
+```kotlin
+// settings.gradle.kts: no eachPlugin block needed; just the JitPack repo
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
+
+// app/build.gradle.kts
+dependencies {
+    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.1.0")
+}
+```
+
+Without the plugin, the F10 fingerprint asset is absent at runtime, so the
+APK-integrity detector reports `status: "inconclusive"` with
+`inconclusive_reason: "asset_missing"`. Every other detector works unchanged.
+
+You can also keep the plugin's manifest-injection work but skip the auto-applied
+AAR (e.g. when the AAR is delivered via a wrapper module the plugin can't see)
+by setting `disableAutoRuntimeDependency = true` in the DSL block, or passing
+`-Pdeviceintelligence.disableAutoRuntimeDependency=true` on the command line.
+
 ### What the Gradle plugin does at build time
 
 Per variant, the plugin:
@@ -234,6 +287,10 @@ Per variant, the plugin:
 4. Generates a small manifest fragment with whatever opt-in permissions you enabled
    (`ACCESS_NETWORK_STATE` for VPN detection, `USE_BIOMETRIC` for biometrics-enrollment
    detection) and wires it into your variant via `addGeneratedManifestFile`.
+5. Adds the matching runtime AAR coordinate to your `implementation`
+   configuration — same group, same version as the plugin itself, so the
+   runtime classes that read the build-time fingerprint are always at the
+   exact wire-schema version the plugin emitted them under.
 
 ## Output shape
 
@@ -271,7 +328,7 @@ exactly what the SDK emits.
 ```json
 {
   "schema_version": 1,
-  "library_version": "0.1.0-dev",
+  "library_version": "0.1.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -347,7 +404,7 @@ exactly what the SDK emits.
       "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"
     ],
     "build_variant": "debug",
-    "library_plugin_version": "0.0.0-dev",
+    "library_plugin_version": "0.1.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
@@ -821,8 +878,14 @@ would receive, byte for byte.
 ./gradlew :deviceintelligence:assembleRelease
 # → deviceintelligence/build/outputs/aar/deviceintelligence-release.aar
 
-# Just the Gradle plugin (composite-included from the root settings)
-./gradlew :deviceintelligence-gradle:build
+# Just the Gradle plugin (lives in an included build at the root settings)
+./gradlew -p deviceintelligence-gradle build
+
+# Publish both halves to the local Maven repo for smoke-testing against an
+# external consumer (mirrors what JitPack does on a tag push):
+./gradlew :deviceintelligence:publishToMavenLocal
+./gradlew -p deviceintelligence-gradle publishToMavenLocal
+# → ~/.m2/repository/com/github/iamjosephmj/DeviceIntelligence/...
 ```
 
 Requirements:
@@ -832,18 +895,19 @@ Requirements:
 - Android SDK with `platforms;android-36` and `build-tools;36.0.0`.
 - Android NDK `27.0.12077973` (CMake builds the `dicore` native lib).
 
-There is no Maven Central artifact yet; for now the recommended consumption path
-is composite include (see [Quickstart](#quickstart)). A published artifact is on
-the [Roadmap](#roadmap).
+For published consumption use [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence)
+— see [Quickstart](#quickstart). The Maven Central path is on the
+[Roadmap](#roadmap).
 
 ## Project layout
 
 ```
 deviceintelligence/         ← runtime AAR (Kotlin + JNI native lib libdicore.so)
-deviceintelligence-gradle/  ← build-time plugin (composite-included)
+deviceintelligence-gradle/  ← build-time plugin (lives in an included build)
 samples/minimal/            ← sample app: programmatic UI that renders the JSON
 tools/                      ← APK build / instrumentation helper scripts
 dist/                       ← demo APKs the build scripts produce
+jitpack.yml                 ← JitPack build config (SDK + NDK install + publish)
 ```
 
 The runtime SDK has roughly two layers:
@@ -862,9 +926,12 @@ The runtime SDK has roughly two layers:
 This is a pre-1.0 library. The detector set and wire format are stable; what's
 not yet there:
 
-- **Maven Central artifact** — currently the library ships as composite-included
-  source. Issue welcome if you'd find a published artifact useful in your
-  evaluation.
+- **JitPack distribution — shipped.** Both halves (runtime AAR + Gradle plugin)
+  publish on every git tag; coordinates documented in [Quickstart](#quickstart).
+- **Maven Central artifact** — JitPack covers the immediate "I want a published
+  artifact" need; Maven Central is the next step (signed POMs + Sonatype
+  validation) once the wire schema is locked at 1.0. Track via
+  [issues](https://github.com/iamjosephmj/DeviceIntelligence/issues).
 - **Backend reference verifier** — sample server-side code that validates the
   attestation `chainB64` against Google's hardware root + revocation list, and
   shows how to correlate F14/F15/F16/F17 findings into a single decision.
