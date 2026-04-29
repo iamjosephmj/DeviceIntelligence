@@ -868,6 +868,20 @@ not yet there:
 - **Backend reference verifier** — sample server-side code that validates the
   attestation `chainB64` against Google's hardware root + revocation list, and
   shows how to correlate F14/F15/F16/F17 findings into a single decision.
+- **Deeper hooking-detection signals (in progress)** — F16 today is
+  *name-based*: it scans `/proc/self/maps` for known hooking-framework
+  library signatures (Frida / Substrate / Xposed / LSPosed / Riru / Zygisk
+  / Taichi) and reports `hook_framework_present`. That catches the loaded
+  library, but not the *act* of hooking itself, which means a renamed or
+  in-memory-only agent currently slips through. We're building the next
+  layer: **integrity-style hook detection** — PLT / GOT entry inspection
+  for resolved libc / libart symbols, inline-trampoline detection at the
+  prologue of hot ART / JNI entry points, JNI function-table tampering
+  checks (`JNIEnv->GetMethodID` and friends rewritten by an attacker),
+  and `dlopen` / `linker` audit-trail diffing. Targeted as additional
+  finding kinds inside the existing `F16.runtime_environment` detector
+  so backends don't have to track a new id; design notes and progress
+  will land in a tracking issue once the API surface is firm.
 - **More detector suggestions welcome** — see [Contributing](#contributing).
 
 The public Kotlin surface (`DeviceIntelligence.collect`, `DeviceIntelligence.collectJson`,
