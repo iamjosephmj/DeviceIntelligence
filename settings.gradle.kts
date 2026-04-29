@@ -1,19 +1,18 @@
 pluginManagement {
+    // includeBuild is load-bearing here: the JitPack publish job runs
+    // `./gradlew :deviceintelligence:publishToMavenLocal -x test`, which
+    // evaluates this settings file and then `:samples:minimal/build.gradle.kts`,
+    // which applies `id("io.ssemaj.deviceintelligence") version "<VERSION_NAME>"`.
+    // In that worker the matching plugin is NOT yet on JitPack (we are trying
+    // to publish it in the same job), so without composite-build substitution
+    // the entire root build aborts and the runtime AAR never gets published.
+    // The composite-build path also gives in-tree devs an iterate-on-plugin
+    // loop without local mavenLocal publishes.
+    includeBuild("deviceintelligence-gradle")
     repositories {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven(url = uri("https://jitpack.io"))
-    }
-    resolutionStrategy {
-        eachPlugin {
-            if (requested.id.id == "io.ssemaj.deviceintelligence") {
-                useModule(
-                    "com.github.iamjosephmj.DeviceIntelligence:" +
-                        "deviceintelligence-gradle:${requested.version}",
-                )
-            }
-        }
     }
 }
 
@@ -22,17 +21,15 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven(url = uri("https://jitpack.io"))
     }
 }
 
 rootProject.name = "DeviceIntelligence"
 
-// In-tree library module (tests, local AAR). The sample app consumes the
-// published runtime from JitPack instead — see samples/minimal/build.gradle.kts
-// (`disableAutoRuntimeDependency` + explicit implementation) so it matches
-// external consumers. To hack on the Gradle plugin from this repo, temporarily
-// add `includeBuild("deviceintelligence-gradle")` above and remove the
-// resolutionStrategy / JitPack plugin resolution for that session.
+// In-tree library module. The Gradle plugin auto-detects this via
+// `rootProject.findProject(":deviceintelligence")` and substitutes
+// `project(":deviceintelligence")` for the otherwise-fetched JitPack AAR
+// (see DeviceIntelligencePlugin.addRuntimeDep). External consumers without
+// this module get the published AAR instead — same one-line consumer DSL.
 include(":deviceintelligence")
 include(":samples:minimal")
