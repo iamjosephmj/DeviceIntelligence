@@ -229,6 +229,10 @@ cd DeviceIntelligence
 adb shell am start -n io.ssemaj.sample/.MainActivity
 ```
 
+The sample resolves the Gradle plugin and runtime AAR **`0.2.0` from JitPack**
+(same coordinates as [Install](#install)); the first `./gradlew` run needs
+network access to fetch them.
+
 You'll see a card-based viewer that re-runs every detector on demand and lets you
 copy the canonical JSON to your clipboard. On a clean device, every detector
 reports `status: "ok"` with `findings: []`.
@@ -824,7 +828,7 @@ For published consumption use [JitPack](https://jitpack.io/#iamjosephmj/DeviceIn
 
 ```
 deviceintelligence/         ← runtime AAR (Kotlin + JNI native lib libdicore.so)
-deviceintelligence-gradle/  ← build-time plugin (lives in an included build)
+deviceintelligence-gradle/  ← build-time plugin (sibling project; build with `-p deviceintelligence-gradle`)
 samples/minimal/            ← sample app: programmatic UI that renders the JSON
 tools/                      ← APK build / instrumentation helper scripts
 dist/                       ← demo APKs the build scripts produce

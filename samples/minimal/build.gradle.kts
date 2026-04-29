@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("io.ssemaj.deviceintelligence")
+    id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
 
 android {
@@ -13,13 +13,13 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 1
-        versionName = "0.0.1"
+        versionName = "0.2.0"
     }
 
     // Sample-only: reuse the SDK-installed debug keystore for release
     // so the DeviceIntelligence Gradle plugin (which needs a fully resolved
     // signingConfig per buildType) can bake a fingerprint into the
-    // release APK and we can demo F10 in release mode. A real consumer
+    // release APK and we can demo integrity.apk in release mode. A real consumer
     // would point this at a production keystore.
     signingConfigs {
         create("releaseDebugKey") {
@@ -50,6 +50,10 @@ android {
 }
 
 deviceintelligence {
+    // Published JitPack runtime (same version as the plugin). Without this,
+    // the plugin would substitute the in-tree :deviceintelligence project and
+    // the sample would not match what external apps resolve from JitPack.
+    disableAutoRuntimeDependency.set(true)
     verbose.set(true)
     // Opt in to VPN detection so DeviceContext.vpnActive populates
     // (true / false instead of null). The plugin injects
@@ -64,9 +68,11 @@ deviceintelligence {
     enableBiometricsDetection.set(true)
 }
 
-// Notice the absence of `dependencies { implementation(project(":deviceintelligence")) }` here.
-// The DeviceIntelligence Gradle plugin's apply() auto-adds the runtime AAR for us — and
-// because :deviceintelligence is a sibling project of this sample (in-tree dev loop), the
-// plugin substitutes a project-dependency rather than the published JitPack coordinate. This
-// is the single-line-integration story that matches what real consumers get from JitPack;
-// it just resolves locally during this repo's own dev loop.
+// Runtime AAR comes from JitPack (same version as the plugin) so this sample
+// matches external consumer resolution. The library module remains in the root
+// build for `./gradlew :deviceintelligence:*`; use `disableAutoRuntimeDependency`
+// here to avoid the plugin's in-tree :deviceintelligence substitution.
+dependencies {
+    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.2.0")
+}
+

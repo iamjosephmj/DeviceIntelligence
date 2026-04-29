@@ -7,11 +7,11 @@
 #      SDK + NDK 27.0.12077973 + CMake 3.22.1, none of which JitPack's
 #      base image ships with.
 #
-#   2. There are two publishable modules and one of them is wired through
-#      `pluginManagement.includeBuild(...)` rather than `include(...)`, so a
-#      single root invocation doesn't reach the plugin module's
-#      `publishToMavenLocal` task. We invoke each half in turn so both
-#      land in `~/.m2/repository/$GROUP_PATH/...` for JitPack to pick up.
+#   2. There are two publishable modules: the runtime AAR (`:deviceintelligence`)
+#      and the Gradle plugin (under `deviceintelligence-gradle/`, not included as
+#      a composite in the root settings). A single root `./gradlew` invocation does
+#      not reach the plugin's `publishToMavenLocal`, so we invoke each half in
+#      turn so both land in `~/.m2/repository/$GROUP_PATH/...` for JitPack to pick up.
 #
 # JitPack picks up VERSION_NAME from the git tag automatically and exposes
 # it as a Gradle property; both build files read it via providers.gradleProperty
