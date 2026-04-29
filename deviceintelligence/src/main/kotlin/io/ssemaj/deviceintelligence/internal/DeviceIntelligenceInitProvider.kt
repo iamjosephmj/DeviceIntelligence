@@ -5,33 +5,34 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.util.Log
-import io.ssemaj.deviceintelligence.DeviceIntelligence
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Manifest-merged [ContentProvider] used purely for early initialization.
  *
  * Android instantiates content providers AFTER the application's
  * `ClassLoader` is built but BEFORE [android.app.Application.onCreate],
- * which gives us a free, app-wide hook for pre-warming DeviceIntelligence
- * without forcing the consumer to plumb us into their `Application`
- * subclass.
+ * which gives us a free, app-wide hook for pre-warming
+ * DeviceIntelligence without forcing the consumer to plumb us into
+ * their `Application` subclass.
  *
  * What we do here is intentionally minimal:
  *  1. Trigger [System.loadLibrary] for `dicore` early via
  *     [NativeBridge] (the field-init does the load).
- *  2. Schedule a background [DeviceIntelligence.collect] pre-warm so
- *     the integrity.apk fingerprint is decoded and APK certs are read off the
- *     cold I/O path; the report itself is dropped (no caching at this
- *     layer) but the per-detector caches (e.g.
- *     `ApkIntegrityDetector.cachedFingerprint`) populate, making
- *     subsequent `collect()` calls fast.
+ *  2. Hand off to [PrewarmCoordinator.startOrAwait] which launches
+ *     the background `collect()` on [LibraryScope]. The coordinator
+ *     remembers the in-flight [kotlinx.coroutines.Deferred] so the
+ *     public `DeviceIntelligence.awaitPrewarm()` can return the
+ *     same instance — no double work.
  *
- * Why a background thread? Collection does ZIP I/O and a few SHA-256
- * passes — fast (~tens of ms) but not zero, and we never block
- * `onCreate` because that delays Application init for every consumer.
+ * Why a background coroutine? Collection does ZIP I/O and a few
+ * SHA-256 passes — fast (~tens of ms) but not zero, and we never
+ * block `onCreate` because that delays Application init for every
+ * consumer.
  *
- * The provider is `exported="false"` so it's invisible outside our own
- * process, and we never override the CRUD methods.
+ * The provider is `exported="false"` so it's invisible outside our
+ * own process, and we never override the CRUD methods.
  *
  * Authority pattern: `${applicationId}.io.ssemaj.DeviceIntelligenceInitProvider`.
  * AGP's manifest merger substitutes `${applicationId}` with the
@@ -48,9 +49,12 @@ internal class DeviceIntelligenceInitProvider : ContentProvider() {
         // field-init of NativeBridge does the System.loadLibrary call.
         runCatching { NativeBridge.isReady() }
 
-        Thread({
+        // Fire-and-forget the pre-warm. PrewarmCoordinator wires the
+        // resulting Deferred so DeviceIntelligence.awaitPrewarm()
+        // returns the *same* report instance instead of racing.
+        LibraryScope.launch(Dispatchers.IO) {
             try {
-                val report = DeviceIntelligence.collect(ctx)
+                val report = PrewarmCoordinator.startOrAwait(ctx).await()
                 Log.i(
                     LOG_TAG,
                     "background collect pre-warm finished: " +
@@ -59,10 +63,7 @@ internal class DeviceIntelligenceInitProvider : ContentProvider() {
             } catch (t: Throwable) {
                 Log.w(LOG_TAG, "background collect pre-warm threw", t)
             }
-        }, "DeviceIntelligence-Init").apply {
-            isDaemon = true
-            priority = Thread.NORM_PRIORITY - 1
-        }.start()
+        }
 
         return true
     }

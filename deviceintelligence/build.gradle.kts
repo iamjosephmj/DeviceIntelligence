@@ -99,7 +99,17 @@ android {
 }
 
 dependencies {
+    // Coroutines is the lone runtime dep. Exposed as `api` because
+    // the public surface (`suspend collect()`, `Flow<TelemetryReport>
+    // observe()`) returns coroutines types — consumers that touch
+    // them need the symbols on their compile classpath without
+    // having to repeat the dependency themselves. Adds ~80 KB to a
+    // consumer APK; if the consumer already depends on coroutines
+    // (95%+ of modern Android apps), Gradle dedupes.
+    api(libs.kotlinx.coroutines.android)
+
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // AGP creates the `release` software component lazily during evaluation

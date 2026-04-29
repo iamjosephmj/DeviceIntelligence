@@ -585,6 +585,9 @@ Its output lives in **two places**, on purpose:
   > report directly:
   >
   > ```kotlin
+  > // Inside any coroutine — the suspend collect() dispatches to
+  > // Dispatchers.IO for you. Use collectBlocking() from a
+  > // synchronous worker thread.
   > val report = DeviceIntelligence.collect(context)
   > val chainB64: String? = report.app.attestation?.chainB64
   > val chainSha: String? = report.app.attestation?.chainSha256

@@ -68,6 +68,65 @@ public data class TelemetryReport(
 public const val TELEMETRY_SCHEMA_VERSION: Int = 2
 
 /**
+ * Per-call configuration for `DeviceIntelligence.collect` and
+ * `DeviceIntelligence.observe`. Default-constructed instance runs
+ * every registered detector — i.e. the same behaviour as not
+ * passing options at all.
+ *
+ * Filtering by detector id lets a consumer:
+ *
+ *  - Skip an expensive detector on a hot path (e.g. drop
+ *    `integrity.apk` when polling for `integrity.art` in a tight
+ *    `observe()` loop).
+ *  - Skip a detector that's intentionally disabled by deployment
+ *    shape (e.g. `integrity.apk` is meaningless in
+ *    library-only-mode where the Gradle plugin isn't applied).
+ *  - Constrain `observe()` to the small set of detectors that
+ *    actually re-evaluate per-call (effectively just `integrity.art`
+ *    today; everything else memoizes for the process lifetime).
+ *
+ * Filtering only changes which entries appear in
+ * [TelemetryReport.detectors]. Skipped detectors do not appear at
+ * all (no INCONCLUSIVE / placeholder entry) — backends that key on
+ * "every detector ran" should pin their expectations off the same
+ * `CollectOptions` they passed in.
+ *
+ * `device.*` and `app.*` blocks are *always* populated regardless
+ * of the filter; they're the cheap observability surface and the
+ * hard dependencies between them and detector caches (e.g.
+ * `app.attestation` reads `attestation.key`'s last result if
+ * available) make per-block filtering not worth the API surface.
+ */
+public data class CollectOptions(
+    /**
+     * Detector ids to skip. Ignored when [only] is non-null.
+     *
+     * Example: `CollectOptions(skip = setOf("integrity.apk"))` for
+     * library-only-mode consumers who never apply the Gradle plugin.
+     */
+    public val skip: Set<String> = emptySet(),
+
+    /**
+     * If non-null, only detectors whose id is in this set run.
+     * Takes precedence over [skip].
+     *
+     * Example: `CollectOptions(only = setOf("integrity.art"))` for a
+     * hot `observe()` loop watching for runtime ART tampering.
+     *
+     * Empty set is allowed and means "no detectors run" — the
+     * report is still produced with `device.*` / `app.*` populated
+     * and an empty `detectors[]` list.
+     */
+    public val only: Set<String>? = null,
+) {
+    public companion object {
+        /** Convenience accessor for the default — every detector runs. */
+        @JvmField
+        public val DEFAULT: CollectOptions = CollectOptions()
+    }
+}
+
+/**
  * Hardware / OS context. Mirrors [android.os.Build] but trimmed to
  * fields that are stable, useful for cohorting, and not PII.
  *

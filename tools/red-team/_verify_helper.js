@@ -6,11 +6,14 @@
  * Why a helper: we want each script to print the post-tamper
  * integrity.art findings as a single deterministic blob.
  * integrity.art itself re-evaluates on every
- * `DeviceIntelligence.collect()` (it deliberately does not
- * memoize across calls — see the class kdoc on
- * `ArtIntegrityDetector`), so we can simply call `collect()`
- * post-tamper and read the integrity.art block out of the
- * returned report.
+ * `DeviceIntelligence.collectBlocking()` (it deliberately does
+ * not memoize across calls — see the class kdoc on
+ * `ArtIntegrityDetector`), so we can simply call
+ * `collectBlocking()` post-tamper and read the integrity.art
+ * block out of the returned report. We use the *Blocking variant
+ * because the suspend `collect()` is not directly callable from
+ * Frida's Java bridge (it has a hidden `Continuation` parameter
+ * at the JVM level).
  *
  * `resetForTest()` is still called below for backwards
  * compatibility with older test runs, but as of M18 it is a
@@ -89,7 +92,11 @@ function runVerify(label) {
     bag.detectorInstance.resetForTest();
     console.log('[' + label + '] integrity.art cache reset; running fresh collect...');
 
-    var report = Java.cast(bag.diInstance.collect(bag.ctx), bag.TelemetryReportCls);
+    // collectBlocking is the Java-friendly synchronous entry point.
+    // The primary `collect(Context)` is `suspend` and therefore has
+    // a Continuation parameter at the JVM level; Frida's Java bridge
+    // can't synthesise one.
+    var report = Java.cast(bag.diInstance.collectBlocking(bag.ctx), bag.TelemetryReportCls);
     var detectors = report.getDetectors();
     var found = false;
     var iter = detectors.iterator();

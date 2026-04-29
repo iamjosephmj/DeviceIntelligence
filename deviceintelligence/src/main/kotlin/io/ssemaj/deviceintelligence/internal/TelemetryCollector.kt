@@ -23,6 +23,7 @@ import android.view.Display
 import android.view.WindowManager
 import io.ssemaj.deviceintelligence.AppContext
 import io.ssemaj.deviceintelligence.CertValidity
+import io.ssemaj.deviceintelligence.CollectOptions
 import io.ssemaj.deviceintelligence.DetectorReport
 import io.ssemaj.deviceintelligence.DetectorStatus
 import io.ssemaj.deviceintelligence.DeviceContext
@@ -83,7 +84,9 @@ internal object TelemetryCollector {
         ArtIntegrityDetector,
     )
 
-    fun collect(context: Context): TelemetryReport {
+    fun collect(context: Context): TelemetryReport = collect(context, CollectOptions.DEFAULT)
+
+    fun collect(context: Context, options: CollectOptions): TelemetryReport {
         val started = SystemClock.elapsedRealtime()
         val nativeReady = runCatching { NativeBridge.isReady() }.getOrDefault(false)
         val appCtx = context.applicationContext
@@ -97,8 +100,9 @@ internal object TelemetryCollector {
             nativeReady = nativeReady,
         )
 
-        val detectorReports = ArrayList<DetectorReport>(defaultDetectors.size)
-        for (det in defaultDetectors) {
+        val activeDetectors = filterDetectors(defaultDetectors, options)
+        val detectorReports = ArrayList<DetectorReport>(activeDetectors.size)
+        for (det in activeDetectors) {
             val report = try {
                 det.evaluate(ctx)
             } catch (t: Throwable) {
@@ -125,6 +129,25 @@ internal object TelemetryCollector {
             detectors = detectorReports,
             summary = summary,
         )
+    }
+
+    /**
+     * Applies [CollectOptions] to the registered detector list. The
+     * iteration order of [defaultDetectors] is preserved — the `only`
+     * set acts as a membership filter, not a re-order. This keeps
+     * `attestation.key` running before `integrity.bootloader` even
+     * when callers list them in the opposite order.
+     *
+     * `internal` rather than `private` so the JVM unit tests can
+     * pin the filter contract without spinning up a real Context.
+     */
+    internal fun filterDetectors(all: List<Detector>, options: CollectOptions): List<Detector> {
+        val only = options.only
+        return when {
+            only != null -> all.filter { it.id in only }
+            options.skip.isNotEmpty() -> all.filter { it.id !in options.skip }
+            else -> all
+        }
     }
 
     /**

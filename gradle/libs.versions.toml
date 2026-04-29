@@ -1,10 +1,20 @@
 [versions]
 agp = "8.13.2"
-deviceintelligence = "0.2.0"
+deviceintelligence = "0.3.0"
 kotlin = "2.0.21"
+# kotlinx-coroutines 1.9.0 pairs with Kotlin 2.0.x. Bumping the
+# Kotlin version implies re-checking the matching coroutines line.
+kotlinx-coroutines = "1.9.0"
+# androidx.lifecycle 2.8.x is the latest stable line that still
+# supports the sample's compileSdk 36 / minSdk 28 floor without
+# pulling in newer AGP requirements.
+androidx-lifecycle = "2.8.7"
 junit = "4.13.2"
 
 [libraries]
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

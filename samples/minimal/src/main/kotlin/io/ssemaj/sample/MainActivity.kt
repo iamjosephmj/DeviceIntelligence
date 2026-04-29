@@ -27,9 +27,18 @@ import io.ssemaj.deviceintelligence.DeviceIntelligence
 import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TelemetryReport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Telemetry viewer for the DeviceIntelligence sample.
@@ -47,6 +56,20 @@ import java.util.Locale
 class MainActivity : Activity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Activity-scoped coroutine scope. Plain `android.app.Activity`
+     * doesn't implement `LifecycleOwner`, so we manage cancellation
+     * by hand: cancel in [onDestroy], let in-flight coroutines die
+     * with [kotlinx.coroutines.CancellationException]. Supervisor
+     * job so a single failing render doesn't tear down the auto loop.
+     */
+    private val activityScope: CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Active auto-collect [Job], non-null while the auto loop is on. */
+    private var autoCollectJob: Job? = null
+
     private lateinit var ui: Ui
 
     private lateinit var heroContainer: LinearLayout
@@ -77,24 +100,16 @@ class MainActivity : Activity() {
     @Volatile
     private var lastJson: String = ""
 
-    /** True while a `Re-collect` thread is in flight. Prevents the
-     *  auto-refresh loop from queueing a second collect on top of
-     *  one that hasn't finished yet. */
+    /** True while a `Re-collect` coroutine is in flight. Prevents the
+     *  user from queueing a second manual collect on top of one that
+     *  hasn't finished yet. The auto loop is rate-limited by its own
+     *  `delay()` so it doesn't need to consult this flag. */
     @Volatile
     private var collectInFlight: Boolean = false
 
-    /** True while the auto-collect loop is active. */
+    /** True while the auto-collect loop is active. Drives the toggle
+     *  button label; the actual loop is held by [autoCollectJob]. */
     private var autoCollectOn: Boolean = false
-
-    /** The auto-collect tick lambda — instantiated once and re-posted
-     *  on the main handler so the cancel path is `removeCallbacks(this)`. */
-    private val autoCollectTick: Runnable = object : Runnable {
-        override fun run() {
-            if (!autoCollectOn) return
-            if (!collectInFlight) runCollect(initial = false)
-            mainHandler.postDelayed(this, AUTO_COLLECT_INTERVAL_MS)
-        }
-    }
 
     private val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
@@ -116,6 +131,11 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
+        // Cancels both the manual `runCollect` coroutines and the
+        // auto-collect Flow `launchIn` job in one shot. Anything
+        // currently inside `DeviceIntelligence.collect` resumes with
+        // CancellationException between detectors.
+        activityScope.cancel()
     }
 
     // ---- scaffold ----------------------------------------------------------
@@ -304,51 +324,87 @@ class MainActivity : Activity() {
 
     // ---- collect & render --------------------------------------------------
 
+    /**
+     * One-shot collect launched on the activity scope.
+     *
+     * The earlier `Thread { ... }.post { handler }` pattern collapses
+     * into a single suspend call: `DeviceIntelligence.collect` returns
+     * on `Dispatchers.Main` (because [activityScope] is Main-bound) so
+     * we can update views directly without re-posting. The library
+     * itself dispatches the heavy work onto `Dispatchers.IO` via its
+     * own `withContext`.
+     */
     private fun runCollect(initial: Boolean) {
         if (collectInFlight) return
         collectInFlight = true
-        Thread({
-            val report = try {
-                DeviceIntelligence.collect(this)
-            } catch (t: Throwable) {
-                Log.e(TAG, "DeviceIntelligence.collect threw", t)
-                null
+        activityScope.launch {
+            val report = runCatching { DeviceIntelligence.collect(this@MainActivity) }
+                .onFailure { Log.e(TAG, "DeviceIntelligence.collect threw", it) }
+                .getOrNull()
+            try {
+                applyReport(report, initial = initial)
+            } finally {
+                collectInFlight = false
             }
-            mainHandler.post {
-                try {
-                    if (report == null) {
-                        jsonView.text = "(collect failed — see logcat)"
-                        Log.w(TAG, "collect failed")
-                        return@post
-                    }
-                    lastReport = report
-                    lastJson = report.toJson()
-                    renderHero(report)
-                    renderDevice(report.device)
-                    renderApp(report.app)
-                    renderFindings(report)
-                    renderDetectors(report.detectors)
-                    jsonView.text = lastJson
-                    val findingCount = report.summary.totalFindings
-                    val verb = if (initial) "initial collect" else "recollect"
-                    Log.i(TAG, "$verb done: $findingCount finding(s) in ${report.collectionDurationMs}ms")
-                    Log.i(JSON_TAG, lastJson)
-                } finally {
-                    collectInFlight = false
-                }
-            }
-        }, "sample-collect").apply { isDaemon = true }.start()
+        }
+    }
+
+    /**
+     * Updates every card from a report. Centralised so both the
+     * one-shot path ([runCollect]) and the auto-loop path
+     * ([startAutoCollect]) re-use it.
+     */
+    private fun applyReport(report: TelemetryReport?, initial: Boolean) {
+        if (report == null) {
+            jsonView.text = "(collect failed — see logcat)"
+            Log.w(TAG, "collect failed")
+            return
+        }
+        lastReport = report
+        lastJson = report.toJson()
+        renderHero(report)
+        renderDevice(report.device)
+        renderApp(report.app)
+        renderFindings(report)
+        renderDetectors(report.detectors)
+        jsonView.text = lastJson
+        val findingCount = report.summary.totalFindings
+        val verb = if (initial) "initial collect" else "recollect"
+        Log.i(TAG, "$verb done: $findingCount finding(s) in ${report.collectionDurationMs}ms")
+        Log.i(JSON_TAG, lastJson)
+    }
+
+    /**
+     * Subscribes to `DeviceIntelligence.observe(...)`. The Flow emits
+     * a fresh report immediately, then every `AUTO_COLLECT_INTERVAL_MS`
+     * thereafter, until the returned Job is cancelled (toggle off,
+     * activity destroyed). Cancellation happens automatically with
+     * [activityScope] in [onDestroy].
+     */
+    private fun startAutoCollect() {
+        autoCollectJob?.cancel()
+        autoCollectJob = DeviceIntelligence
+            .observe(
+                context = this,
+                interval = AUTO_COLLECT_INTERVAL_MS.milliseconds,
+            )
+            .onEach { applyReport(it, initial = false) }
+            .launchIn(activityScope)
+    }
+
+    private fun stopAutoCollect() {
+        autoCollectJob?.cancel()
+        autoCollectJob = null
     }
 
     private fun toggleAutoCollect() {
         autoCollectOn = !autoCollectOn
         autoBtn.text = autoButtonLabel()
         if (autoCollectOn) {
-            mainHandler.removeCallbacks(autoCollectTick)
-            mainHandler.post(autoCollectTick)
+            startAutoCollect()
             toast("Auto-collect on (${AUTO_COLLECT_INTERVAL_MS / 1000}s)")
         } else {
-            mainHandler.removeCallbacks(autoCollectTick)
+            stopAutoCollect()
             toast("Auto-collect off")
         }
     }
@@ -360,12 +416,12 @@ class MainActivity : Activity() {
         super.onPause()
         // Stop the auto loop when we lose foreground so a backgrounded
         // sample app doesn't keep re-running collects forever.
-        if (autoCollectOn) mainHandler.removeCallbacks(autoCollectTick)
+        if (autoCollectOn) stopAutoCollect()
     }
 
     override fun onResume() {
         super.onResume()
-        if (autoCollectOn) mainHandler.post(autoCollectTick)
+        if (autoCollectOn) startAutoCollect()
     }
 
     // ---- rendering helpers -------------------------------------------------
