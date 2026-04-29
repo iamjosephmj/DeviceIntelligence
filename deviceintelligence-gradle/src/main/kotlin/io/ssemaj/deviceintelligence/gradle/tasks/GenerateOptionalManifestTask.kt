@@ -32,6 +32,10 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
     @get:Input
     abstract val needsAccessNetworkState: Property<Boolean>
 
+    /** True iff `enableBiometricsDetection = true` in the consumer's DSL. */
+    @get:Input
+    abstract val needsUseBiometric: Property<Boolean>
+
     /**
      * Variant name, baked in only for diagnostic output / cache key
      * differentiation across multi-variant builds.
@@ -52,6 +56,7 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
         out.parentFile?.mkdirs()
         val perms = buildList {
             if (needsAccessNetworkState.getOrElse(false)) add(ACCESS_NETWORK_STATE)
+            if (needsUseBiometric.getOrElse(false)) add(USE_BIOMETRIC)
         }
         // We always write a valid manifest, even when no permissions
         // are opted in, so AGP's manifest merger always finds the
@@ -76,5 +81,6 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
 
     private companion object {
         const val ACCESS_NETWORK_STATE = "android.permission.ACCESS_NETWORK_STATE"
+        const val USE_BIOMETRIC = "android.permission.USE_BIOMETRIC"
     }
 }

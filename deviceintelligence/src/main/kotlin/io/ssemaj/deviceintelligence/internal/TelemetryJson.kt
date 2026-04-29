@@ -72,7 +72,63 @@ internal object TelemetryJson {
         kvIntOrNull("sensor_count", d.sensorCount, indent); append(",\n")
         kvIntOrNull("boot_count", d.bootCount, indent); append(",\n")
         kvBoolOrNull("vpn_active", d.vpnActive, indent); append(",\n")
-        kvBoolOrNull("strongbox_available", d.strongboxAvailable, indent); append('\n')
+        kvBoolOrNull("strongbox_available", d.strongboxAvailable, indent); append(",\n")
+
+        // Extended Build identity — cohorting + emulator detection.
+        kvStrOrNull("brand", d.brand, indent); append(",\n")
+        kvStrOrNull("board", d.board, indent); append(",\n")
+        kvStrOrNull("hardware", d.hardware, indent); append(",\n")
+        kvStrOrNull("product", d.product, indent); append(",\n")
+        kvStrOrNull("device", d.device, indent); append(",\n")
+        kvStrOrNull("bootloader_version", d.bootloaderVersion, indent); append(",\n")
+        kvStrOrNull("radio_version", d.radioVersion, indent); append(",\n")
+        kvStrOrNull("build_host", d.buildHost, indent); append(",\n")
+        kvStrOrNull("build_user", d.buildUser, indent); append(",\n")
+        kvStrOrNull("build_type", d.buildType, indent); append(",\n")
+        kvStrOrNull("build_tags", d.buildTags, indent); append(",\n")
+        kvLongOrNull("build_time_epoch_ms", d.buildTimeEpochMs, indent); append(",\n")
+        kvListOrNull("supported_abis_all", d.supportedAbisAll, indent); append(",\n")
+        kvStrOrNull("soc_manufacturer", d.socManufacturer, indent); append(",\n")
+        kvStrOrNull("soc_model", d.socModel, indent); append(",\n")
+
+        // GPU / EGL hint
+        kvStrOrNull("gl_es_version", d.glEsVersion, indent); append(",\n")
+        kvStrOrNull("egl_implementation", d.eglImplementation, indent); append(",\n")
+
+        // Locale + timezone
+        kvStrOrNull("default_locale", d.defaultLocale, indent); append(",\n")
+        kvListOrNull("system_locales", d.systemLocales, indent); append(",\n")
+        kvStrOrNull("timezone_id", d.timezoneId, indent); append(",\n")
+        kvIntOrNull("timezone_offset_minutes", d.timezoneOffsetMinutes, indent); append(",\n")
+        kvBoolOrNull("auto_time_enabled", d.autoTimeEnabled, indent); append(",\n")
+        kvBoolOrNull("auto_time_zone_enabled", d.autoTimeZoneEnabled, indent); append(",\n")
+
+        // Display extras
+        kvFloatOrNull("display_refresh_rate_hz", d.displayRefreshRateHz, indent); append(",\n")
+        kvFloatListOrNull("display_supported_refresh_rates_hz", d.displaySupportedRefreshRatesHz, indent); append(",\n")
+        kvListOrNull("display_hdr_types", d.displayHdrTypes, indent); append(",\n")
+
+        // Security posture
+        kvBoolOrNull("device_secure", d.deviceSecure, indent); append(",\n")
+        kvBoolOrNull("biometrics_enrolled", d.biometricsEnrolled, indent); append(",\n")
+        kvBoolOrNull("adb_enabled", d.adbEnabled, indent); append(",\n")
+        kvBoolOrNull("developer_options_enabled", d.developerOptionsEnabled, indent); append(",\n")
+
+        // Battery + thermal
+        kvBoolOrNull("battery_present", d.batteryPresent, indent); append(",\n")
+        kvStrOrNull("battery_technology", d.batteryTechnology, indent); append(",\n")
+        kvStrOrNull("battery_health", d.batteryHealth, indent); append(",\n")
+        kvStrOrNull("battery_plug_type", d.batteryPlugType, indent); append(",\n")
+        kvStrOrNull("thermal_status", d.thermalStatus, indent); append(",\n")
+
+        // Boot derivation
+        kvLongOrNull("boot_epoch_ms", d.bootEpochMs, indent); append(",\n")
+
+        // Google ecosystem
+        kvStrOrNull("play_services_availability", d.playServicesAvailability, indent); append(",\n")
+        kvLongOrNull("play_services_version_code", d.playServicesVersionCode, indent); append(",\n")
+        kvLongOrNull("play_store_version_code", d.playStoreVersionCode, indent); append(",\n")
+        kvStrOrNull("gms_signer_sha256", d.gmsSignerSha256, indent); append('\n')
     }
 
     private fun StringBuilder.encodeApp(a: AppContext, indent: String) {
@@ -303,6 +359,52 @@ internal object TelemetryJson {
             append('\n')
         }
         append(indent).append(']')
+    }
+
+    private fun StringBuilder.kvListOrNull(k: String, items: List<String>?, indent: String = "  ") {
+        if (items == null) {
+            append(indent).appendQuoted(k).append(": null")
+            return
+        }
+        kvList(k, items, indent)
+    }
+
+    /**
+     * Inline-formatted list of floats — emitted as a single line
+     * `"k": [60.0, 90.0, 120.0]` regardless of length, matching the
+     * compact form most JSON consumers produce for primitive arrays.
+     */
+    private fun StringBuilder.kvFloatListOrNull(
+        k: String,
+        items: List<Float>?,
+        indent: String = "  ",
+    ) {
+        append(indent).appendQuoted(k).append(": ")
+        if (items == null) {
+            append("null"); return
+        }
+        append('[')
+        items.forEachIndexed { i, f ->
+            if (i != 0) append(", ")
+            append(formatFloat(f))
+        }
+        append(']')
+    }
+
+    private fun StringBuilder.kvFloatOrNull(k: String, v: Float?, indent: String = "  ") {
+        append(indent).appendQuoted(k).append(": ")
+        if (v == null) append("null") else append(formatFloat(v))
+    }
+
+    /**
+     * Stable single-precision formatter. Always uses [java.util.Locale.ROOT]
+     * so devices on locales whose decimal separator is `,` (German, French,
+     * etc.) still emit JSON-compliant `60.0` rather than `60,0`.
+     */
+    private fun formatFloat(f: Float): String {
+        if (f.isNaN() || f.isInfinite()) return "null"
+        // 1 decimal max; "60.0" / "90.0" / "120.5".
+        return String.format(java.util.Locale.ROOT, "%.1f", f)
     }
 
     private fun StringBuilder.kvSortedStringMap(

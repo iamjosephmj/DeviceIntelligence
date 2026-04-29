@@ -198,6 +198,11 @@ deviceintelligence {
     // Opt in to VPN detection (DeviceContext.vpnActive). Off by default
     // because it injects ACCESS_NETWORK_STATE into your manifest.
     enableVpnDetection.set(true)
+
+    // Opt in to biometrics-enrollment detection
+    // (DeviceContext.biometricsEnrolled). Off by default because it
+    // injects USE_BIOMETRIC. Normal-protection, no Play review impact.
+    enableBiometricsDetection.set(true)
 }
 
 dependencies {
@@ -228,10 +233,31 @@ Per variant, the plugin:
 3. Injects the encrypted blob as an asset (`assets/io.ssemaj/fingerprint.bin`)
    before re-signing the APK with your `signingConfig` (v1+v2+v3).
 4. Generates a small manifest fragment with whatever opt-in permissions you enabled
-   (currently `ACCESS_NETWORK_STATE` for VPN detection) and wires it into your
-   variant via `addGeneratedManifestFile`.
+   (`ACCESS_NETWORK_STATE` for VPN detection, `USE_BIOMETRIC` for biometrics-enrollment
+   detection) and wires it into your variant via `addGeneratedManifestFile`.
 
 ## Output shape
+
+The `device.*` block ships ~60 fields grouped by purpose. Every observability
+field is nullable: a single failing accessor (sensor service unavailable,
+permission missing, weird OEM fork) only blanks that one field — the surrounding
+report is unaffected.
+
+| Group | Fields | What backends use it for |
+|---|---|---|
+| **Identity** | `manufacturer`, `model`, `sdk_int`, `abi`, `fingerprint` | Always-present basics |
+| **Hardware identity** | `brand`, `board`, `hardware`, `product`, `device`, `bootloader_version`, `radio_version`, `build_*`, `supported_abis_all`, `soc_manufacturer` (API 31+), `soc_model` (API 31+) | Cohort by SoC / OEM ROM. Catches every emulator (`hardware = goldfish/ranchu`) and every custom ROM (`build_host` doesn't match the OEM CI farm). |
+| **Resources** | `total_ram_mb`, `cpu_cores`, `screen_density_dpi`, `screen_resolution`, `sensor_count`, `boot_count` | Form-factor + emulator heuristics |
+| **GPU / EGL** | `gl_es_version`, `egl_implementation` | Strong emulator tell — `swiftshader` / `mesa` give them away. |
+| **Locale + timezone** | `default_locale`, `system_locales`, `timezone_id`, `timezone_offset_minutes`, `auto_time_enabled`, `auto_time_zone_enabled` | Geo-cohort without GPS. Backend correlates timezone vs IP geolocation — mismatch is a strong VPN-fraud signal. Manual clock on a "production" device usually means a fraud rig. |
+| **Display extras** | `display_refresh_rate_hz`, `display_supported_refresh_rates_hz`, `display_hdr_types` | Modern flagships report 120Hz + HDR10+; emulators stuck at 60Hz with no HDR. |
+| **Security posture** | `strongbox_available`, `device_secure`, `biometrics_enrolled`†, `adb_enabled`, `developer_options_enabled` | Bot farms / dev rigs leak here — no lockscreen, ADB on, dev options on. |
+| **Battery + thermal** | `battery_present`, `battery_technology`, `battery_health`, `battery_plug_type`, `thermal_status` (API 29+) | Emulators report `Unknown` battery tech. Click farms are always plugged in (correlate `plug_type ≠ none` across many reports per device). |
+| **Boot derivation** | `boot_epoch_ms` | Cheap cohort + clock-jump fraud detection. |
+| **Network** | `vpn_active`† | Active VPN transport — opt-in via `enableVpnDetection`. |
+| **Google ecosystem** | `play_services_availability`, `play_services_version_code`, `play_store_version_code`, `gms_signer_sha256` | Confirms Google ecosystem (or not — MicroG, Huawei, custom ROMs). The signer hash distinguishes real Google-signed GMS from re-signed / spoofed copies. |
+
+† Requires consumer to opt in via the Gradle DSL — see [Permissions](#permissions).
 
 <details>
 <summary>Click to expand a representative report (clean Pixel 9 Pro + a tripped F13 finding for illustration)</summary>
@@ -248,16 +274,65 @@ Per variant, the plugin:
     "sdk_int": 36,
     "abi": "arm64-v8a",
     "fingerprint": "google/caiman/caiman:16/CP1A.260405.005/15001963:user/release-keys",
-    "total_ram_mb": 16384,
+
+    "total_ram_mb": 15583,
     "cpu_cores": 8,
     "screen_density_dpi": 480,
     "screen_resolution": "1280x2856",
     "has_fingerprint_hw": true,
     "has_telephony_hw": true,
-    "sensor_count": 28,
-    "boot_count": 142,
+    "sensor_count": 41,
+    "boot_count": 66,
     "vpn_active": false,
-    "strongbox_available": true
+    "strongbox_available": true,
+
+    "brand": "google",
+    "board": "caiman",
+    "hardware": "caiman",
+    "product": "caiman",
+    "device": "caiman",
+    "bootloader_version": "ripcurrentpro-16.4-14791556",
+    "radio_version": "g5400c-251201-260127-B-14784805,g5400c-251201-260127-B-14784805",
+    "build_host": "67911e6f684b",
+    "build_user": "android-build",
+    "build_type": "user",
+    "build_tags": "release-keys",
+    "build_time_epoch_ms": 1773135125000,
+    "supported_abis_all": ["arm64-v8a"],
+    "soc_manufacturer": "Google",
+    "soc_model": "Tensor G4",
+
+    "gl_es_version": "3.2",
+    "egl_implementation": "mali",
+
+    "default_locale": "en-DE",
+    "system_locales": ["en-DE"],
+    "timezone_id": "Europe/Berlin",
+    "timezone_offset_minutes": 120,
+    "auto_time_enabled": true,
+    "auto_time_zone_enabled": true,
+
+    "display_refresh_rate_hz": 120.0,
+    "display_supported_refresh_rates_hz": [1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 24.0, 30.0, 40.0, 60.0, 120.0],
+    "display_hdr_types": ["HDR10", "HLG", "HDR10_PLUS"],
+
+    "device_secure": true,
+    "biometrics_enrolled": true,
+    "adb_enabled": false,
+    "developer_options_enabled": false,
+
+    "battery_present": true,
+    "battery_technology": "Li-ion",
+    "battery_health": "good",
+    "battery_plug_type": "none",
+    "thermal_status": "none",
+
+    "boot_epoch_ms": 1776535244178,
+
+    "play_services_availability": "success",
+    "play_services_version_code": 261533035,
+    "play_store_version_code": 85101930,
+    "gms_signer_sha256": "5f2391277b1dbd489000467e4c2fa6af802430080457dce2f618992e9dfb5402"
   },
   "app": {
     "package_name": "com.example.app",
@@ -661,10 +736,11 @@ DeviceIntelligence ships with the absolute minimum permission set in the library
 AAR, and every additional permission is opt-in through the Gradle plugin DSL so
 consumers can decide per-app.
 
-| Permission                       | Where it lives                                | Required by                                              | Opt-in mechanism                          |
-|----------------------------------|-----------------------------------------------|----------------------------------------------------------|-------------------------------------------|
-| `QUERY_ALL_PACKAGES`             | Library manifest (always merged in)           | F17 `root_manager_app_installed` channel                 | Strip via `tools:node="remove"`           |
-| `ACCESS_NETWORK_STATE`           | Generated manifest fragment (opt-in)          | `DeviceContext.vpnActive`                                | `enableVpnDetection.set(true)` in Gradle  |
+| Permission                       | Where it lives                                | Required by                                              | Opt-in mechanism                                  |
+|----------------------------------|-----------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
+| `QUERY_ALL_PACKAGES`             | Library manifest (always merged in)           | F17 `root_manager_app_installed` channel                 | Strip via `tools:node="remove"`                   |
+| `ACCESS_NETWORK_STATE`           | Generated manifest fragment (opt-in)          | `DeviceContext.vpnActive`                                | `enableVpnDetection.set(true)` in Gradle          |
+| `USE_BIOMETRIC`                  | Generated manifest fragment (opt-in)          | `DeviceContext.biometricsEnrolled`                       | `enableBiometricsDetection.set(true)` in Gradle   |
 
 When you opt out of a permission, the affected field reports `null` rather than
 `false` so backends can distinguish "no signal" from "negative signal".

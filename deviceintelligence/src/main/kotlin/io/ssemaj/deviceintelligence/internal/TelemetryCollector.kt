@@ -1,17 +1,26 @@
 package io.ssemaj.deviceintelligence.internal
 
 import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.content.res.Resources
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.hardware.biometrics.BiometricManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
+import android.view.WindowManager
 import io.ssemaj.deviceintelligence.AppContext
 import io.ssemaj.deviceintelligence.CertValidity
 import io.ssemaj.deviceintelligence.DetectorReport
@@ -23,6 +32,9 @@ import io.ssemaj.deviceintelligence.ReportSummary
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TELEMETRY_SCHEMA_VERSION
 import io.ssemaj.deviceintelligence.TelemetryReport
+import java.security.MessageDigest
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * The single orchestrator that turns the registered list of
@@ -137,6 +149,10 @@ internal object TelemetryCollector {
         }.getOrNull()
 
         val vpnActive = readVpnActive(context)
+        val battery = readBattery(context)
+        val display = readDisplay(context)
+        val locale = readLocale(context)
+        val gms = readGoogleEcosystem(context)
 
         return DeviceContext(
             manufacturer = Build.MANUFACTURER ?: "",
@@ -162,6 +178,89 @@ internal object TelemetryCollector {
             strongboxAvailable = runCatching {
                 pm.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
             }.getOrNull(),
+
+            // Extended Build identity
+            brand = Build.BRAND,
+            board = Build.BOARD,
+            hardware = Build.HARDWARE,
+            product = Build.PRODUCT,
+            device = Build.DEVICE,
+            bootloaderVersion = Build.BOOTLOADER,
+            radioVersion = runCatching { Build.getRadioVersion() }.getOrNull(),
+            buildHost = Build.HOST,
+            buildUser = Build.USER,
+            buildType = Build.TYPE,
+            buildTags = Build.TAGS,
+            buildTimeEpochMs = runCatching { Build.TIME }.getOrNull()
+                ?.takeIf { it > 0 },
+            supportedAbisAll = runCatching { Build.SUPPORTED_ABIS?.toList() }.getOrNull(),
+            socManufacturer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                runCatching { Build.SOC_MANUFACTURER }.getOrNull()
+            } else null,
+            socModel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                runCatching { Build.SOC_MODEL }.getOrNull()
+            } else null,
+
+            // GPU / EGL hint
+            glEsVersion = runCatching {
+                (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+                    .deviceConfigurationInfo
+                    .glEsVersion
+            }.getOrNull(),
+            eglImplementation = runCatching {
+                NativeBridge.systemProperty("ro.hardware.egl")
+            }.getOrNull()?.takeIf { it.isNotEmpty() },
+
+            // Locale + timezone
+            defaultLocale = locale.defaultLocale,
+            systemLocales = locale.systemLocales,
+            timezoneId = locale.timezoneId,
+            timezoneOffsetMinutes = locale.timezoneOffsetMinutes,
+            autoTimeEnabled = runCatching {
+                Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME) != 0
+            }.getOrNull(),
+            autoTimeZoneEnabled = runCatching {
+                Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME_ZONE) != 0
+            }.getOrNull(),
+
+            // Display extras
+            displayRefreshRateHz = display.refreshRateHz,
+            displaySupportedRefreshRatesHz = display.supportedRefreshRatesHz,
+            displayHdrTypes = display.hdrTypes,
+
+            // Security posture
+            deviceSecure = runCatching {
+                (context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager)
+                    .isDeviceSecure
+            }.getOrNull(),
+            biometricsEnrolled = readBiometricsEnrolled(context),
+            adbEnabled = runCatching {
+                Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED) != 0
+            }.getOrNull(),
+            developerOptionsEnabled = runCatching {
+                Settings.Global.getInt(
+                    context.contentResolver,
+                    Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+                ) != 0
+            }.getOrNull(),
+
+            // Battery + thermal
+            batteryPresent = battery.present,
+            batteryTechnology = battery.technology,
+            batteryHealth = battery.health,
+            batteryPlugType = battery.plugType,
+            thermalStatus = readThermalStatus(context),
+
+            // Boot derivation
+            bootEpochMs = runCatching {
+                System.currentTimeMillis() - SystemClock.elapsedRealtime()
+            }.getOrNull(),
+
+            // Google ecosystem
+            playServicesAvailability = gms.availability,
+            playServicesVersionCode = gms.gmsVersionCode,
+            playStoreVersionCode = gms.storeVersionCode,
+            gmsSignerSha256 = gms.gmsSignerSha256,
         )
     }
 
@@ -195,6 +294,214 @@ internal object TelemetryCollector {
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@runCatching true
             }
             false
+        }.getOrNull()
+    }
+
+    // ---- new observability readers ---------------------------------------
+
+    private data class BatterySnapshot(
+        val present: Boolean?,
+        val technology: String?,
+        val health: String?,
+        val plugType: String?,
+    )
+
+    /**
+     * Reads the sticky `ACTION_BATTERY_CHANGED` broadcast — same
+     * pattern Android's own battery widgets use. Sticky broadcasts
+     * deliver synchronously without a real receiver registration so
+     * there's no leak risk.
+     */
+    private fun readBattery(context: Context): BatterySnapshot {
+        val empty = BatterySnapshot(null, null, null, null)
+        return runCatching {
+            val intent: Intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                ?: return@runCatching empty
+            val present = intent.getBooleanExtra(BatteryManager.EXTRA_PRESENT, false)
+                .takeIf { intent.hasExtra(BatteryManager.EXTRA_PRESENT) }
+            val tech = intent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)
+                ?.takeIf { it.isNotEmpty() }
+            val healthCode = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, -1)
+            val health = when (healthCode) {
+                BatteryManager.BATTERY_HEALTH_GOOD -> "good"
+                BatteryManager.BATTERY_HEALTH_OVERHEAT -> "overheat"
+                BatteryManager.BATTERY_HEALTH_DEAD -> "dead"
+                BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "over_voltage"
+                BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "failure"
+                BatteryManager.BATTERY_HEALTH_COLD -> "cold"
+                BatteryManager.BATTERY_HEALTH_UNKNOWN -> "unknown"
+                else -> null
+            }
+            val pluggedCode = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)
+            val plug = when (pluggedCode) {
+                0 -> "none"
+                BatteryManager.BATTERY_PLUGGED_AC -> "ac"
+                BatteryManager.BATTERY_PLUGGED_USB -> "usb"
+                BatteryManager.BATTERY_PLUGGED_WIRELESS -> "wireless"
+                BatteryManager.BATTERY_PLUGGED_DOCK -> "dock"
+                else -> null
+            }
+            BatterySnapshot(present, tech, health, plug)
+        }.getOrDefault(empty)
+    }
+
+    /**
+     * `PowerManager.getCurrentThermalStatus()` was introduced in API 29.
+     * We're at minSdk 28, so guard the one-version gap.
+     */
+    private fun readThermalStatus(context: Context): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        return runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            when (pm.currentThermalStatus) {
+                PowerManager.THERMAL_STATUS_NONE -> "none"
+                PowerManager.THERMAL_STATUS_LIGHT -> "light"
+                PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+                PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+                PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+                PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+                PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+                else -> null
+            }
+        }.getOrNull()
+    }
+
+    /**
+     * `BiometricManager` requires API 29+. On API 28 we return null
+     * (the field is documented as nullable for that reason).
+     *
+     * On API 30+ the no-arg `canAuthenticate()` is deprecated and
+     * unreliable: it returns `BIOMETRIC_ERROR_NO_HARDWARE` on devices
+     * that actually have biometrics enrolled. Use the auth-type
+     * overload with [BiometricManager.Authenticators.BIOMETRIC_STRONG]
+     * (Class 3) — that's the contract every modern fingerprint /
+     * Face Unlock-Class-3 sensor signs against.
+     */
+    private fun readBiometricsEnrolled(context: Context): Boolean? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        return runCatching {
+            val bm = context.getSystemService(Context.BIOMETRIC_SERVICE) as BiometricManager
+            val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                bm.canAuthenticate(
+                    android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                bm.canAuthenticate()
+            }
+            status == BiometricManager.BIOMETRIC_SUCCESS
+        }.getOrNull()
+    }
+
+    private data class DisplaySnapshot(
+        val refreshRateHz: Float?,
+        val supportedRefreshRatesHz: List<Float>?,
+        val hdrTypes: List<String>?,
+    )
+
+    /**
+     * Pulls the current refresh rate, the panel's full supported set,
+     * and the supported HDR-type list from the default display. Each
+     * field is captured under its own `runCatching` so a quirky OEM
+     * display driver can't blank the whole snapshot.
+     */
+    @Suppress("DEPRECATION")
+    private fun readDisplay(context: Context): DisplaySnapshot {
+        val display: Display? = runCatching {
+            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+        }.getOrNull()
+        val refresh = runCatching { display?.refreshRate }.getOrNull()
+        val supported = runCatching {
+            display?.supportedRefreshRates?.toList()?.distinct()?.sorted()
+        }.getOrNull()
+        val hdr = runCatching {
+            display?.hdrCapabilities?.supportedHdrTypes?.map { hdrTypeToWire(it) }
+        }.getOrNull()
+        return DisplaySnapshot(refresh, supported, hdr)
+    }
+
+    private fun hdrTypeToWire(code: Int): String = when (code) {
+        Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION -> "DOLBY_VISION"
+        Display.HdrCapabilities.HDR_TYPE_HDR10 -> "HDR10"
+        Display.HdrCapabilities.HDR_TYPE_HLG -> "HLG"
+        Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS -> "HDR10_PLUS"
+        else -> "UNKNOWN_$code"
+    }
+
+    private data class LocaleSnapshot(
+        val defaultLocale: String?,
+        val systemLocales: List<String>?,
+        val timezoneId: String?,
+        val timezoneOffsetMinutes: Int?,
+    )
+
+    private fun readLocale(@Suppress("UNUSED_PARAMETER") context: Context): LocaleSnapshot {
+        val def = runCatching { Locale.getDefault().toLanguageTag() }.getOrNull()
+        val sys = runCatching {
+            val locales = Resources.getSystem().configuration.locales
+            (0 until locales.size()).map { locales[it].toLanguageTag() }
+        }.getOrNull()
+        val tz = runCatching { TimeZone.getDefault() }.getOrNull()
+        val tzId = runCatching { tz?.id }.getOrNull()
+        val tzOffset = runCatching {
+            tz?.getOffset(System.currentTimeMillis())?.let { it / 60_000 }
+        }.getOrNull()
+        return LocaleSnapshot(def, sys, tzId, tzOffset)
+    }
+
+    private data class GoogleEcosystemSnapshot(
+        val availability: String?,
+        val gmsVersionCode: Long?,
+        val storeVersionCode: Long?,
+        val gmsSignerSha256: String?,
+    )
+
+    /**
+     * Reads Play Services / Play Store presence + version + GMS signer
+     * cert hash directly via [PackageManager]. We don't link against
+     * Play Services at all — keeping the SDK dependency-free is the
+     * whole point. The "availability" string is computed from the
+     * presence + state of `com.google.android.gms`, mimicking the same
+     * vocabulary `GoogleApiAvailability` would return so backends that
+     * already speak that vocabulary don't need a remap.
+     */
+    private fun readGoogleEcosystem(context: Context): GoogleEcosystemSnapshot {
+        val pm = context.packageManager
+        val gmsInfo = runCatching {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo("com.google.android.gms", PackageManager.GET_SIGNING_CERTIFICATES)
+        }.getOrNull()
+        val storeInfo = runCatching {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo("com.android.vending", 0)
+        }.getOrNull()
+
+        val gmsVersionCode: Long? = gmsInfo?.let { packageVersionLong(it) }
+        val storeVersionCode: Long? = storeInfo?.let { packageVersionLong(it) }
+
+        val availability: String = when {
+            gmsInfo == null -> "service_missing"
+            !gmsInfo.applicationInfo!!.enabled -> "service_disabled"
+            else -> "success"
+        }
+
+        val signerSha: String? = gmsInfo?.let { sha256OfFirstSigner(it.signingInfo?.apkContentsSigners) }
+
+        return GoogleEcosystemSnapshot(availability, gmsVersionCode, storeVersionCode, signerSha)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun packageVersionLong(pi: android.content.pm.PackageInfo): Long? = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode
+        else pi.versionCode.toLong()
+    }.getOrNull()
+
+    private fun sha256OfFirstSigner(sigs: Array<Signature>?): String? {
+        if (sigs.isNullOrEmpty()) return null
+        return runCatching {
+            val md = MessageDigest.getInstance("SHA-256")
+            md.update(sigs[0].toByteArray())
+            md.digest().joinToString(separator = "") { b -> "%02x".format(b) }
         }.getOrNull()
     }
 

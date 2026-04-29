@@ -126,6 +126,138 @@ public data class DeviceContext(
      * Null if the lookup failed (rare).
      */
     public val strongboxAvailable: Boolean? = null,
+
+    // ---- extended Build.* identity (cohorting / emulator detection) ----
+
+    /** `Build.BRAND` — often differs from [manufacturer] (Xiaomi vs Redmi vs Poco). */
+    public val brand: String? = null,
+    /** `Build.BOARD` — board name (`oriole`, `caiman`). */
+    public val board: String? = null,
+    /** `Build.HARDWARE` — SoC platform (`tensor`, `qcom`, `mt6789`, `goldfish`/`ranchu` on emulators). */
+    public val hardware: String? = null,
+    /** `Build.PRODUCT` — product line. */
+    public val product: String? = null,
+    /** `Build.DEVICE` — device codename (`caiman` for Pixel 9 Pro). Stable across [model] rebrands. */
+    public val device: String? = null,
+    /** `Build.BOOTLOADER` — bootloader version string. Custom ROMs leak modified strings here. */
+    public val bootloaderVersion: String? = null,
+    /** `Build.getRadioVersion()` — baseband version. Emulators report `unknown`. */
+    public val radioVersion: String? = null,
+    /** `Build.HOST` — build-machine hostname. OEMs use corporate CI hosts; custom ROMs leak weird hostnames. */
+    public val buildHost: String? = null,
+    /** `Build.USER` — build-machine user account. Real OEMs use `android-build`-style accounts. */
+    public val buildUser: String? = null,
+    /** `Build.TYPE` — `user` / `userdebug` / `eng`. Anything other than `user` on a "production" device is suspicious. */
+    public val buildType: String? = null,
+    /** `Build.TAGS` — comma-separated build tags. F17 trips on `test-keys`; this field surfaces the value unconditionally for cohorting. */
+    public val buildTags: String? = null,
+    /** `Build.TIME` — when the system image was built. Wall-clock ms. */
+    public val buildTimeEpochMs: Long? = null,
+    /** `Build.SUPPORTED_ABIS` (full list). [abi] is the first entry. Disambiguates 64-bit-only devices and 32-bit emulator forks. */
+    public val supportedAbisAll: List<String>? = null,
+    /** `Build.SOC_MANUFACTURER` (API 31+). Actual silicon vendor (`Qualcomm`, `Google`). Null on API 28-30. */
+    public val socManufacturer: String? = null,
+    /** `Build.SOC_MODEL` (API 31+). Actual silicon model (`SM8550-AC`, `Tensor G3`). Null on API 28-30. */
+    public val socModel: String? = null,
+
+    // ---- GPU / EGL hint ----
+
+    /** OpenGL ES version string (e.g. `"3.2"`). From `ActivityManager.getDeviceConfigurationInfo().getGlEsVersion()`. */
+    public val glEsVersion: String? = null,
+    /** EGL implementation library name from `getprop ro.hardware.egl` (`mali`, `adreno`, `swiftshader` on emulators). */
+    public val eglImplementation: String? = null,
+
+    // ---- locale + timezone ----
+
+    /** `Locale.getDefault().toLanguageTag()` — e.g. `"en-US"`. */
+    public val defaultLocale: String? = null,
+    /** All locales the system advertises (`Resources.system.configuration.locales`). Multi-language phones tell you a lot. */
+    public val systemLocales: List<String>? = null,
+    /** `TimeZone.getDefault().id` — e.g. `"Europe/London"`. */
+    public val timezoneId: String? = null,
+    /** Current UTC offset in minutes. Backends correlate against IP geolocation; mismatch is a strong VPN-fraud signal. */
+    public val timezoneOffsetMinutes: Int? = null,
+    /** `Settings.Global.AUTO_TIME` — manual clock on a "production" device usually means a fraud rig. */
+    public val autoTimeEnabled: Boolean? = null,
+    /** `Settings.Global.AUTO_TIME_ZONE` — companion to [autoTimeEnabled]. */
+    public val autoTimeZoneEnabled: Boolean? = null,
+
+    // ---- display extras ----
+
+    /** Current refresh rate (`Display.getRefreshRate()`). Modern flagships report 90/120/144; emulators stuck at 60. */
+    public val displayRefreshRateHz: Float? = null,
+    /** All refresh rates the panel supports. Emulators: `[60.0]`; modern phones: `[60, 90, 120]`. */
+    public val displaySupportedRefreshRatesHz: List<Float>? = null,
+    /** Names of supported HDR types (`"HDR10"`, `"HDR10_PLUS"`, `"DOLBY_VISION"`, `"HLG"`). Empty list when SDR-only. */
+    public val displayHdrTypes: List<String>? = null,
+
+    // ---- security posture ----
+
+    /** `KeyguardManager.isDeviceSecure` — true iff a PIN/pattern/password is set. Bot farms rarely bother. */
+    public val deviceSecure: Boolean? = null,
+    /**
+     * `BiometricManager.canAuthenticate(BIOMETRIC_STRONG) == BIOMETRIC_SUCCESS`.
+     *
+     * Requires the `USE_BIOMETRIC` permission, which is **opt-in**
+     * via the Gradle DSL
+     * (`deviceintelligence { enableBiometricsDetection.set(true) }`).
+     * Without the opt-in, `canAuthenticate` throws SecurityException
+     * and this field reports `null`.
+     *
+     * Null on API 28 (BiometricManager is API 29+) regardless of opt-in.
+     */
+    public val biometricsEnrolled: Boolean? = null,
+    /** `Settings.Global.ADB_ENABLED`. Bot farms / dev rigs often leave this on. */
+    public val adbEnabled: Boolean? = null,
+    /** `Settings.Global.DEVELOPMENT_SETTINGS_ENABLED`. Companion to [adbEnabled]. */
+    public val developerOptionsEnabled: Boolean? = null,
+
+    // ---- battery + thermal ----
+
+    /** From the sticky `ACTION_BATTERY_CHANGED` broadcast. Emulators sometimes report no battery. */
+    public val batteryPresent: Boolean? = null,
+    /** `EXTRA_TECHNOLOGY` — `"Li-ion"` / `"Li-poly"` on real devices, `"Unknown"` on emulators. */
+    public val batteryTechnology: String? = null,
+    /** Stable string form of `EXTRA_HEALTH`: `"good"` / `"overheat"` / `"dead"` / `"over_voltage"` / `"failure"` / `"cold"` / `"unknown"`. */
+    public val batteryHealth: String? = null,
+    /** Stable string form of `EXTRA_PLUGGED`: `"none"` / `"ac"` / `"usb"` / `"wireless"` / `"dock"`. Click farms are always plugged in. */
+    public val batteryPlugType: String? = null,
+    /**
+     * `PowerManager.getCurrentThermalStatus()` (API 29+) as a stable string:
+     * `"none"` / `"light"` / `"moderate"` / `"severe"` / `"critical"` /
+     * `"emergency"` / `"shutdown"`. Null on API 28.
+     */
+    public val thermalStatus: String? = null,
+
+    // ---- boot derivation ----
+
+    /**
+     * Wall-clock when the device booted, derived as
+     * `System.currentTimeMillis() - SystemClock.elapsedRealtime()`. Cheap
+     * derived field; backends use it to detect clock-jump fraud (boot
+     * epoch in the future) and replay attacks (epoch suspiciously old).
+     */
+    public val bootEpochMs: Long? = null,
+
+    // ---- Google ecosystem ----
+
+    /**
+     * `GoogleApiAvailability.isGooglePlayServicesAvailable` as a stable string:
+     * `"success"` / `"service_missing"` / `"service_version_update_required"` /
+     * `"service_disabled"` / `"service_invalid"` / `"unknown"`. Confirms the
+     * device is in the Google ecosystem (or not — MicroG, Huawei, etc.).
+     */
+    public val playServicesAvailability: String? = null,
+    /** GMS package version code from `PackageManager.getPackageInfo("com.google.android.gms")`. Null when GMS isn't installed. */
+    public val playServicesVersionCode: Long? = null,
+    /** Play Store package version code from `PackageManager.getPackageInfo("com.android.vending")`. Null when not installed. */
+    public val playStoreVersionCode: Long? = null,
+    /**
+     * SHA-256 hex of the GMS signing certificate. Real Google-signed GMS
+     * has a stable known value; MicroG / re-signed GMS reports a different
+     * hash. Null when GMS isn't installed or signers couldn't be read.
+     */
+    public val gmsSignerSha256: String? = null,
 )
 
 /**

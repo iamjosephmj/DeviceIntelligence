@@ -374,8 +374,17 @@ class MainActivity : Activity() {
         deviceCardBody.removeAllViews()
         deviceCardBody.addView(ui.kv(this, "manufacturer", device.manufacturer))
         deviceCardBody.addView(ui.kv(this, "model", device.model))
+        device.device?.let { deviceCardBody.addView(ui.kv(this, "codename", it)) }
         deviceCardBody.addView(ui.kv(this, "android", "API ${device.sdkInt}"))
         deviceCardBody.addView(ui.kv(this, "abi", device.abi))
+        if (device.socManufacturer != null || device.socModel != null) {
+            val soc = listOfNotNull(device.socManufacturer, device.socModel)
+                .joinToString(" ")
+            deviceCardBody.addView(ui.kv(this, "soc", soc))
+        }
+        device.eglImplementation?.let {
+            deviceCardBody.addView(ui.kv(this, "gpu", "$it / GLES ${device.glEsVersion ?: "?"}"))
+        }
         device.totalRamMb?.let { deviceCardBody.addView(ui.kv(this, "ram", "${it} MiB")) }
         device.cpuCores?.let { deviceCardBody.addView(ui.kv(this, "cpu cores", it.toString())) }
         if (device.screenResolution != null || device.screenDensityDpi != null) {
@@ -385,11 +394,28 @@ class MainActivity : Activity() {
                     if (isNotEmpty()) append("  ")
                     append("${device.screenDensityDpi}dpi")
                 }
+                device.displayRefreshRateHz?.let {
+                    if (isNotEmpty()) append("  ")
+                    append("%.0fHz".format(it))
+                }
             }
             deviceCardBody.addView(ui.kv(this, "screen", text))
         }
+        device.defaultLocale?.let { deviceCardBody.addView(ui.kv(this, "locale", it)) }
+        device.timezoneId?.let {
+            val offset = device.timezoneOffsetMinutes
+            val offsetStr = if (offset != null) " (UTC%+d:%02d)".format(offset / 60, kotlin.math.abs(offset % 60)) else ""
+            deviceCardBody.addView(ui.kv(this, "timezone", "$it$offsetStr"))
+        }
+        device.batteryTechnology?.let {
+            val plug = device.batteryPlugType?.let { p -> if (p == "none") "" else " · $p" } ?: ""
+            deviceCardBody.addView(ui.kv(this, "battery", "$it$plug"))
+        }
         device.sensorCount?.let { deviceCardBody.addView(ui.kv(this, "sensors", it.toString())) }
         device.bootCount?.let { deviceCardBody.addView(ui.kv(this, "boot count", it.toString())) }
+        device.playServicesVersionCode?.let {
+            deviceCardBody.addView(ui.kv(this, "play services", it.toString()))
+        }
         deviceCardBody.addView(ui.kv(this, "fingerprint", truncate(device.fingerprint, 56)))
 
         val badges = ui.badgeRow(this, topMargin = 12)
@@ -420,6 +446,37 @@ class MainActivity : Activity() {
                 ui.badge(this, if (it) "strongbox hw" else "no strongbox",
                     if (it) Ui.Tone.OK else Ui.Tone.NEUTRAL),
             )
+        }
+        device.deviceSecure?.let {
+            ui.addToBadgeRow(
+                badges,
+                ui.badge(this, if (it) "lockscreen set" else "no lockscreen",
+                    if (it) Ui.Tone.OK else Ui.Tone.WARN),
+            )
+        }
+        device.biometricsEnrolled?.let {
+            if (it) ui.addToBadgeRow(badges, ui.badge(this, "biometrics", Ui.Tone.OK))
+        }
+        device.adbEnabled?.let {
+            if (it) ui.addToBadgeRow(badges, ui.badge(this, "adb on", Ui.Tone.WARN))
+        }
+        device.developerOptionsEnabled?.let {
+            if (it) ui.addToBadgeRow(badges, ui.badge(this, "dev options", Ui.Tone.WARN))
+        }
+        device.autoTimeEnabled?.let {
+            if (!it) ui.addToBadgeRow(badges, ui.badge(this, "manual clock", Ui.Tone.WARN))
+        }
+        device.thermalStatus?.let {
+            if (it != "none") ui.addToBadgeRow(
+                badges,
+                ui.badge(
+                    this, "thermal: $it",
+                    if (it == "light" || it == "moderate") Ui.Tone.WARN else Ui.Tone.BAD,
+                ),
+            )
+        }
+        device.playServicesAvailability?.let {
+            if (it != "success") ui.addToBadgeRow(badges, ui.badge(this, "gms: $it", Ui.Tone.WARN))
         }
         if (badges.childCount > 0) deviceCardBody.addView(badges)
     }

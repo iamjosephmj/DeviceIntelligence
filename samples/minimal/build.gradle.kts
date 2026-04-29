@@ -57,6 +57,11 @@ deviceintelligence {
     // apps that skip this still build and run, just with
     // vpnActive = null in the report.
     enableVpnDetection.set(true)
+    // Opt in to biometrics-enrollment detection so
+    // DeviceContext.biometricsEnrolled populates. Injects
+    // USE_BIOMETRIC (normal-protection, no runtime prompt). Same
+    // graceful-degradation story as enableVpnDetection.
+    enableBiometricsDetection.set(true)
 }
 
 dependencies {
