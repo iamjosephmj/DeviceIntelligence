@@ -258,8 +258,12 @@ report is unaffected.
 
 † Requires consumer to opt in via the Gradle DSL — see [Permissions](#permissions).
 
-<details>
-<summary>Click to expand the full unedited JSON from a clean Pixel 9 Pro running the sample app (zero findings, every device.* / app.* field shown, no fields trimmed)</summary>
+### What a real report looks like
+
+Below is the **full unedited JSON** captured live from a clean Pixel 9 Pro
+running the sample app — zero findings, every `device.*` and `app.*` field
+shown, no fields trimmed. Use it as a reference for what your backend will
+actually receive on the wire.
 
 ```json
 {
@@ -457,8 +461,6 @@ report is unaffected.
 > what a *tripped* finding looks like, see the
 > [Bootloader integrity](#bootloader-integrity-f15) and
 > [Root indicators](#root-indicators-f17) sections below.
-
-</details>
 
 The "no news is good news" pattern is uniform across detectors: a clean device
 emits a report with empty `findings[]` arrays everywhere and `summary.total_findings: 0`.
