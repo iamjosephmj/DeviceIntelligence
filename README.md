@@ -68,7 +68,8 @@ dependencyResolutionManagement {
 ```
 
 **2. `app/build.gradle.kts`** — apply the plugin (version = JitPack tag, e.g.
-`0.2.0`). For a standalone app, **nothing else** — skip the monorepo note above.
+`0.2.0`). For a standalone app, **nothing else** — the plugin adds the runtime
+AAR for you.
 
 ```kotlin
 plugins {
@@ -76,7 +77,38 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("io.ssemaj.deviceintelligence") version "0.2.0"
 }
+
+// Standalone app (default): no `dependencies { implementation("...:deviceintelligence:0.2.0") }`
+// line. The plugin auto-wires the matching runtime AAR.
 ```
+
+<details>
+<summary><strong>Monorepo / vendor fork</strong> — your build also includes <code>:deviceintelligence</code> as a project (click to expand)</summary>
+
+```kotlin
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("io.ssemaj.deviceintelligence") version "0.2.0"
+}
+
+deviceintelligence {
+    // Stop the plugin from substituting project(":deviceintelligence").
+    disableAutoRuntimeDependency.set(true)
+}
+
+dependencies {
+    // Use the published AAR. MUST match the plugin version above.
+    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.2.0")
+}
+```
+
+This is exactly what [`samples/minimal/build.gradle.kts`](samples/minimal/build.gradle.kts)
+does (via `libs.deviceintelligence` in the version catalog), so the in-repo sample
+matches what an external JitPack consumer resolves. See
+[Quickstart → Add it to your own app](#add-it-to-your-own-app) for the rationale.
+
+</details>
 
 **3. Collect at runtime** — anywhere in your app, off the main thread:
 
