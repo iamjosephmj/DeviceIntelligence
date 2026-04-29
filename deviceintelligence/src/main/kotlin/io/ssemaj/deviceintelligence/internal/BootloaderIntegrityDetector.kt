@@ -11,32 +11,35 @@ import io.ssemaj.deviceintelligence.Severity
 import java.security.cert.X509Certificate
 
 /**
- * F15 — bootloader integrity / TEE-attestation tamper detector.
+ * `integrity.bootloader` — bootloader integrity / TEE-attestation
+ * tamper detector.
  *
- * F14 ([KeyAttestationDetector]) faithfully reports what the on-device
- * TEE *claims*. That is the whole point of F14, and is what makes its
- * raw `cert_chain_b64` the only authoritative signal — once a backend
- * verifies the chain against Google's pinned root + revocation list.
+ * `attestation.key` ([KeyAttestationDetector]) faithfully reports
+ * what the on-device TEE *claims*. That is the whole point of
+ * `attestation.key`, and is what makes its raw `cert_chain_b64`
+ * the only authoritative signal — once a backend verifies the
+ * chain against Google's pinned root + revocation list.
  *
- * The problem F15 solves is that on a Magisk-style root with Tricky
- * Store / LSPosed installed, the attacker can hook the AndroidKeyStore
- * surface to return a *previously captured* chain from a clean boot
- * session. F14 sees a well-formed chain, parses it, and dutifully
- * reports `device_locked = true` even though the userland reports the
- * bootloader as unlocked.
+ * The problem `integrity.bootloader` solves is that on a
+ * Magisk-style root with Tricky Store / LSPosed installed, the
+ * attacker can hook the AndroidKeyStore surface to return a
+ * *previously captured* chain from a clean boot session.
+ * `attestation.key` sees a well-formed chain, parses it, and
+ * dutifully reports `device_locked = true` even though the
+ * userland reports the bootloader as unlocked.
  *
- * F15 raises the cost of that bypass by running orthogonal cross-
- * checks that a cache-replay forgery struggles to satisfy
- * simultaneously:
+ * `integrity.bootloader` raises the cost of that bypass by
+ * running orthogonal cross-checks that a cache-replay forgery
+ * struggles to satisfy simultaneously:
  *
  *  1. **Freshness across two attestations** — generates a *second*
  *     attestation under a fresh alias + nonce, and compares it
- *     structurally to F14's. Two consecutive keygens on the same
- *     boot session MUST produce different leaf SubjectPublicKeys
- *     (we asked for two distinct EC keys) and MUST embed two
- *     distinct attestation challenges (we sent two different
- *     nonces). A cache-replay forgery typically returns the same
- *     leaf for every keygen call.
+ *     structurally to `attestation.key`'s. Two consecutive keygens
+ *     on the same boot session MUST produce different leaf
+ *     SubjectPublicKeys (we asked for two distinct EC keys) and
+ *     MUST embed two distinct attestation challenges (we sent two
+ *     different nonces). A cache-replay forgery typically returns
+ *     the same leaf for every keygen call.
  *  2. **Challenge echo** — the leaf cert MUST embed the exact nonce
  *     we asked the TEE to attest. If it doesn't, the chain was
  *     minted for some other request.
@@ -62,8 +65,9 @@ import java.security.cert.X509Certificate
  *     only — making this a load-bearing tamper signal.
  *
  * Output policy (defense-in-depth):
- *  - On a clean device, F15 emits **zero findings**. The detector
- *    is silent unless something specific tripped.
+ *  - On a clean device, `integrity.bootloader` emits **zero
+ *    findings**. The detector is silent unless something specific
+ *    tripped.
  *  - Each tripped check emits its own `bootloader_integrity_anomaly`
  *    Finding with a stable `subreason` code in `details`. Backends
  *    pivot on `subreason`.
@@ -75,23 +79,26 @@ import java.security.cert.X509Certificate
  * Cost:
  *  - One additional attestation keygen per process (50–500ms TEE,
  *    0.5–4s StrongBox). Cached for the rest of the process lifetime,
- *    same as F14.
+ *    same as `attestation.key`.
  *  - Pure cross-check functions (see [ChainValidator]) on top of the
  *    two cached chains — sub-millisecond.
  *
  * Failure-mode policy:
- *  - F14 didn't cache a result → INCONCLUSIVE `f14_unavailable`.
- *  - F15's own keygen failed → INCONCLUSIVE with the same
- *    failure-reason vocabulary F14 uses (`attestation_not_supported`,
- *    `keystore_error`, `keystore_unavailable`).
+ *  - `attestation.key` didn't cache a result → INCONCLUSIVE
+ *    `attestation_key_unavailable`.
+ *  - This detector's own keygen failed → INCONCLUSIVE with the same
+ *    failure-reason vocabulary `attestation.key` uses
+ *    (`attestation_not_supported`, `keystore_error`,
+ *    `keystore_unavailable`).
  *  - The detector itself never throws.
  *
- * Authority caveat: like F14's verdict finding, every F15 finding
- * carries `verdict_authoritative = "false"`. The library does not
- * consider these signals authoritative — they are *advisory*. The
+ * Authority caveat: like `attestation.key`'s verdict finding, every
+ * `integrity.bootloader` finding carries
+ * `verdict_authoritative = "false"`. The library does not consider
+ * these signals authoritative — they are *advisory*. The
  * authoritative verdict still comes from a backend that re-verifies
- * F14's `cert_chain_b64` against Google's root + revocation list +
- * fleet-wide correlation.
+ * `attestation.key`'s `cert_chain_b64` against Google's root +
+ * revocation list + fleet-wide correlation.
  */
 internal object BootloaderIntegrityDetector : Detector {
 
@@ -100,11 +107,16 @@ internal object BootloaderIntegrityDetector : Detector {
     /**
      * Distinct from [KeyAttestationDetector]'s alias so the two
      * keygens are independent on the keystore side. Versioned for
-     * future rotation parity with F14.
+     * future rotation parity with `attestation.key`.
+     *
+     * The literal still contains `f15` for backwards compatibility
+     * (see KeyAttestationDetector.ATTESTATION_KEY_ALIAS for
+     * rationale): renaming the alias string would orphan keys
+     * generated by earlier versions of the library.
      */
-    private const val ALIAS_F15 = "io.ssemaj.deviceintelligence.f15.bootloader.v1"
+    private const val BOOTLOADER_KEY_ALIAS = "io.ssemaj.deviceintelligence.f15.bootloader.v1"
 
-    override val id: String = "F15.bootloader_integrity"
+    override val id: String = "integrity.bootloader"
 
     @Volatile
     private var cached: Cached? = null
@@ -150,37 +162,38 @@ internal object BootloaderIntegrityDetector : Detector {
     }
 
     /**
-     * Run F15's own attestation, then collect all cross-check
-     * outcomes against F14's cached attestation. Called at most once
-     * per process; subsequent [evaluate] calls hit [cached].
+     * Run this detector's own attestation, then collect all cross-check
+     * outcomes against `attestation.key`'s cached attestation. Called
+     * at most once per process; subsequent [evaluate] calls hit
+     * [cached].
      */
     private fun computeOnce(appContext: Context): Cached {
-        val f14 = KeyAttestationDetector.lastResult()
+        val primary = KeyAttestationDetector.lastResult()
             ?: return Cached.Failure(
-                "f14_unavailable",
-                "F14 has not produced a cached attestation result in this process",
+                "attestation_key_unavailable",
+                "attestation.key has not produced a cached attestation result in this process",
             )
 
         val nonce = KeyAttestationDetector.freshNonce()
-        val f15Result = KeyAttestationDetector.runChainForAlias(ALIAS_F15, nonce)
-        if (f15Result is AttestationResult.Failure) {
-            return Cached.Failure(f15Result.reason, f15Result.message)
+        val secondaryResult = KeyAttestationDetector.runChainForAlias(BOOTLOADER_KEY_ALIAS, nonce)
+        if (secondaryResult is AttestationResult.Failure) {
+            return Cached.Failure(secondaryResult.reason, secondaryResult.message)
         }
-        val f15 = f15Result as AttestationResult.Success
+        val secondary = secondaryResult as AttestationResult.Success
 
         val outcomes = ArrayList<CheckOutcome>()
 
         // ---- structural ----
-        addOutcomeIfTripped(outcomes, ChainValidator.validateStructure(f14.rawCerts)) { sub ->
+        addOutcomeIfTripped(outcomes, ChainValidator.validateStructure(primary.rawCerts)) { sub ->
             CheckOutcome(
                 subreason = sub,
                 severity = Severity.HIGH,
                 kind = KIND_INTEGRITY,
                 message = "TEE attestation chain has anomalous structure (${describeStructure(sub)})",
-                extraDetails = mapOf("chain_length" to f14.rawCerts.size.toString()),
+                extraDetails = mapOf("chain_length" to primary.rawCerts.size.toString()),
             )
         }
-        addOutcomeIfTripped(outcomes, ChainValidator.verifyChainSignatures(f14.rawCerts)) { sub ->
+        addOutcomeIfTripped(outcomes, ChainValidator.verifyChainSignatures(primary.rawCerts)) { sub ->
             CheckOutcome(
                 subreason = sub,
                 severity = Severity.HIGH,
@@ -188,7 +201,7 @@ internal object BootloaderIntegrityDetector : Detector {
                 message = "TEE attestation chain failed signature verification ($sub)",
             )
         }
-        addOutcomeIfTripped(outcomes, ChainValidator.validityPeriodsNested(f14.rawCerts)) { sub ->
+        addOutcomeIfTripped(outcomes, ChainValidator.validityPeriodsNested(primary.rawCerts)) { sub ->
             CheckOutcome(
                 subreason = sub,
                 severity = Severity.HIGH,
@@ -198,7 +211,7 @@ internal object BootloaderIntegrityDetector : Detector {
         }
 
         // ---- freshness ----
-        addOutcomeIfTripped(outcomes, ChainValidator.challengeEchoes(f14.parsed, f14.nonce)) { sub ->
+        addOutcomeIfTripped(outcomes, ChainValidator.challengeEchoes(primary.parsed, primary.nonce)) { sub ->
             CheckOutcome(
                 subreason = sub,
                 severity = Severity.HIGH,
@@ -206,7 +219,7 @@ internal object BootloaderIntegrityDetector : Detector {
                 message = "TEE attestation chain does not echo the challenge nonce we sent — chain is forged or replayed",
             )
         }
-        addOutcomeIfTripped(outcomes, ChainValidator.freshnessAcrossAttestations(f14, f15)) { sub ->
+        addOutcomeIfTripped(outcomes, ChainValidator.freshnessAcrossAttestations(primary, secondary)) { sub ->
             CheckOutcome(
                 subreason = sub,
                 severity = Severity.HIGH,
@@ -216,11 +229,11 @@ internal object BootloaderIntegrityDetector : Detector {
         }
 
         // ---- consistency ----
-        val leaf = f14.rawCerts.firstOrNull()
+        val leaf = primary.rawCerts.firstOrNull()
         if (leaf != null) {
             addOutcomeIfTripped(
                 outcomes,
-                ChainValidator.leafPubKeyMatchesKeystoreKey(leaf, f14.keyStorePublicKeyEncoded),
+                ChainValidator.leafPubKeyMatchesKeystoreKey(leaf, primary.keyStorePublicKeyEncoded),
             ) { sub ->
                 CheckOutcome(
                     subreason = sub,
@@ -252,7 +265,7 @@ internal object BootloaderIntegrityDetector : Detector {
         }.getOrDefault(false)
         val pixelStrongBox = expectsStrongBox()
         if (platformStrongBox || pixelStrongBox) {
-            val actual = f14.parsed?.attestationSecurityLevel
+            val actual = primary.parsed?.attestationSecurityLevel
             if (actual != null && actual != SecurityLevel.STRONG_BOX) {
                 outcomes += CheckOutcome(
                     subreason = "strongbox_unexpectedly_unavailable",
@@ -275,7 +288,7 @@ internal object BootloaderIntegrityDetector : Detector {
 
         Log.i(
             TAG,
-            "F15 ran: tripped=${outcomes.size} subreasons=${outcomes.joinToString(",") { it.subreason }}",
+            "ran: tripped=${outcomes.size} subreasons=${outcomes.joinToString(",") { it.subreason }}",
         )
         return Cached.Success(outcomes)
     }

@@ -8,7 +8,7 @@ side by side on an emulator (one at a time — they share the same
 
 The instrumented sample APK as the DeviceIntelligence Gradle plugin
 produced it. Signed with the local Android debug keystore.
-`F10.apk_integrity` sees the runtime cert match the baked
+`integrity.apk` sees the runtime cert match the baked
 fingerprint, runs cleanly, and reports an empty `findings` list.
 
 | Field | Value |
@@ -37,11 +37,11 @@ by:
    `fakepass123`) using v1 + v2 + v3 schemes.
 
 Everything else — code, native libs, assets including the baked
-fingerprint blob — is identical. `F10.apk_integrity` sees the new
+fingerprint blob — is identical. `integrity.apk` sees the new
 signer cert, compares against the baked one, and emits a finding
-with `kind="apk_signer_mismatch"` and `severity="critical"`. F12
-(emulator probe) and F13 (cloner probe) are signature-agnostic and
-continue to operate normally on top of that.
+with `kind="apk_signer_mismatch"` and `severity="critical"`.
+`runtime.emulator` and `runtime.cloner` are signature-agnostic
+and continue to operate normally on top of that.
 
 | Field | Value |
 |-------|-------|

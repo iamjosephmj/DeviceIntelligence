@@ -20,7 +20,7 @@ class RootIndicatorsDetectorTest {
 
     @Test
     fun `detector id matches the F17 contract`() {
-        assertEquals("F17.root_indicators", RootIndicatorsDetector.id)
+        assertEquals("runtime.root", RootIndicatorsDetector.id)
     }
 
     @Test

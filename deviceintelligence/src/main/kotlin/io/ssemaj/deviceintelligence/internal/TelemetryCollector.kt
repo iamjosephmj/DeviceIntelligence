@@ -55,9 +55,9 @@ internal object TelemetryCollector {
     private const val TAG = "DeviceIntelligence.Collector"
 
     /**
-     * F10 needs to be addressable separately from the iteration list
-     * because [collect] consults its post-evaluation [Fingerprint]
-     * cache to populate [AppContext.buildVariant] and
+     * `integrity.apk` needs to be addressable separately from the
+     * iteration list because [collect] consults its post-evaluation
+     * [Fingerprint] cache to populate [AppContext.buildVariant] and
      * [AppContext.libraryPluginVersion]. Keeping the same instance
      * means we don't re-decode.
      */
@@ -68,24 +68,30 @@ internal object TelemetryCollector {
         EmulatorProbe,
         ClonerDetector,
         KeyAttestationDetector,
-        // F15 must run after F14 — it consumes F14's cached
-        // attestation result via [KeyAttestationDetector.lastResult].
+        // integrity.bootloader must run after attestation.key — it
+        // consumes attestation.key's cached attestation result via
+        // [KeyAttestationDetector.lastResult].
         BootloaderIntegrityDetector,
-        // F16 + F17 are independent of every other detector; they
-        // are appended last so any ordering-sensitive future
-        // detector slots in before them.
+        // runtime.environment + runtime.root + integrity.art are
+        // independent of every other detector; they are appended
+        // last so any ordering-sensitive future detector slots in
+        // before them. integrity.art sits next to runtime.environment
+        // by theme (in-process integrity) so they're easy to reason
+        // about together.
         RuntimeEnvironmentDetector,
         RootIndicatorsDetector,
+        ArtIntegrityDetector,
     )
 
     fun collect(context: Context): TelemetryReport {
         val started = SystemClock.elapsedRealtime()
         val nativeReady = runCatching { NativeBridge.isReady() }.getOrDefault(false)
         val appCtx = context.applicationContext
-        // F10's report is threaded into [DetectorContext.f10Report] so
-        // F14 can compute its `app_recognition` against it. Other
-        // detectors ignore the field. Update [ctx] in place rather
-        // than rebuilding the report list here.
+        // integrity.apk's report is threaded into
+        // [DetectorContext.apkReport] so attestation.key can compute
+        // its `app_recognition` against it. Other detectors ignore
+        // the field. Update [ctx] in place rather than rebuilding
+        // the report list here.
         var ctx = DetectorContext(
             applicationContext = appCtx,
             nativeReady = nativeReady,
@@ -101,7 +107,7 @@ internal object TelemetryCollector {
             }
             detectorReports += report
             if (det === apkIntegrity) {
-                ctx = ctx.copy(f10Report = report)
+                ctx = ctx.copy(apkReport = report)
             }
         }
 
@@ -522,22 +528,23 @@ internal object TelemetryCollector {
                 .getOrNull()?.toList().orEmpty()
         } else emptyList()
 
-        // Reuse F10's already-decoded fingerprint when available
-        // rather than re-decoding from disk a second time.
+        // Reuse integrity.apk's already-decoded fingerprint when
+        // available rather than re-decoding from disk a second time.
         val fp = apkIntegrity.lastDecodedFingerprint()
 
-        // F14's raw attestation evidence + advisory verdict ride
-        // along on app.attestation, NOT as a Finding inside the F14
-        // detector report. See [KeyAttestationDetector] for why.
-        // Pass the live F10 report + runtime signers so the wire-
-        // shipped verdict matches the one F14's finding-emission
+        // attestation.key's raw attestation evidence + advisory
+        // verdict ride along on app.attestation, NOT as a Finding
+        // inside the attestation.key detector report. See
+        // [KeyAttestationDetector] for why. Pass the live
+        // integrity.apk report + runtime signers so the wire-shipped
+        // verdict matches the one attestation.key's finding-emission
         // path uses — single source of truth across the report.
-        val f14Report = detectorReports.firstOrNull { it.id == KeyAttestationDetector.id }
-        val f10Report = detectorReports.firstOrNull { it.id == apkIntegrity.id }
-        val attestation = f14Report?.let {
+        val attestationReport = detectorReports.firstOrNull { it.id == KeyAttestationDetector.id }
+        val apkReport = detectorReports.firstOrNull { it.id == apkIntegrity.id }
+        val attestation = attestationReport?.let {
             KeyAttestationDetector.toAttestationReport(
                 detectorReport = it,
-                f10Report = f10Report,
+                apkReport = apkReport,
                 runtimePackageName = pkg,
                 runtimeSignerCertSha256 = signers,
             )

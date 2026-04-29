@@ -9,7 +9,7 @@ import io.ssemaj.deviceintelligence.Severity
 import android.content.Context
 
 /**
- * F10 — APK integrity detector.
+ * `integrity.apk` — APK integrity detector.
  *
  * Compares the live, on-disk APK against the build-time
  * [Fingerprint] baked into it by the DeviceIntelligence Gradle plugin. Any
@@ -33,7 +33,7 @@ import android.content.Context
  */
 internal class ApkIntegrityDetector : Detector {
 
-    override val id: String = "F10.apk_integrity"
+    override val id: String = "integrity.apk"
 
     @Volatile
     private var cachedFingerprint: Fingerprint? = null

@@ -24,7 +24,7 @@ package io.ssemaj.deviceintelligence
  * keys may change without a schema bump.
  */
 public data class TelemetryReport(
-    /** Wire-format version. Currently 1; bumped only on breaking changes. */
+    /** Wire-format version. Currently 2; bumped only on breaking changes. */
     public val schemaVersion: Int,
 
     /** DeviceIntelligence library version that produced this report. */
@@ -58,8 +58,14 @@ public data class TelemetryReport(
  * field's meaning changes or a field is removed. Adding new optional
  * fields, new detector ids, or new [Finding.kind] values is NOT a
  * breaking change.
+ *
+ * v1 → v2: detector IDs renamed from the sparse `F<n>.<short_name>`
+ * scheme to a category-prefixed scheme (`integrity.*`, `attestation.*`,
+ * `runtime.*`). Backends that route on `detector.id` or `Finding`
+ * payload IDs need to be updated; the rest of the wire format is
+ * unchanged. See [DetectorReport.id] for the new ID convention.
  */
-public const val TELEMETRY_SCHEMA_VERSION: Int = 1
+public const val TELEMETRY_SCHEMA_VERSION: Int = 2
 
 /**
  * Hardware / OS context. Mirrors [android.os.Build] but trimmed to
@@ -113,15 +119,15 @@ public data class DeviceContext(
      * [PackageManager.FEATURE_STRONGBOX_KEYSTORE] — i.e. it has a
      * discrete StrongBox / Titan-M-class secure element capable of
      * backing keystore keys. Pure capability flag; independent of
-     * whether F14's attestation actually used StrongBox (that's
-     * [AttestationReport.attestationSecurityLevel]).
+     * whether `attestation.key`'s attestation actually used StrongBox
+     * (that's [AttestationReport.attestationSecurityLevel]).
      *
      * Useful for cohorting: a backend can compare the `MEETS_STRONG_INTEGRITY`
      * rate across `strongbox_available = true` vs `false` cohorts to
      * detect StrongBox bypasses on devices that *should* attest at
-     * STRONG_BOX. F15 also consumes this flag to broaden its
-     * `bootloader_strongbox_unavailable` trigger beyond the
-     * hardcoded Pixel-3+ denylist.
+     * STRONG_BOX. `integrity.bootloader` also consumes this flag to
+     * broaden its `bootloader_strongbox_unavailable` trigger beyond
+     * the hardcoded Pixel-3+ denylist.
      *
      * Null if the lookup failed (rare).
      */
@@ -149,7 +155,7 @@ public data class DeviceContext(
     public val buildUser: String? = null,
     /** `Build.TYPE` — `user` / `userdebug` / `eng`. Anything other than `user` on a "production" device is suspicious. */
     public val buildType: String? = null,
-    /** `Build.TAGS` — comma-separated build tags. F17 trips on `test-keys`; this field surfaces the value unconditionally for cohorting. */
+    /** `Build.TAGS` — comma-separated build tags. `runtime.root` trips on `test-keys`; this field surfaces the value unconditionally for cohorting. */
     public val buildTags: String? = null,
     /** `Build.TIME` — when the system image was built. Wall-clock ms. */
     public val buildTimeEpochMs: Long? = null,
@@ -276,24 +282,25 @@ public data class AppContext(
      * the originating / initiating package fields.
      */
     public val installerPackage: String?,
-    /** SHA-256 hex of every signer cert observed at runtime, in the order F10 returns them. */
+    /** SHA-256 hex of every signer cert observed at runtime, in the order `integrity.apk` returns them. */
     public val signerCertSha256: List<String>,
-    /** AGP build variant the running APK was compiled from (e.g. "debug"). May be null if the F10 fingerprint hasn't been decoded. */
+    /** AGP build variant the running APK was compiled from (e.g. "debug"). May be null if the `integrity.apk` fingerprint hasn't been decoded. */
     public val buildVariant: String?,
     /** deviceintelligence-gradle plugin version that produced the baked fingerprint. May be null if the fingerprint hasn't been decoded. */
     public val libraryPluginVersion: String?,
     /**
-     * Hardware key-attestation evidence captured by F14, plus the
-     * locally derived advisory verdict.
+     * Hardware key-attestation evidence captured by `attestation.key`,
+     * plus the locally derived advisory verdict.
      *
-     * Lives here rather than as a [Finding] inside the F14 detector
-     * report because it is *always-shipped raw evidence* — backends
-     * need it on every report to perform authoritative server-side
-     * re-verification of the cert chain (against Google's root +
-     * revocation list), which is the only verdict the library
-     * considers authoritative. F14's detector findings are reserved
-     * for advisory anomaly signals (`tee_integrity_verdict` only
-     * surfaces when the local verdict is degraded).
+     * Lives here rather than as a [Finding] inside the `attestation.key`
+     * detector report because it is *always-shipped raw evidence* —
+     * backends need it on every report to perform authoritative
+     * server-side re-verification of the cert chain (against Google's
+     * root + revocation list), which is the only verdict the library
+     * considers authoritative. `attestation.key`'s detector findings
+     * are reserved for advisory anomaly signals
+     * (`tee_integrity_verdict` only surfaces when the local verdict
+     * is degraded).
      *
      * Non-null but with [AttestationReport.unavailableReason]
      * populated when a specific keygen attempt failed (e.g. no
@@ -367,8 +374,8 @@ public data class CertValidity(
 
 /**
  * Hardware key-attestation evidence shipped on every report, plus
- * the locally derived advisory verdict. Always reflects a single F14
- * keygen pass that was cached at process start.
+ * the locally derived advisory verdict. Always reflects a single
+ * `attestation.key` keygen pass that was cached at process start.
  *
  * **Authority caveat.** None of the parsed fields below are
  * authoritative on their own — the on-device library does not walk
@@ -476,7 +483,7 @@ public data class AttestationReport(
     // ---- failure modes ----
 
     /**
-     * Stable code surfaced when the F14 keygen couldn't run:
+     * Stable code surfaced when the `attestation.key` keygen couldn't run:
      * `"attestation_not_supported"`, `"keystore_error"`,
      * `"keystore_unavailable"`, `"missing_package_name"`. Null on
      * success.
@@ -496,7 +503,12 @@ public data class AttestationReport(
  * facts and we report both.
  */
 public data class DetectorReport(
-    /** Stable detector id, e.g. `"F10.apk_integrity"`. Unique within a [TelemetryReport]. */
+    /**
+     * Stable detector id following the `<category>.<scope>`
+     * convention, e.g. `"integrity.apk"`. Categories are
+     * `integrity`, `attestation`, `runtime`. Unique within a
+     * [TelemetryReport].
+     */
     public val id: String,
 
     /** [DetectorStatus.OK] is the only status that allows [findings] to be trusted. */

@@ -13,6 +13,6 @@ class RuntimeEnvironmentDetectorTest {
 
     @Test
     fun `detector id matches the F16 contract`() {
-        assertEquals("F16.runtime_environment", RuntimeEnvironmentDetector.id)
+        assertEquals("runtime.environment", RuntimeEnvironmentDetector.id)
     }
 }

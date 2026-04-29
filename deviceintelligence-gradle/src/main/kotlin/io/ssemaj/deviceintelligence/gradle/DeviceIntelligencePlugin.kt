@@ -82,7 +82,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
      *    built under. Same-version-as-plugin is what makes the
      *    fingerprint-binary format stable: the plugin bakes a baseline
      *    that the runtime reads, and a version mismatch between the
-     *    two would silently corrupt F10's verdict.
+     *    two would silently corrupt integrity.apk's verdict.
      *
      * The dependency is only added if a `com.android.application` or
      * `com.android.library` plugin is also applied — without an Android

@@ -22,7 +22,7 @@ class BootloaderIntegrityDetectorTest {
     fun `detector id matches the F15 contract`() {
         // Stable identifier — backends key on this. Any change is a
         // wire-format break and would need a corresponding bump.
-        assertEquals("F15.bootloader_integrity", BootloaderIntegrityDetector.id)
+        assertEquals("integrity.bootloader", BootloaderIntegrityDetector.id)
     }
 
     @Test

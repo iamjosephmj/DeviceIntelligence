@@ -19,7 +19,7 @@ import java.util.zip.ZipFile
  *     directly, side-stepping any AssetManager indexing edge cases.
  *  2. Going via the APK path lets us see exactly which file the OS thinks
  *     is our base.apk, which matters for split-APK / sourceDir spoofing
- *     checks the F10 detector will run.
+ *     checks the integrity.apk detector will run.
  */
 internal object FingerprintAssetReader {
 
@@ -29,7 +29,7 @@ internal object FingerprintAssetReader {
      *
      * Throws [AssetMissingException] if the APK has no such entry; that's
      * a strong tampering signal (someone stripped or replaced our asset)
-     * and the F10 detector treats it as a hard failure.
+     * and the integrity.apk detector treats it as a hard failure.
      */
     fun readEncryptedBytes(context: Context): ByteArray {
         val apkPath = context.applicationInfo.sourceDir

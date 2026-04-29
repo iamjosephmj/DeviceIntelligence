@@ -333,7 +333,7 @@ abstract class InstrumentApkTask : DefaultTask() {
         // with the 16 KB system image) accepts the .so for direct mmap.
         // The padding goes into the local-file-header's extra field —
         // it does NOT touch the entry body, so the post-instrumentation
-        // hash that F10 baked at compute time still matches the runtime
+        // hash that integrity.apk baked at compute time still matches the runtime
         // ZIP-entry body byte-for-byte.
         //
         // Skipped entirely for DEFLATED entries (those are decompressed

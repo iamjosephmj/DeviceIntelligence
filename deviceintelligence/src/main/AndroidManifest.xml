@@ -25,7 +25,7 @@
     -->
 
     <!--
-        Broad package visibility for F17.root_indicators.
+        Broad package visibility for runtime.root.
 
         IMPORTANT FOR CONSUMERS: this is a Google-Play-restricted
         permission. Apps that include this manifest will inherit it
@@ -42,14 +42,14 @@
                 android:name="android.permission.QUERY_ALL_PACKAGES"
                 tools:node="remove" />
 
-        F17 will then fall back to whatever subset of packages the
-        consumer's own <queries> block exposes (or just to the on-disk
-        / shell signals).
+        runtime.root will then fall back to whatever subset of packages
+        the consumer's own <queries> block exposes (or just to the
+        on-disk / shell signals).
 
         Why we declare it at the library level: Android 11+ hides
         installed packages from getPackageInfo() / getInstalledPackages()
         unless the caller declares either an explicit <queries> entry,
-        a matching <queries><intent>, or this permission. F17 needs
+        a matching <queries><intent>, or this permission. runtime.root needs
         to enumerate beyond a hand-maintained list (new root managers
         appear constantly — KernelSU forks, Apatch, etc.) and the
         permission is the only mechanism that gives that scope.
