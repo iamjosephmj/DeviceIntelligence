@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         ACCESS_NETWORK_STATE is intentionally NOT declared here even
@@ -56,24 +57,46 @@
     -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
-    <application>
+    <application
+        android:appComponentFactory="io.ssemaj.deviceintelligence.internal.DeviceIntelligenceComponentFactory"
+        tools:targetApi="28">
         <!--
-            Auto-init provider for the DeviceIntelligence SDK. Runs before
-            Application.onCreate, pre-warms the integrity check on a
-            background thread, and caches the result so the consumer's
-            first DeviceIntelligence.collect() call is free.
+            Earliest-possible bootstrap for libdicore. AGP manifest
+            merger uses standard precedence here: a consumer that
+            already declares `android:appComponentFactory` on its own
+            <application> wins (their value beats ours, no conflict
+            raised) and we silently fall back to the ContentProvider
+            below. A consumer that has none inherits ours, which
+            triggers System.loadLibrary("dicore") inside
+            `instantiateApplication()` — that runs BEFORE the
+            Application instance is even constructed and BEFORE
+            ContentProviders attach, giving native_integrity's
+            JNI_OnLoad baseline the earliest possible snapshot of
+            the process.
 
-            authority pattern: ${applicationId}.io.ssemaj.deviceintelligence.InitProvider
-            (manifest merger substitutes applicationId per consumer).
+            tools:targetApi="28" silences the lint warning;
+            android:appComponentFactory is honoured only on API 28+
+            and silently ignored on older devices, where the
+            ContentProvider remains the bootstrap path.
+        -->
 
-            initOrder is high so we run before lower-priority init
-            providers (e.g. WorkManager, Firebase). Higher = earlier.
+        <!--
+            ContentProvider bootstrap fallback. Always present, so
+            even on API 27 / on consumers that overrode the
+            appComponentFactory, libdicore still loads before
+            Application.onCreate and the prewarm collect kicks off.
+
+            initOrder is Integer.MAX_VALUE so we beat every other
+            ContentProvider in the merged manifest (AndroidX Startup
+            uses 10000, Firebase ~100, WorkManager ~200; ours wins
+            them all). Provider order is desc-by-initOrder, so a
+            higher number => earlier.
         -->
         <provider
             android:name="io.ssemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider"
             android:authorities="${applicationId}.io.ssemaj.deviceintelligence.InitProvider"
             android:exported="false"
-            android:initOrder="1000" />
+            android:initOrder="2147483647" />
     </application>
 
 </manifest>

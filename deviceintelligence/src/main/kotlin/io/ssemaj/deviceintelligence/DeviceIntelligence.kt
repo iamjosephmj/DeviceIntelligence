@@ -1,7 +1,9 @@
 package io.ssemaj.deviceintelligence
 
 import android.content.Context
+import io.ssemaj.deviceintelligence.internal.Critical
 import io.ssemaj.deviceintelligence.internal.PrewarmCoordinator
+import io.ssemaj.deviceintelligence.internal.StackGuard
 import io.ssemaj.deviceintelligence.internal.TelemetryCollector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -9,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -95,14 +98,19 @@ public object DeviceIntelligence {
      * the call resumes with a [kotlinx.coroutines.CancellationException]
      * before the next detector starts.
      */
-    public suspend fun collect(context: Context): TelemetryReport =
-        collect(context, CollectOptions.DEFAULT)
+    @Critical
+    public suspend fun collect(context: Context): TelemetryReport {
+        StackGuard.verify("DeviceIntelligence.collect")
+        return collect(context, CollectOptions.DEFAULT)
+    }
 
     /**
      * Variant of [collect] that filters which detectors run. See
      * [CollectOptions] for the filter semantics.
      */
+    @Critical
     public suspend fun collect(context: Context, options: CollectOptions): TelemetryReport {
+        StackGuard.verify("DeviceIntelligence.collect")
         val appCtx = context.applicationContext
         return withContext(Dispatchers.IO) {
             TelemetryCollector.collect(appCtx, options)
@@ -113,8 +121,11 @@ public object DeviceIntelligence {
      * Convenience wrapper around [collect] that hands back the
      * report serialised to its canonical JSON form.
      */
-    public suspend fun collectJson(context: Context): String =
-        collect(context).toJson()
+    @Critical
+    public suspend fun collectJson(context: Context): String {
+        StackGuard.verify("DeviceIntelligence.collectJson")
+        return collect(context).toJson()
+    }
 
     /**
      * Returns the in-flight background pre-warm result, if one is
@@ -130,8 +141,11 @@ public object DeviceIntelligence {
      * collect: the pre-warm is going to run regardless of whether
      * you await it, so awaiting it is free.
      */
-    public suspend fun awaitPrewarm(context: Context): TelemetryReport =
-        PrewarmCoordinator.startOrAwait(context).await()
+    @Critical
+    public suspend fun awaitPrewarm(context: Context): TelemetryReport {
+        StackGuard.verify("DeviceIntelligence.awaitPrewarm")
+        return PrewarmCoordinator.startOrAwait(context).await()
+    }
 
     /**
      * Emits a fresh [TelemetryReport] every [interval], starting
@@ -159,13 +173,20 @@ public object DeviceIntelligence {
      * if a single `collect()` takes 500 ms and the interval is 2 s,
      * the next emission is ~2.5 s after the previous one started.
      */
+    @Critical
     public fun observe(
         context: Context,
         interval: Duration = 2.seconds,
         options: CollectOptions = CollectOptions.DEFAULT,
     ): Flow<TelemetryReport> {
+        // StackGuard.verify is invoked per emission rather than per
+        // observe() call so a hooker that wraps the upstream
+        // collector at any point during the flow's lifetime gets
+        // caught — the observe() call itself returns synchronously,
+        // but the hookable surface is the suspend-`produce` lambda.
         val appCtx = context.applicationContext
         return observeFlow(interval) { TelemetryCollector.collect(appCtx, options) }
+            .onEach { StackGuard.verify("DeviceIntelligence.observe") }
             .flowOn(Dispatchers.IO)
     }
 
@@ -205,16 +226,23 @@ public object DeviceIntelligence {
      */
     @JvmStatic
     @JvmOverloads
+    @Critical
     public fun collectBlocking(
         context: Context,
         options: CollectOptions = CollectOptions.DEFAULT,
-    ): TelemetryReport = runBlocking { collect(context, options) }
+    ): TelemetryReport {
+        StackGuard.verify("DeviceIntelligence.collectBlocking")
+        return runBlocking { collect(context, options) }
+    }
 
     /**
      * Synchronous variant of [collectJson]. Blocks the calling
      * thread; do NOT call from `Dispatchers.Main`.
      */
     @JvmStatic
-    public fun collectJsonBlocking(context: Context): String =
-        runBlocking { collectJson(context) }
+    @Critical
+    public fun collectJsonBlocking(context: Context): String {
+        StackGuard.verify("DeviceIntelligence.collectJsonBlocking")
+        return runBlocking { collectJson(context) }
+    }
 }

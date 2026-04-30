@@ -13,7 +13,7 @@ import java.io.InputStream
  * other half. They MUST stay in sync byte-for-byte:
  *
  *   uint32  magic           = [MAGIC]   ('DeviceIntelligence')
- *   uint32  formatVersion   = [FORMAT_VERSION]
+ *   uint32  formatVersion   in [MIN_SUPPORTED_FORMAT_VERSION..[FORMAT_VERSION]]
  *   uint32  schemaVersion
  *   int64   builtAtEpochMs
  *   utf8    pluginVersion
@@ -25,6 +25,10 @@ import java.io.InputStream
  *   uint32  ignoredPrefixCount + utf8[]
  *   utf8    expectedSourceDirPrefix
  *   uint32  installerWhitelistCount + utf8[]
+ *   --- v2 additions ---
+ *   uint32  abiInventoryCount + (utf8 abi, uint32 fileCount, utf8 filename[])[]
+ *   uint32  abiFileHashCount  + (utf8 abi, uint32 entryCount, (utf8 filename, utf8 sha)[])[]
+ *   uint32  abiTextHashCount  + (utf8 abi, utf8 sha)[]
  *
  * Decode-only: the runtime never re-encodes a fingerprint, so we drop the
  * encoder half to keep the AAR small and remove the temptation to mutate
@@ -35,8 +39,17 @@ internal object FingerprintCodec {
     /** ASCII 'R','a','S','p'; matches plugin-side MAGIC. */
     const val MAGIC: Int = 0x52615370
 
-    /** Bumped any time the wire format changes shape. */
-    const val FORMAT_VERSION: Int = 1
+    /** Newest wire format the decoder understands. */
+    const val FORMAT_VERSION: Int = 2
+
+    /**
+     * Oldest wire format the decoder accepts. Kept at 1 so apps
+     * shipped against the F18-era plugin still boot — the v2 tail
+     * is treated as empty for those, which silently disables the
+     * native-integrity baselines that depend on it (the runtime
+     * detector reports no findings rather than crashing).
+     */
+    const val MIN_SUPPORTED_FORMAT_VERSION: Int = 1
 
     /**
      * Decode a fingerprint from [input]. Throws:
@@ -52,7 +65,7 @@ internal object FingerprintCodec {
         val magic = din.readInt()
         if (magic != MAGIC) throw BadMagicException(magic)
         val formatVersion = din.readInt()
-        if (formatVersion != FORMAT_VERSION) {
+        if (formatVersion !in MIN_SUPPORTED_FORMAT_VERSION..FORMAT_VERSION) {
             throw UnsupportedFormatException(formatVersion, FORMAT_VERSION)
         }
 
@@ -93,6 +106,48 @@ internal object FingerprintCodec {
             repeat(installerCount) { add(din.readUTF()) }
         }
 
+        var inventoryByAbi: Map<String, List<String>> = emptyMap()
+        var hashesByAbi: Map<String, Map<String, String>> = emptyMap()
+        var textHashByAbi: Map<String, String> = emptyMap()
+        if (formatVersion >= 2) {
+            val invCount = readNonNegative(din.readInt(), "abiInventoryCount")
+            inventoryByAbi = LinkedHashMap<String, List<String>>(invCount).apply {
+                repeat(invCount) {
+                    val abi = din.readUTF()
+                    val fileCount = readNonNegative(din.readInt(), "abiFileCount[$abi]")
+                    val files = ArrayList<String>(fileCount).apply {
+                        repeat(fileCount) { add(din.readUTF()) }
+                    }
+                    put(abi, files)
+                }
+            }
+
+            val hashAbiCount = readNonNegative(din.readInt(), "abiFileHashCount")
+            hashesByAbi = LinkedHashMap<String, Map<String, String>>(hashAbiCount).apply {
+                repeat(hashAbiCount) {
+                    val abi = din.readUTF()
+                    val fileCount = readNonNegative(din.readInt(), "abiHashEntryCount[$abi]")
+                    val files = LinkedHashMap<String, String>(fileCount).apply {
+                        repeat(fileCount) {
+                            val name = din.readUTF()
+                            val hash = din.readUTF()
+                            put(name, hash)
+                        }
+                    }
+                    put(abi, files)
+                }
+            }
+
+            val textAbiCount = readNonNegative(din.readInt(), "abiTextHashCount")
+            textHashByAbi = LinkedHashMap<String, String>(textAbiCount).apply {
+                repeat(textAbiCount) {
+                    val abi = din.readUTF()
+                    val hash = din.readUTF()
+                    put(abi, hash)
+                }
+            }
+        }
+
         return Fingerprint(
             schemaVersion = schemaVersion,
             builtAtEpochMs = builtAtEpochMs,
@@ -105,6 +160,9 @@ internal object FingerprintCodec {
             ignoredEntryPrefixes = prefixes,
             expectedSourceDirPrefix = sourceDirPrefix,
             expectedInstallerWhitelist = installers,
+            nativeLibInventoryByAbi = inventoryByAbi,
+            nativeLibHashesByAbi = hashesByAbi,
+            dicoreTextSha256ByAbi = textHashByAbi,
         )
     }
 

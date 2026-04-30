@@ -6,6 +6,7 @@ import io.ssemaj.deviceintelligence.gradle.internal.CertHasher
 import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
 import io.ssemaj.deviceintelligence.gradle.internal.FingerprintCodec
 import io.ssemaj.deviceintelligence.gradle.internal.FingerprintJson
+import io.ssemaj.deviceintelligence.gradle.internal.NativeLibInventory
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -117,6 +118,17 @@ abstract class ComputeFingerprintTask : DefaultTask() {
         )
         logger.lifecycle("io.ssemaj: cert chain size=${certs.size}, leaf=${certs.firstOrNull()}")
 
+        // F19/G0 — compute build-time native-library fingerprint:
+        // per-ABI .so inventory, per-file SHA-256, and libdicore.so
+        // .text section SHA-256. Runtime uses these for the
+        // injected-library check (Component 4) and the .text
+        // self-integrity check (Component 3).
+        val nativeFp = NativeLibInventory.walkApk(apk)
+        logger.lifecycle(
+            "io.ssemaj: native libs: abis=${nativeFp.inventoryByAbi.keys}, " +
+                "dicoreText=${nativeFp.dicoreTextSha256ByAbi.mapValues { it.value.take(16) + "..." }}"
+        )
+
         val fp = Fingerprint(
             schemaVersion = Fingerprint.SCHEMA_VERSION,
             builtAtEpochMs = System.currentTimeMillis(),
@@ -129,6 +141,9 @@ abstract class ComputeFingerprintTask : DefaultTask() {
             ignoredEntryPrefixes = ignoredPrefixes,
             expectedSourceDirPrefix = "/data/app/",
             expectedInstallerWhitelist = emptyList(),
+            nativeLibInventoryByAbi = nativeFp.inventoryByAbi,
+            nativeLibHashesByAbi = nativeFp.fileHashesByAbi,
+            dicoreTextSha256ByAbi = nativeFp.dicoreTextSha256ByAbi,
         )
 
         val jsonOut = fingerprintFile.get().asFile

@@ -23,8 +23,74 @@ internal object FingerprintJson {
         kvList("ignoredEntries", fp.ignoredEntries); append(",\n")
         kvList("ignoredEntryPrefixes", fp.ignoredEntryPrefixes); append(",\n")
         kvStr("expectedSourceDirPrefix", fp.expectedSourceDirPrefix); append(",\n")
-        kvList("expectedInstallerWhitelist", fp.expectedInstallerWhitelist); append('\n')
+        kvList("expectedInstallerWhitelist", fp.expectedInstallerWhitelist); append(",\n")
+        kvSortedMapOfLists("nativeLibInventoryByAbi", fp.nativeLibInventoryByAbi); append(",\n")
+        kvSortedNestedMap("nativeLibHashesByAbi", fp.nativeLibHashesByAbi); append(",\n")
+        kvSortedMap("dicoreTextSha256ByAbi", fp.dicoreTextSha256ByAbi); append('\n')
         append("}\n")
+    }
+
+    private fun StringBuilder.kvSortedMapOfLists(
+        key: String,
+        map: Map<String, List<String>>,
+    ) {
+        append("  ").appendQuoted(key).append(": {")
+        if (map.isEmpty()) {
+            append('}')
+            return
+        }
+        append('\n')
+        val sortedKeys = map.keys.sorted()
+        sortedKeys.forEachIndexed { i, k ->
+            append("    ").appendQuoted(k).append(": [")
+            val items = map.getValue(k)
+            if (items.isEmpty()) {
+                append(']')
+            } else {
+                append('\n')
+                items.forEachIndexed { j, s ->
+                    append("      ").appendQuoted(s)
+                    if (j != items.lastIndex) append(',')
+                    append('\n')
+                }
+                append("    ]")
+            }
+            if (i != sortedKeys.lastIndex) append(',')
+            append('\n')
+        }
+        append("  }")
+    }
+
+    private fun StringBuilder.kvSortedNestedMap(
+        key: String,
+        map: Map<String, Map<String, String>>,
+    ) {
+        append("  ").appendQuoted(key).append(": {")
+        if (map.isEmpty()) {
+            append('}')
+            return
+        }
+        append('\n')
+        val sortedKeys = map.keys.sorted()
+        sortedKeys.forEachIndexed { i, k ->
+            append("    ").appendQuoted(k).append(": {")
+            val sub = map.getValue(k)
+            if (sub.isEmpty()) {
+                append('}')
+            } else {
+                append('\n')
+                val subKeys = sub.keys.sorted()
+                subKeys.forEachIndexed { j, sk ->
+                    append("      ").appendQuoted(sk).append(": ").appendQuoted(sub.getValue(sk))
+                    if (j != subKeys.lastIndex) append(',')
+                    append('\n')
+                }
+                append("    }")
+            }
+            if (i != sortedKeys.lastIndex) append(',')
+            append('\n')
+        }
+        append("  }")
     }
 
     private fun StringBuilder.kv(key: String, value: Long) {

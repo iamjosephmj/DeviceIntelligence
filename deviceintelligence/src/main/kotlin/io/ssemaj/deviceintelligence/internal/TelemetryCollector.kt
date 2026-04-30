@@ -102,16 +102,26 @@ internal object TelemetryCollector {
 
         val activeDetectors = filterDetectors(defaultDetectors, options)
         val detectorReports = ArrayList<DetectorReport>(activeDetectors.size)
-        for (det in activeDetectors) {
-            val report = try {
-                det.evaluate(ctx)
-            } catch (t: Throwable) {
-                Log.w(TAG, "detector ${det.id} threw — capturing as ERROR", t)
-                errored(det.id, t, 0L)
-            }
-            detectorReports += report
-            if (det === apkIntegrity) {
-                ctx = ctx.copy(apkReport = report)
+        // G6 — wrap the detector-execution loop in a sampled
+        // stack watchdog. Catches Kotlin/Java method hooks on
+        // INTERNAL detector code (which G5 misses because the
+        // user never calls those directly). The watchdog runs on
+        // a daemon thread with a hard 100-sample cap; its
+        // findings are queued onto the same StackGuard.snapshot()
+        // surface that RuntimeEnvironmentDetector already polls,
+        // so no separate plumbing is required.
+        StackWatchdog.watchDuring(Thread.currentThread()) {
+            for (det in activeDetectors) {
+                val report = try {
+                    det.evaluate(ctx)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "detector ${det.id} threw — capturing as ERROR", t)
+                    errored(det.id, t, 0L)
+                }
+                detectorReports += report
+                if (det === apkIntegrity) {
+                    ctx = ctx.copy(apkReport = report)
+                }
             }
         }
 

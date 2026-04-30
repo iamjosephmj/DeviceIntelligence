@@ -5,6 +5,7 @@ import com.android.build.api.artifact.ArtifactTransformationRequest
 import io.ssemaj.deviceintelligence.gradle.internal.ApkHasher
 import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
 import io.ssemaj.deviceintelligence.gradle.internal.FingerprintCodec
+import io.ssemaj.deviceintelligence.gradle.internal.NativeLibInventory
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -194,6 +195,24 @@ abstract class InstrumentApkTask : DefaultTask() {
             "io.ssemaj: instrument ${input.name}: hashed ${hashedEntries.size} entries (post-repack pass-1)"
         )
 
+        // F19/G0 — compute build-time native-library fingerprint
+        // straight from the decompressed entries we already have in
+        // memory. Walking the raw bytes here is byte-equivalent to
+        // ComputeFingerprintTask's ZipFile-based walk because:
+        //   - both look at the same set of lib/<abi>/<file>.so paths
+        //   - both hash the entry's decompressed body (whole-file
+        //     SHA-256), not the on-disk compressed bytes
+        //   - both run the same ElfParser on libdicore.so
+        // So a clean rebuild produces identical baselines from either
+        // pipeline.
+        val nativeFp = NativeLibInventory.walkRawEntries(
+            entries.asSequence().map { (name, data) -> name to data.decompressed }
+        )
+        logger.lifecycle(
+            "io.ssemaj: instrument ${input.name}: native libs abis=${nativeFp.inventoryByAbi.keys}, " +
+                "dicoreText=${nativeFp.dicoreTextSha256ByAbi.mapValues { it.value.take(16) + "..." }}"
+        )
+
         // 4. Build Fingerprint, encode (CBO), encrypt with per-build key.
         val fp = Fingerprint(
             schemaVersion = Fingerprint.SCHEMA_VERSION,
@@ -207,6 +226,9 @@ abstract class InstrumentApkTask : DefaultTask() {
             ignoredEntryPrefixes = ignoredPrefixes,
             expectedSourceDirPrefix = "/data/app/",
             expectedInstallerWhitelist = emptyList(),
+            nativeLibInventoryByAbi = nativeFp.inventoryByAbi,
+            nativeLibHashesByAbi = nativeFp.fileHashesByAbi,
+            dicoreTextSha256ByAbi = nativeFp.dicoreTextSha256ByAbi,
         )
         val cbo = ByteArrayOutputStream().apply { FingerprintCodec.encode(fp, this) }.toByteArray()
         val encrypted = ByteArray(cbo.size).also {
