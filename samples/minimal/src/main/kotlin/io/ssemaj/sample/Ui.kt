@@ -1,11 +1,16 @@
 package io.ssemaj.sample
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -13,12 +18,16 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Tiny programmatic-UI toolkit for the sample app. Kept self-contained
@@ -220,6 +229,24 @@ internal class Ui(val palette: Palette) {
         titleText: String,
         accessories: List<View> = emptyList(),
     ): LinearLayout {
+        val leading = iconRes?.let { res ->
+            iconView(context, res, sizeDp = 18, tint = palette.title)
+        }
+        return titleRowWithLeading(context, leading, titleText, accessories)
+    }
+
+    /**
+     * Title row variant that accepts an arbitrary [leading] view (e.g.
+     * a [FrameLayout] stacking two icons, or an animated container).
+     * Used by the Detectors card so the radar can have a stationary
+     * dish and a separately-rotating sweep arm.
+     */
+    fun titleRowWithLeading(
+        context: Context,
+        leading: View?,
+        titleText: String,
+        accessories: List<View> = emptyList(),
+    ): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -228,11 +255,15 @@ internal class Ui(val palette: Palette) {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
-        if (iconRes != null) {
-            val iv = iconView(context, iconRes, sizeDp = 18, tint = palette.title)
-            iv.layoutParams = LinearLayout.LayoutParams(dp(context, 18), dp(context, 18))
-                .apply { rightMargin = dp(context, 8) }
-            row.addView(iv)
+        if (leading != null) {
+            val sizePx = dp(context, 18)
+            val lp = (leading.layoutParams as? LinearLayout.LayoutParams)
+                ?: LinearLayout.LayoutParams(sizePx, sizePx)
+            lp.width = sizePx
+            lp.height = sizePx
+            lp.rightMargin = dp(context, 8)
+            leading.layoutParams = lp
+            row.addView(leading)
         }
         row.addView(
             title(context, titleText).apply {
@@ -259,13 +290,51 @@ internal class Ui(val palette: Palette) {
      * Compact `key  value` row used in Device / App snapshot cards.
      * Key is muted, value is mono dark.
      */
-    fun kv(context: Context, key: String, value: String?): LinearLayout {
+    fun kv(context: Context, key: String, value: String?): LinearLayout =
+        kvWithIcon(context, iconRes = null, key = key, value = value)
+
+    /**
+     * Like [kv] but with an optional 14dp leading icon column. The icon
+     * tints to [palette.subtitle] (or [iconTint] if provided) so it reads
+     * as decorative metadata next to the key. When [iconRes] is null the
+     * icon column is still allocated so all rows in a card line up
+     * vertically — important for the Device / App snapshots where some
+     * rows have icons and some don't.
+     */
+    fun kvWithIcon(
+        context: Context,
+        iconRes: Int?,
+        key: String,
+        value: String?,
+        iconTint: Int = palette.subtitle,
+    ): LinearLayout {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = dp(context, 4) }
+            ).apply { topMargin = dp(context, 5) }
+        }
+        // Reserve a 14+8 = 22dp slot whether or not we draw an icon, so
+        // every kv row in the same card aligns its key column.
+        val iconSlotPx = dp(context, 22)
+        if (iconRes != null) {
+            val iv = iconView(context, iconRes, sizeDp = 14, tint = iconTint)
+            iv.layoutParams = LinearLayout.LayoutParams(
+                dp(context, 14),
+                dp(context, 14),
+            ).apply { rightMargin = dp(context, 8) }
+            row.addView(iv)
+        } else {
+            row.addView(
+                View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        iconSlotPx,
+                        dp(context, 14),
+                    )
+                },
+            )
         }
         row.addView(
             TextView(context).apply {
@@ -273,7 +342,7 @@ internal class Ui(val palette: Palette) {
                 textSize = 11.5f
                 setTextColor(palette.muted)
                 layoutParams = LinearLayout.LayoutParams(
-                    dp(context, 132),
+                    dp(context, 110),
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                 )
             },
@@ -495,6 +564,120 @@ internal class Ui(val palette: Palette) {
         }
     }
 
+    /**
+     * Brief background-color flash on [view], starting from the
+     * tone's background color and animating alpha → transparent.
+     * Used to spotlight a row that just changed (e.g. a finding that
+     * appeared on the most recent collect). Self-cleans the
+     * background drawable when the animation ends so the row's
+     * baseline appearance is restored.
+     */
+    fun flashRipple(view: View, tone: Tone, durationMs: Long = 720) {
+        val (_, bg) = tonePair(tone)
+        // Fully transparent end colour with the same RGB so the ARGB
+        // evaluator gives a clean alpha-fade with no hue shift.
+        val end = bg and 0x00FFFFFF
+        ValueAnimator.ofObject(ArgbEvaluator(), bg, end).apply {
+            duration = durationMs
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { va -> view.setBackgroundColor(va.animatedValue as Int) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    view.background = null
+                }
+            })
+            start()
+        }
+    }
+
+    /**
+     * Quick scale pulse 1 → 1.18 → 1 on [view]. Used on the
+     * Findings / Detectors title-row badges when the count changes,
+     * so the eye is drawn to the new number without a flash.
+     */
+    fun pulseBadge(view: View) {
+        view.scaleX = 1f
+        view.scaleY = 1f
+        view.animate()
+            .scaleX(1.18f).scaleY(1.18f)
+            .setDuration(120)
+            .withEndAction {
+                view.animate()
+                    .scaleX(1f).scaleY(1f)
+                    .setInterpolator(OvershootInterpolator(2f))
+                    .setDuration(220)
+                    .start()
+            }
+            .start()
+    }
+
+    /**
+     * Stagger-reveal every direct child of [parent]: each child starts
+     * at alpha 0 and translationY [distanceDp], and animates to its
+     * rest state with a [perChildMs] offset between siblings. Used by
+     * card bodies (Device / App / Findings / Detectors) when their
+     * content is rebuilt, so the eye reads top-to-bottom rather than
+     * being slammed with everything at once.
+     */
+    fun staggerReveal(
+        parent: ViewGroup,
+        baseDelayMs: Long = 0L,
+        perChildMs: Long = 18L,
+        distanceDp: Int = 8,
+        durationMs: Long = 220,
+    ) {
+        val translate = dp(parent.context, distanceDp).toFloat()
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i)
+            child.alpha = 0f
+            child.translationY = translate
+            child.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setStartDelay(baseDelayMs + i * perChildMs)
+                .setDuration(durationMs)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    /**
+     * Stack [overlayRes] on top of [baseRes] inside a square
+     * [FrameLayout]. The returned `Pair` exposes the container
+     * (for placement in a parent) and the overlay [ImageView] (for
+     * rotation). Used by the Detectors title row so the radar's
+     * sweep arm can spin while the dishes stay still.
+     */
+    fun layeredIcon(
+        context: Context,
+        baseRes: Int,
+        overlayRes: Int,
+        sizeDp: Int = 18,
+        baseTint: Int = palette.title,
+        overlayTint: Int = palette.title,
+    ): Pair<FrameLayout, ImageView> {
+        val sizePx = dp(context, sizeDp)
+        val container = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(sizePx, sizePx)
+        }
+        val base = ImageView(context).apply {
+            setImageResource(baseRes)
+            imageTintList = ColorStateList.valueOf(baseTint)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = FrameLayout.LayoutParams(sizePx, sizePx)
+        }
+        val overlay = ImageView(context).apply {
+            setImageResource(overlayRes)
+            imageTintList = ColorStateList.valueOf(overlayTint)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            alpha = 0f // hidden until startSweep()
+            layoutParams = FrameLayout.LayoutParams(sizePx, sizePx)
+        }
+        container.addView(base)
+        container.addView(overlay)
+        return container to overlay
+    }
+
     companion object {
         fun forContext(context: Context): Ui {
             val night = (context.resources.configuration.uiMode and
@@ -573,6 +756,93 @@ internal data class Palette(
             toneNeutral = 0xFFA6ABB5.toInt() to 0xFF222630.toInt(),
             toneAccent = 0xFF7BFFE3.toInt() to 0xFF103039.toInt(),
         )
+    }
+}
+
+/**
+ * Animated halo: 3 concentric stroke circles that emanate from the
+ * view's center, each with a 1/3-cycle phase offset. Used behind the
+ * hero brand chip to sell the "scanning device" feel while
+ * [DeviceIntelligence.collect] is in flight.
+ *
+ * Driven by a single [ValueAnimator] that loops a `phase` 0 → 1 over
+ * [cycleMs] ms; on each frame we draw 3 rings at radii proportional to
+ * `(phase + i/3) % 1`, with their alpha fading from opaque at radius
+ * 0 to transparent at the max radius. Cheap (one [Paint], one
+ * `invalidate()` per frame, no allocations in [onDraw]) and self-stops
+ * via [stop] when the collect finishes.
+ */
+internal class HaloView(context: Context) : View(context) {
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            1.4f,
+            context.resources.displayMetrics,
+        )
+    }
+
+    private var ringColor: Int = Color.WHITE
+    private var phase: Float = 0f
+    private var animator: ValueAnimator? = null
+
+    /** How long one full pulse cycle takes. */
+    var cycleMs: Long = 1800L
+
+    /** Starts the looping pulse with rings tinted [color]. Idempotent. */
+    fun start(color: Int) {
+        ringColor = color
+        if (animator?.isStarted == true) {
+            invalidate()
+            return
+        }
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = cycleMs
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            addUpdateListener {
+                phase = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+        animate().alpha(1f).setDuration(180).start()
+    }
+
+    /** Cancels the loop and fades the view out so the rings don't linger. */
+    fun stop() {
+        animator?.cancel()
+        animator = null
+        animate().alpha(0f).setDuration(180).withEndAction {
+            phase = 0f
+            invalidate()
+        }.start()
+    }
+
+    override fun onDetachedFromWindow() {
+        animator?.cancel()
+        animator = null
+        super.onDetachedFromWindow()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (animator == null && phase == 0f) return
+        val cx = width / 2f
+        val cy = height / 2f
+        val maxR = (min(width, height) / 2f) - paint.strokeWidth
+        if (maxR <= 0) return
+        val baseRgb = ringColor and 0x00FFFFFF
+        for (i in 0 until 3) {
+            val p = ((phase + i / 3f) % 1f)
+            val r = p * maxR
+            // Alpha goes 200 → 0 as the ring expands, so older rings
+            // soften without ever quite hitting zero in the middle of
+            // the sweep.
+            val a = ((1f - p) * 200f).toInt().coerceIn(0, 255)
+            paint.color = baseRgb or (a shl 24)
+            canvas.drawCircle(cx, cy, r, paint)
+        }
     }
 }
 

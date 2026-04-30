@@ -23,6 +23,7 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -72,6 +73,7 @@ class MainActivity : Activity() {
 
     private lateinit var heroContainer: LinearLayout
     private lateinit var heroBrandChip: ImageView
+    private lateinit var heroHalo: HaloView
     private lateinit var heroBrandLabel: TextView
     private lateinit var heroSubtitle: TextView
     private lateinit var heroMeta: TextView
@@ -85,19 +87,37 @@ class MainActivity : Activity() {
     private lateinit var findingsCard: LinearLayout
     private lateinit var findingsBody: LinearLayout
     private lateinit var findingsTitleRow: LinearLayout
+    private var findingsLastCount: Int = -1
+    /** Stable keys of findings rendered in the previous report; used to
+     *  decide which rows are "new" and deserve a flashRipple. */
+    private var findingsLastSeen: Set<String> = emptySet()
+    private var findingsFirstRender: Boolean = true
 
     private lateinit var detectorsBody: LinearLayout
     private lateinit var detectorsTitleRow: LinearLayout
+    private lateinit var detectorsRadarSweep: ImageView
+    private var detectorsLastCount: Int = -1
+    private var detectorsSweepAnim: ObjectAnimator? = null
 
     private lateinit var jsonCardBody: LinearLayout
     private lateinit var jsonView: TextView
     private lateinit var jsonToggleBtn: Button
     private lateinit var jsonChevron: ImageView
+    private lateinit var jsonLiveDot: ImageView
     private var jsonExpanded: Boolean = false
 
-    private lateinit var autoBtn: Button
+    // Auto's "label" is a TextView, not a Button, so it inherits no
+    // platform minHeight / extra padding and lines up pixel-for-pixel
+    // with Re-collect / Copy (which also use TextViews inside an
+    // icon-button container).
+    private lateinit var autoBtn: TextView
     private lateinit var autoBtnDot: ImageView
-    private lateinit var recollectBtn: Button
+    private lateinit var recollectBtn: View
+    private lateinit var recollectIcon: ImageView
+    private lateinit var copyBtn: View
+    private lateinit var copyIcon: ImageView
+    private var recollectSpinAnim: ObjectAnimator? = null
+    private var copyResetRunnable: Runnable? = null
 
     @Volatile private var lastReport: TelemetryReport? = null
     @Volatile private var lastJson: String = ""
@@ -157,15 +177,31 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
+        // Brand slot: a 36dp FrameLayout that stacks the animated halo
+        // (full size, alpha 0 until a collect starts) behind the 18dp
+        // brand chip. The slot width gives the halo room to expand
+        // without disturbing the row's layout.
+        val brandSlotPx = Ui.dp(this, 36)
+        val brandSlot = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(brandSlotPx, brandSlotPx)
+                .apply { rightMargin = Ui.dp(this@MainActivity, 8) }
+        }
+        heroHalo = HaloView(this).apply {
+            alpha = 0f
+            layoutParams = FrameLayout.LayoutParams(brandSlotPx, brandSlotPx)
+                .apply { gravity = Gravity.CENTER }
+        }
         heroBrandChip = ImageView(this).apply {
             setImageResource(R.drawable.ic_chip)
             imageTintList = ColorStateList.valueOf(ui.palette.subtitle)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = LinearLayout.LayoutParams(
+            layoutParams = FrameLayout.LayoutParams(
                 Ui.dp(this@MainActivity, 18),
                 Ui.dp(this@MainActivity, 18),
-            ).apply { rightMargin = Ui.dp(this@MainActivity, 8) }
+            ).apply { gravity = Gravity.CENTER }
         }
+        brandSlot.addView(heroHalo)
+        brandSlot.addView(heroBrandChip)
         heroBrandLabel = TextView(this).apply {
             textSize = 12f
             setTextColor(ui.palette.subtitle)
@@ -173,7 +209,7 @@ class MainActivity : Activity() {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.12f
         }
-        brandRow.addView(heroBrandChip)
+        brandRow.addView(brandSlot)
         brandRow.addView(heroBrandLabel)
         heroContainer.addView(brandRow)
 
@@ -220,22 +256,29 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = Ui.dp(this@MainActivity, 12) }
         }
-        recollectBtn = makeButton(
+        // Re-collect uses an icon-button container so we can keep a
+        // reference to the icon and spin it during in-flight collects.
+        val recollect = buildIconButton(
             label = "Re-collect",
             tone = Ui.Tone.INFO,
             iconRes = R.drawable.ic_refresh,
             onClick = { runCollect(initial = false) },
         )
+        recollectBtn = recollect.first
+        recollectIcon = recollect.second
         actionsRow.addView(recollectBtn)
         actionsRow.addView(buildAutoButton())
-        actionsRow.addView(
-            makeButton(
-                label = "Copy",
-                tone = Ui.Tone.NEUTRAL,
-                iconRes = R.drawable.ic_copy,
-                onClick = { copyJsonToClipboard() },
-            ),
+        // Copy: icon-button so we can hot-swap ic_copy → ic_check_circle
+        // for a brief "copied!" affordance after a successful copy.
+        val copy = buildIconButton(
+            label = "Copy",
+            tone = Ui.Tone.NEUTRAL,
+            iconRes = R.drawable.ic_copy,
+            onClick = { copyJsonToClipboard() },
         )
+        copyBtn = copy.first
+        copyIcon = copy.second
+        actionsRow.addView(copyBtn)
         actionsCard.addView(actionsRow)
 
         // ---- device snapshot ----
@@ -292,9 +335,21 @@ class MainActivity : Activity() {
 
         // ---- detectors ----
         val detectorsCard = ui.card(this).also { root.addView(it) }
-        detectorsTitleRow = ui.titleRowWithIcon(
+        // Layered title icon: stationary radar dish + an overlay sweep
+        // arm we rotate while a collect is in flight (started by
+        // startHeroScan, stopped by stopHeroScan).
+        val (radarStack, sweepArm) = ui.layeredIcon(
             context = this,
-            iconRes = R.drawable.ic_radar,
+            baseRes = R.drawable.ic_radar,
+            overlayRes = R.drawable.ic_radar_sweep,
+            sizeDp = 18,
+            baseTint = ui.palette.title,
+            overlayTint = ui.toneFg(Ui.Tone.INFO),
+        )
+        detectorsRadarSweep = sweepArm
+        detectorsTitleRow = ui.titleRowWithLeading(
+            context = this,
+            leading = radarStack,
             titleText = "Detectors",
             accessories = listOf(ui.badge(this, "0", Ui.Tone.NEUTRAL)),
         )
@@ -336,12 +391,23 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             )
         }
+        // Live indicator: a small green pulsing dot to the right of the
+        // title that fades in and starts pulsing when auto-collect is
+        // on. Communicates "this card is updating live" without
+        // changing layout.
+        jsonLiveDot = ui.pulsingDot(this, tone = Ui.Tone.OK).apply {
+            alpha = 0f
+            layoutParams = LinearLayout.LayoutParams(
+                Ui.dp(this@MainActivity, 8),
+                Ui.dp(this@MainActivity, 8),
+            )
+        }
         jsonCard.addView(
             ui.titleRowWithIcon(
                 context = this,
                 iconRes = R.drawable.ic_braces,
                 titleText = "Telemetry JSON",
-                accessories = listOf(jsonChevron, jsonToggleBtn),
+                accessories = listOf(jsonLiveDot, jsonChevron, jsonToggleBtn),
             ),
         )
         jsonCard.addView(
@@ -417,25 +483,25 @@ class MainActivity : Activity() {
                 toggleAutoCollect()
             }
         }
+        // Use the same 14dp diameter as the leading icons in
+        // Re-collect / Copy so all three buttons have a matching
+        // leading-glyph footprint and the row stays visually balanced.
+        // The visible green dot inside is rendered smaller via the
+        // ic_pulse_dot vector itself.
         autoBtnDot = ui.pulsingDot(this, tone = Ui.Tone.OK).apply {
             alpha = 0f
             layoutParams = LinearLayout.LayoutParams(
-                Ui.dp(this@MainActivity, 10),
-                Ui.dp(this@MainActivity, 10),
-            ).apply { rightMargin = Ui.dp(this@MainActivity, 8) }
+                Ui.dp(this@MainActivity, 14),
+                Ui.dp(this@MainActivity, 14),
+            ).apply { rightMargin = Ui.dp(this@MainActivity, 6) }
         }
-        autoBtn = Button(this).apply {
+        autoBtn = TextView(this).apply {
             text = autoButtonLabel()
             textSize = 12f
             setTextColor(ui.palette.toneNeutral.first)
-            background = null
-            stateListAnimator = null
             isAllCaps = false
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 0)
-            isClickable = false
-            isFocusable = false
         }
         container.addView(autoBtnDot)
         container.addView(autoBtn)
@@ -468,6 +534,7 @@ class MainActivity : Activity() {
             return
         }
         lastReport = report
+        val previousJson = lastJson
         lastJson = report.toJson()
         renderHero(report)
         renderDevice(report.device)
@@ -475,6 +542,14 @@ class MainActivity : Activity() {
         renderFindings(report)
         renderDetectors(report.detectors)
         jsonView.text = lastJson
+        // Brief alpha flash on the JSON body whenever the bytes change,
+        // so the user can see at a glance that fresh telemetry just
+        // arrived (especially useful with auto-collect on).
+        if (jsonExpanded && previousJson.isNotEmpty() && previousJson != lastJson) {
+            jsonView.alpha = 0.35f
+            jsonView.animate().alpha(1f).setDuration(280)
+                .setInterpolator(DecelerateInterpolator()).start()
+        }
         val findingCount = report.summary.totalFindings
         val verb = if (initial) "initial collect" else "recollect"
         Log.i(TAG, "$verb done: $findingCount finding(s) in ${report.collectionDurationMs}ms")
@@ -504,11 +579,22 @@ class MainActivity : Activity() {
             startAutoCollect()
             autoBtnDot.animate().alpha(1f).setDuration(180).start()
             ui.startPulsingDot(autoBtnDot)
+            // Mirror the live indicator on the JSON title row so the
+            // card itself shows "this is updating live", even when the
+            // body is collapsed.
+            if (::jsonLiveDot.isInitialized) {
+                jsonLiveDot.animate().alpha(1f).setDuration(180).start()
+                ui.startPulsingDot(jsonLiveDot)
+            }
             toast("Auto-collect on (${AUTO_COLLECT_INTERVAL_MS / 1000}s)")
         } else {
             stopAutoCollect()
             ui.stopPulsingDot(autoBtnDot)
             autoBtnDot.animate().alpha(0f).setDuration(140).start()
+            if (::jsonLiveDot.isInitialized) {
+                ui.stopPulsingDot(jsonLiveDot)
+                jsonLiveDot.animate().alpha(0f).setDuration(140).start()
+            }
             toast("Auto-collect off")
         }
     }
@@ -520,6 +606,7 @@ class MainActivity : Activity() {
         super.onPause()
         if (autoCollectOn) stopAutoCollect()
         if (::autoBtnDot.isInitialized) ui.stopPulsingDot(autoBtnDot)
+        if (::jsonLiveDot.isInitialized) ui.stopPulsingDot(jsonLiveDot)
     }
 
     override fun onResume() {
@@ -527,6 +614,7 @@ class MainActivity : Activity() {
         if (autoCollectOn) {
             startAutoCollect()
             ui.startPulsingDot(autoBtnDot)
+            if (::jsonLiveDot.isInitialized) ui.startPulsingDot(jsonLiveDot)
         }
     }
 
@@ -606,6 +694,19 @@ class MainActivity : Activity() {
         ui.addToBadgeRow(heroChips, ui.badge(this, "$label · $count", tone))
     }
 
+    /**
+     * Kick off all "in-flight collect" animations:
+     *  - Hero brand chip spins clockwise (1.1s/rev)
+     *  - HaloView pulses 3 expanding rings tinted to the current
+     *    tone behind the chip
+     *  - Re-collect button's leading refresh icon spins (slightly
+     *    slower so the two motions don't fight each other)
+     *  - Detectors radar sweep arm spins (faster, like a real
+     *    radar dish) and fades in
+     *
+     * All four are independent animators so they can settle
+     * gracefully when the collect finishes.
+     */
     private fun startHeroScan() {
         if (!::heroBrandChip.isInitialized) return
         if (heroScanAnim?.isStarted == true) return
@@ -615,32 +716,95 @@ class MainActivity : Activity() {
             interpolator = LinearInterpolator()
             start()
         }
+        // Halo color tracks the current hero tone — read from the brand
+        // chip's tint, which we update in renderHero. Falls back to
+        // subtitle on cold start before the first report is in.
+        val haloColor = heroBrandChip.imageTintList?.defaultColor ?: ui.palette.subtitle
+        heroHalo.start(haloColor)
+        // Spin the Re-collect button's leading icon.
+        if (::recollectIcon.isInitialized) {
+            recollectSpinAnim?.cancel()
+            recollectSpinAnim = ObjectAnimator
+                .ofFloat(recollectIcon, "rotation", 0f, 360f)
+                .apply {
+                    duration = 1300
+                    repeatCount = ObjectAnimator.INFINITE
+                    interpolator = LinearInterpolator()
+                    start()
+                }
+        }
+        // Spin the Detectors radar sweep arm.
+        if (::detectorsRadarSweep.isInitialized) {
+            detectorsRadarSweep.animate().alpha(1f).setDuration(180).start()
+            detectorsSweepAnim?.cancel()
+            detectorsSweepAnim = ObjectAnimator
+                .ofFloat(detectorsRadarSweep, "rotation", 0f, 360f)
+                .apply {
+                    duration = 900
+                    repeatCount = ObjectAnimator.INFINITE
+                    interpolator = LinearInterpolator()
+                    start()
+                }
+        }
     }
 
     private fun stopHeroScan() {
         heroScanAnim?.cancel()
         heroScanAnim = null
+        heroHalo.stop()
         if (::heroBrandChip.isInitialized) {
             heroBrandChip.animate().rotation(0f).setDuration(160).start()
+        }
+        recollectSpinAnim?.cancel()
+        recollectSpinAnim = null
+        if (::recollectIcon.isInitialized) {
+            recollectIcon.animate().rotation(0f).setDuration(160).start()
+        }
+        detectorsSweepAnim?.cancel()
+        detectorsSweepAnim = null
+        if (::detectorsRadarSweep.isInitialized) {
+            detectorsRadarSweep.animate().alpha(0f).setDuration(220).start()
         }
     }
 
     private fun renderDevice(device: DeviceContext) {
         deviceCardBody.removeAllViews()
-        deviceCardBody.addView(ui.kv(this, "manufacturer", device.manufacturer))
-        deviceCardBody.addView(ui.kv(this, "model", device.model))
-        device.device?.let { deviceCardBody.addView(ui.kv(this, "codename", it)) }
-        deviceCardBody.addView(ui.kv(this, "android", "API ${device.sdkInt}"))
-        deviceCardBody.addView(ui.kv(this, "abi", device.abi))
+        // Each kv row gets a small leading icon (14dp) tinted as
+        // metadata. The kvWithIcon helper keeps the icon column even
+        // when iconRes is null so all rows in the card line up.
+        deviceCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_device, "manufacturer", device.manufacturer),
+        )
+        deviceCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_device, "model", device.model),
+        )
+        device.device?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_device, "codename", it))
+        }
+        deviceCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_app_box, "android", "API ${device.sdkInt}"),
+        )
+        deviceCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_cpu, "abi", device.abi),
+        )
         if (device.socManufacturer != null || device.socModel != null) {
             val soc = listOfNotNull(device.socManufacturer, device.socModel).joinToString(" ")
-            deviceCardBody.addView(ui.kv(this, "soc", soc))
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_chip, "soc", soc))
         }
         device.eglImplementation?.let {
-            deviceCardBody.addView(ui.kv(this, "gpu", "$it / GLES ${device.glEsVersion ?: "?"}"))
+            deviceCardBody.addView(
+                ui.kvWithIcon(
+                    this, R.drawable.ic_display,
+                    "gpu", "$it / GLES ${device.glEsVersion ?: "?"}",
+                ),
+            )
         }
-        device.totalRamMb?.let { deviceCardBody.addView(ui.kv(this, "ram", "${it} MiB")) }
-        device.cpuCores?.let { deviceCardBody.addView(ui.kv(this, "cpu cores", it.toString())) }
+        device.totalRamMb?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_memory, "ram", "${it} MiB"))
+        }
+        device.cpuCores?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_cpu, "cpu cores", it.toString()))
+        }
         if (device.screenResolution != null || device.screenDensityDpi != null) {
             val text = buildString {
                 device.screenResolution?.let { append(it) }
@@ -653,26 +817,39 @@ class MainActivity : Activity() {
                     append("%.0fHz".format(it))
                 }
             }
-            deviceCardBody.addView(ui.kv(this, "screen", text))
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_display, "screen", text))
         }
-        device.defaultLocale?.let { deviceCardBody.addView(ui.kv(this, "locale", it)) }
+        device.defaultLocale?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_globe, "locale", it))
+        }
         device.timezoneId?.let {
             val offset = device.timezoneOffsetMinutes
             val offsetStr = if (offset != null)
                 " (UTC%+d:%02d)".format(offset / 60, kotlin.math.abs(offset % 60))
             else ""
-            deviceCardBody.addView(ui.kv(this, "timezone", "$it$offsetStr"))
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_clock, "timezone", "$it$offsetStr"))
         }
         device.batteryTechnology?.let {
             val plug = device.batteryPlugType?.let { p -> if (p == "none") "" else " · $p" } ?: ""
-            deviceCardBody.addView(ui.kv(this, "battery", "$it$plug"))
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_battery, "battery", "$it$plug"))
         }
-        device.sensorCount?.let { deviceCardBody.addView(ui.kv(this, "sensors", it.toString())) }
-        device.bootCount?.let { deviceCardBody.addView(ui.kv(this, "boot count", it.toString())) }
+        device.sensorCount?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_sensor, "sensors", it.toString()))
+        }
+        device.bootCount?.let {
+            deviceCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_refresh, "boot count", it.toString()))
+        }
         device.playServicesVersionCode?.let {
-            deviceCardBody.addView(ui.kv(this, "play services", it.toString()))
+            deviceCardBody.addView(
+                ui.kvWithIcon(
+                    this, R.drawable.ic_play_services,
+                    "play services", it.toString(),
+                ),
+            )
         }
-        deviceCardBody.addView(ui.kv(this, "fingerprint", truncate(device.fingerprint, 56)))
+        deviceCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_hash, "fingerprint", truncate(device.fingerprint, 56)),
+        )
 
         val badges = ui.badgeRow(this, topMargin = 12)
         device.hasFingerprintHw?.let {
@@ -715,33 +892,64 @@ class MainActivity : Activity() {
             if (it != "success") ui.addToBadgeRow(badges, ui.badge(this, "gms: $it", Ui.Tone.WARN))
         }
         if (badges.childCount > 0) deviceCardBody.addView(badges)
+        // Stagger every just-added row into view so the body reads
+        // top-to-bottom on each refresh instead of slamming in.
+        ui.staggerReveal(deviceCardBody)
     }
 
     private fun renderApp(app: AppContext) {
         appCardBody.removeAllViews()
-        appCardBody.addView(ui.kv(this, "package", app.packageName))
-        appCardBody.addView(ui.kv(this, "variant", app.buildVariant))
-        appCardBody.addView(ui.kv(this, "plugin", app.libraryPluginVersion))
-        appCardBody.addView(ui.kv(this, "target sdk", app.targetSdkVersion?.toString()))
+        appCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_package, "package", app.packageName),
+        )
+        appCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_branch, "variant", app.buildVariant),
+        )
+        appCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_app_box, "plugin", app.libraryPluginVersion),
+        )
+        appCardBody.addView(
+            ui.kvWithIcon(this, R.drawable.ic_target, "target sdk", app.targetSdkVersion?.toString()),
+        )
         app.installSource?.let {
-            appCardBody.addView(ui.kv(this, "install src", it.installingPackage))
+            appCardBody.addView(
+                ui.kvWithIcon(this, R.drawable.ic_plug, "install src", it.installingPackage),
+            )
             it.initiatingPackage?.takeIf { p -> p != it.installingPackage }
-                ?.let { p -> appCardBody.addView(ui.kv(this, "initiating", p)) }
+                ?.let { p ->
+                    appCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_plug, "initiating", p))
+                }
             it.originatingPackage?.takeIf { p -> p != it.installingPackage }
-                ?.let { p -> appCardBody.addView(ui.kv(this, "originating", p)) }
+                ?.let { p ->
+                    appCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_plug, "originating", p))
+                }
         } ?: app.installerPackage?.let {
-            appCardBody.addView(ui.kv(this, "installer", it))
+            appCardBody.addView(ui.kvWithIcon(this, R.drawable.ic_plug, "installer", it))
         }
         app.firstInstallEpochMs?.let {
-            appCardBody.addView(ui.kv(this, "installed", tsFmt.format(Date(it))))
+            appCardBody.addView(
+                ui.kvWithIcon(this, R.drawable.ic_calendar, "installed", tsFmt.format(Date(it))),
+            )
         }
         app.lastUpdateEpochMs?.let {
-            appCardBody.addView(ui.kv(this, "updated", tsFmt.format(Date(it))))
+            appCardBody.addView(
+                ui.kvWithIcon(this, R.drawable.ic_calendar, "updated", tsFmt.format(Date(it))),
+            )
         }
         if (app.signerCertSha256.isNotEmpty()) {
-            appCardBody.addView(ui.kv(this, "signer sha256", truncate(app.signerCertSha256[0], 22)))
+            appCardBody.addView(
+                ui.kvWithIcon(
+                    this, R.drawable.ic_signature,
+                    "signer sha256", truncate(app.signerCertSha256[0], 22),
+                ),
+            )
             if (app.signerCertSha256.size > 1) {
-                appCardBody.addView(ui.kv(this, "signer count", app.signerCertSha256.size.toString()))
+                appCardBody.addView(
+                    ui.kvWithIcon(
+                        this, R.drawable.ic_signature,
+                        "signer count", app.signerCertSha256.size.toString(),
+                    ),
+                )
             }
         }
         app.attestation?.let { att ->
@@ -786,35 +994,95 @@ class MainActivity : Activity() {
             }
             if (badges.childCount > 0) appCardBody.addView(badges)
         }
+        ui.staggerReveal(appCardBody)
     }
 
     private fun renderFindings(report: TelemetryReport) {
         findingsBody.removeAllViews()
         val findings = report.detectors.flatMap { d -> d.findings.map { d.id to it } }
-        replaceTitleAccessory(
-            findingsTitleRow,
-            ui.badge(this, findings.size.toString(),
-                if (findings.isEmpty()) Ui.Tone.OK else Ui.Tone.WARN),
+        // Replace the count badge. The tone follows the verdict (OK
+        // when 0, WARN otherwise) so it reads as a quick at-a-glance
+        // status. We pulse it whenever the count actually changes.
+        val newBadge = ui.badge(
+            this,
+            findings.size.toString(),
+            if (findings.isEmpty()) Ui.Tone.OK else Ui.Tone.WARN,
         )
+        replaceTitleAccessory(findingsTitleRow, newBadge)
+        if (findingsLastCount >= 0 && findingsLastCount != findings.size) {
+            ui.pulseBadge(newBadge)
+        }
+        findingsLastCount = findings.size
+
         if (findings.isEmpty()) {
-            findingsBody.addView(
+            // Cheerful empty state: sparkle icon + reassuring copy. The
+            // sparkle icon is tinted OK so it pops against the card.
+            val emptyRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = Ui.dp(this@MainActivity, 12) }
+            }
+            val sparkle = ui.iconView(
+                this, R.drawable.ic_sparkle,
+                sizeDp = 18, tint = ui.toneFg(Ui.Tone.OK),
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    Ui.dp(this@MainActivity, 18),
+                    Ui.dp(this@MainActivity, 18),
+                ).apply { rightMargin = Ui.dp(this@MainActivity, 10) }
+            }
+            emptyRow.addView(sparkle)
+            emptyRow.addView(
                 TextView(this).apply {
-                    text = "No findings on this device. The JSON below is what your backend would store."
+                    text = "All clear. The JSON below is what your backend would store."
                     textSize = 12.5f
                     setTextColor(ui.palette.subtitle)
                     setLineSpacing(0f, 1.15f)
                     layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        0,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ).apply { topMargin = Ui.dp(this@MainActivity, 10) }
+                        1f,
+                    )
                 },
             )
+            findingsBody.addView(emptyRow)
+            // Tiny rotation sweep on the sparkle so the empty state
+            // doesn't feel static. One-shot, ~600ms, decelerated.
+            sparkle.rotation = -20f
+            sparkle.animate().rotation(0f).setDuration(600)
+                .setInterpolator(DecelerateInterpolator()).start()
+            findingsLastSeen = emptySet()
+            findingsFirstRender = false
             return
         }
+        // Build a stable key per finding so we can flag rows that
+        // weren't present in the previous render and ripple them.
+        val seenNow = HashSet<String>(findings.size)
         for ((detectorId, finding) in findings) {
-            findingsBody.addView(buildFindingRow(detectorId, finding))
+            val key = findingKey(detectorId, finding)
+            seenNow += key
+            val row = buildFindingRow(detectorId, finding)
+            findingsBody.addView(row)
+            if (!findingsFirstRender && key !in findingsLastSeen) {
+                // New finding since last render. Highlight by flashing
+                // the row's background to the severity tone, fading out
+                // over ~700ms so the eye notices it without a hard
+                // flash. Posted so the row is laid out first.
+                val tone = severityTone(finding.severity)
+                row.post { ui.flashRipple(row, tone) }
+            }
         }
+        findingsLastSeen = seenNow
+        findingsFirstRender = false
     }
+
+    /** Stable identity for a finding across collects, so ripple-on-new
+     *  is robust to message-text equality (and ignores subject). */
+    private fun findingKey(detectorId: String, finding: Finding): String =
+        "$detectorId|${finding.severity}|${finding.kind}|${finding.subject ?: ""}|${finding.message}"
 
     private fun buildFindingRow(detectorId: String, finding: Finding): View {
         val tone = severityTone(finding.severity)
@@ -847,24 +1115,39 @@ class MainActivity : Activity() {
 
     private fun renderDetectors(detectors: List<DetectorReport>) {
         detectorsBody.removeAllViews()
-        replaceTitleAccessory(
-            detectorsTitleRow,
-            ui.badge(this, detectors.size.toString(), Ui.Tone.NEUTRAL),
-        )
+        // Count badge: tone reflects worst status across detectors so
+        // the title pill mirrors the overall card health (BAD on any
+        // ERROR, WARN on any inconclusive, OK otherwise).
+        val tone = when {
+            detectors.any { it.status == DetectorStatus.ERROR } -> Ui.Tone.BAD
+            detectors.any { it.status == DetectorStatus.INCONCLUSIVE } -> Ui.Tone.WARN
+            else -> Ui.Tone.OK
+        }
+        val badge = ui.badge(this, detectors.size.toString(), tone)
+        replaceTitleAccessory(detectorsTitleRow, badge)
+        if (detectorsLastCount >= 0 && detectorsLastCount != detectors.size) {
+            ui.pulseBadge(badge)
+        }
+        detectorsLastCount = detectors.size
+
         for (det in detectors) {
-            val (label, tone) = detectorStatusBadge(det)
+            val (label, statusTone) = detectorStatusBadge(det)
             val right = "${det.durationMs}ms · ${det.findings.size} fnd"
             detectorsBody.addView(
                 ui.detectorRow(
                     context = this,
                     id = det.id,
                     statusLabel = label,
-                    statusTone = tone,
+                    statusTone = statusTone,
                     rightLabel = right,
                     statusIcon = detectorStatusIcon(det),
                 ),
             )
         }
+        // Stagger every row so the list cascades in. Slightly faster
+        // per-child than Device/App because there's typically more
+        // rows here.
+        ui.staggerReveal(detectorsBody, perChildMs = 14L, distanceDp = 6)
     }
 
     private fun detectorStatusBadge(det: DetectorReport): Pair<String, Ui.Tone> = when (det.status) {
@@ -972,9 +1255,97 @@ class MainActivity : Activity() {
         cm.setPrimaryClip(ClipData.newPlainText("DeviceIntelligence telemetry JSON", json))
         toast("JSON copied (${json.length} chars)")
         Log.i(TAG, "copied JSON to clipboard (${json.length} chars)")
+        // Hot-swap the leading icon to a filled check for ~1.2s, then
+        // revert. Visual confirmation that the click actually copied
+        // even when the toast is hidden by accessibility settings.
+        if (::copyIcon.isInitialized) {
+            copyResetRunnable?.let { mainHandler.removeCallbacks(it) }
+            copyIcon.setImageResource(R.drawable.ic_check_circle)
+            copyIcon.imageTintList =
+                ColorStateList.valueOf(ui.toneFg(Ui.Tone.OK))
+            copyIcon.scaleX = 0.6f
+            copyIcon.scaleY = 0.6f
+            copyIcon.animate().scaleX(1f).scaleY(1f)
+                .setInterpolator(OvershootInterpolator(2.4f))
+                .setDuration(220).start()
+            val reset = Runnable {
+                copyIcon.setImageResource(R.drawable.ic_copy)
+                copyIcon.imageTintList =
+                    ColorStateList.valueOf(ui.palette.toneNeutral.first)
+            }
+            copyResetRunnable = reset
+            mainHandler.postDelayed(reset, 1200L)
+        }
     }
 
     // ---- helpers -----------------------------------------------------------
+
+    /**
+     * Tone-tinted pill button with a *separately-addressable* leading
+     * icon. Returns the container view (sized as a 1f-weighted
+     * row child, like [makeButton]) and the inner [ImageView] so
+     * callers can rotate / hot-swap it in response to UI events
+     * (Re-collect spins it during in-flight collects, Copy swaps
+     * to a check on a successful copy).
+     */
+    private fun buildIconButton(
+        label: String,
+        tone: Ui.Tone,
+        iconRes: Int,
+        onClick: () -> Unit,
+    ): Pair<View, ImageView> {
+        val (fg, bg) = when (tone) {
+            Ui.Tone.OK -> ui.palette.toneOk
+            Ui.Tone.BAD -> ui.palette.toneBad
+            Ui.Tone.WARN -> ui.palette.toneWarn
+            Ui.Tone.INFO -> ui.palette.toneInfo
+            Ui.Tone.NEUTRAL -> ui.palette.toneNeutral
+            Ui.Tone.ACCENT -> ui.palette.toneAccent
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(bg)
+                cornerRadius = Ui.dp(this@MainActivity, 12).toFloat()
+            }
+            val padH = Ui.dp(this@MainActivity, 14)
+            val padV = Ui.dp(this@MainActivity, 8)
+            setPadding(padH, padV, padH, padV)
+            minimumHeight = Ui.dp(this@MainActivity, 40)
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f,
+            ).apply { rightMargin = Ui.dp(this@MainActivity, 8) }
+            setOnClickListener {
+                pressPulse(this)
+                onClick()
+            }
+        }
+        val icon = ImageView(this).apply {
+            setImageResource(iconRes)
+            imageTintList = ColorStateList.valueOf(fg)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                Ui.dp(this@MainActivity, 14),
+                Ui.dp(this@MainActivity, 14),
+            ).apply { rightMargin = Ui.dp(this@MainActivity, 6) }
+        }
+        val text = TextView(this).apply {
+            this.text = label
+            textSize = 12f
+            setTextColor(fg)
+            isAllCaps = false
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+        }
+        container.addView(icon)
+        container.addView(text)
+        return container to icon
+    }
 
     /**
      * Tone-tinted pill button. If [iconRes] is non-null a 14dp tinted

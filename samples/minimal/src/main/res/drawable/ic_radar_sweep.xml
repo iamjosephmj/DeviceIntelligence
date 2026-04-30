@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Radar SWEEP arm: a single radial arm starting at center going up-right. Designed to be
+     rotated by ObjectAnimator on the rotation property. Stacked on top of ic_radar so the
+     base rings stay still while only this arm rotates. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M12,12 L19.5,4.5" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,11 a1,1 0 1 1 -0.01,0 z" />
+</vector>
