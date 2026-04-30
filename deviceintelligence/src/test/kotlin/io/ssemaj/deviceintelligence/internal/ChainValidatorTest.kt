@@ -145,52 +145,12 @@ class ChainValidatorTest {
         assertEquals("chain_empty", ChainValidator.verifyChainSignatures(emptyList()))
     }
 
-    // ---- validityPeriodsNested -------------------------------------------
-    //
-    // The validator deliberately SKIPS the leaf-vs-chain[1] comparison
-    // because real KeyMint leaves use fixed 1970..2048 defaults that
-    // would always trip outlasts-parent. The check only inspects
-    // chain[1..n-1].
-
-    @Test
-    fun `validityPeriodsNested ignores wonky leaf and passes when intermediates nest`() {
-        // Leaf has KeyMint's 1970..2048 defaults (would outlast any
-        // real intermediate's notAfter); intermediates are fine.
-        val leaf = cert(notBefore = utc(1970, 1, 1), notAfter = utc(2048, 1, 1), serial = 1)
-        val mid = cert(notBefore = utc(2026, 4, 1), notAfter = utc(2027, 1, 1), serial = 2)
-        val root = cert(notBefore = utc(2026, 1, 1), notAfter = utc(2030, 1, 1), serial = 3)
-        assertNull(ChainValidator.validityPeriodsNested(listOf(leaf, mid, root)))
-    }
-
-    @Test
-    fun `validityPeriodsNested trips when intermediate predates root`() {
-        val leaf = cert(notBefore = utc(1970, 1, 1), notAfter = utc(2048, 1, 1), serial = 1)
-        val mid = cert(notBefore = utc(2025, 1, 1), notAfter = utc(2027, 1, 1), serial = 2)
-        val root = cert(notBefore = utc(2026, 1, 1), notAfter = utc(2030, 1, 1), serial = 3)
-        assertEquals(
-            "validity_child_predates_parent",
-            ChainValidator.validityPeriodsNested(listOf(leaf, mid, root)),
-        )
-    }
-
-    @Test
-    fun `validityPeriodsNested trips when intermediate outlasts root`() {
-        val leaf = cert(notBefore = utc(1970, 1, 1), notAfter = utc(2048, 1, 1), serial = 1)
-        val mid = cert(notBefore = utc(2026, 6, 1), notAfter = utc(2031, 1, 1), serial = 2)
-        val root = cert(notBefore = utc(2026, 1, 1), notAfter = utc(2030, 1, 1), serial = 3)
-        assertEquals(
-            "validity_child_outlasts_parent",
-            ChainValidator.validityPeriodsNested(listOf(leaf, mid, root)),
-        )
-    }
-
-    @Test
-    fun `validityPeriodsNested defers when chain has fewer than 3 certs`() {
-        // No intermediate to inspect => defer. (Two-cert chains exist
-        // but validateStructure handles the unusually-short case.)
-        assertNull(ChainValidator.validityPeriodsNested(listOf(cert())))
-        assertNull(ChainValidator.validityPeriodsNested(listOf(cert(), cert(serial = 2))))
-    }
+    // Note: an earlier `validityPeriodsNested` validator enforced strict
+    // notBefore/notAfter nesting between intermediates and got removed —
+    // real OEM TEE chains (Spreadtrum/UNISOC, older Tensor batches) trip
+    // it in opposite directions on devices reporting MEETS_STRONG_INTEGRITY
+    // with verified-boot Verified + bootloader-locked. See ChainValidator
+    // for the full removal rationale.
 
     // ---- challengeEchoes -------------------------------------------------
 

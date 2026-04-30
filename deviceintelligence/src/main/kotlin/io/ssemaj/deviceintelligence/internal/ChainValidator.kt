@@ -85,38 +85,21 @@ internal object ChainValidator {
         return null
     }
 
-    /**
-     * Validity periods on the *issuer side* of the chain (chain[1]
-     * onwards) must be properly nested: each issuer's window must
-     * lie inside its own issuer's window.
-     *
-     * **Skips the leaf-vs-chain[1] comparison** because real KeyMint
-     * leaves use fixed `1970..2048` defaults that always outlast any
-     * real intermediate's `notAfter`. Comparing them would
-     * false-positive on every clean device.
-     *
-     * Forgers that mint their own leaves get caught by
-     * [verifyChainSignatures] (their leaf won't verify against the
-     * real intermediate's pubkey unless they've also forged the
-     * intermediate, which then triggers this check on the
-     * intermediate vs root edge).
-     */
-    fun validityPeriodsNested(chain: List<X509Certificate>): String? {
-        // Compare only chain[1..n-1] pairs. With < 3 certs there's no
-        // intermediate to compare, so defer.
-        if (chain.size < 3) return null
-        for (i in 1 until chain.size - 1) {
-            val child = chain[i]
-            val parent = chain[i + 1]
-            if (child.notBefore.before(parent.notBefore)) {
-                return "validity_child_predates_parent"
-            }
-            if (child.notAfter.after(parent.notAfter)) {
-                return "validity_child_outlasts_parent"
-            }
-        }
-        return null
-    }
+    // Note: an earlier version of this validator also enforced that
+    // intermediate validity periods strictly nest (each child cert's
+    // `notBefore`/`notAfter` window had to lie inside its issuer's).
+    // That property is **not** required by X.509 and not guaranteed
+    // by real-world Android attestation chains — it produced HIGH
+    // findings on multiple clean OEM TEE chains (Spreadtrum/UNISOC
+    // tripped `child_predates_parent`, older Tensor batches tripped
+    // `child_outlasts_parent`) on devices reporting
+    // `MEETS_STRONG_INTEGRITY` with verified-boot Verified +
+    // bootloader-locked. The forgery scenario it tried to catch
+    // (synthesised intermediates) is already covered by
+    // [verifyChainSignatures] (which fails unless the forger also
+    // owns the upstream CA private key, in which case any check
+    // becomes circumvention-trivial). The check was removed; backends
+    // pivot on `chain_signature_invalid` for forgery detection.
 
     // ---- freshness ---------------------------------------------------------
 

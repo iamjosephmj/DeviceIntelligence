@@ -48,10 +48,10 @@ import java.security.cert.X509Certificate
  *     actually holds for our alias. A naive cached chain serves
  *     someone else's pubkey here.
  *  4. **Chain structural validity** — every cert in the chain must
- *     verify against its issuer; the root must self-sign;
- *     intermediate validity windows must nest properly. Lazy
- *     forgers cut corners here. (The leaf's own validity window is
- *     deliberately ignored — see [ChainValidator] for why.)
+ *     verify against its issuer; the root must self-sign. Lazy
+ *     forgers cut corners on signatures (intermediate windows are
+ *     not checked for nesting — see [ChainValidator] for why that
+ *     check was unsound and got removed).
  *  5. **StrongBox unexpectedly unavailable** — devices that should
  *     expose a StrongBox-class secure element MUST attest with
  *     security level `STRONG_BOX`. The detector triggers when EITHER
@@ -201,15 +201,6 @@ internal object BootloaderIntegrityDetector : Detector {
                 message = "TEE attestation chain failed signature verification ($sub)",
             )
         }
-        addOutcomeIfTripped(outcomes, ChainValidator.validityPeriodsNested(primary.rawCerts)) { sub ->
-            CheckOutcome(
-                subreason = sub,
-                severity = Severity.HIGH,
-                kind = KIND_INTEGRITY,
-                message = "TEE attestation chain intermediate validity periods are not properly nested ($sub)",
-            )
-        }
-
         // ---- freshness ----
         addOutcomeIfTripped(outcomes, ChainValidator.challengeEchoes(primary.parsed, primary.nonce)) { sub ->
             CheckOutcome(
