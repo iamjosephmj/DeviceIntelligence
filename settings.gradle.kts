@@ -33,3 +33,8 @@ rootProject.name = "DeviceIntelligence"
 // this module get the published AAR instead — same one-line consumer DSL.
 include(":deviceintelligence")
 include(":samples:minimal")
+// Test-only artefacts used to verify the G5/G6 anti-hooking
+// detectors. These are NOT shipped to consumers — they live
+// alongside the sample app purely for in-tree CTF verification.
+include(":samples:xposed-api-stubs")
+include(":samples:lsposed-tester")

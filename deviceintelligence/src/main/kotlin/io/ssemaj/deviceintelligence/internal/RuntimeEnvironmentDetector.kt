@@ -61,10 +61,19 @@ internal object RuntimeEnvironmentDetector : Detector {
         val start = SystemClock.elapsedRealtime()
         fun dur(): Long = SystemClock.elapsedRealtime() - start
 
-        val findings = synchronized(lock) {
+        // Two-tier findings: the cached half are process-stable
+        // facts (debugger attached, RWX page present, hook-framework
+        // .so loaded) — once true at process start they stay true,
+        // so caching is correct and saves a maps re-read every scan.
+        // The live half are native-integrity scans whose outcome
+        // can change mid-process (an attacker can mprotect+memcpy
+        // .text seconds after start), so they MUST run every call.
+        val baseFindings = synchronized(lock) {
             cached ?: doEvaluate(ctx).also { cached = it }
         }
-        Log.i(TAG, "ran: ${findings.size} finding(s)")
+        val liveFindings = doLiveEvaluate(ctx)
+        val findings = if (liveFindings.isEmpty()) baseFindings else baseFindings + liveFindings
+        Log.i(TAG, "ran: ${findings.size} finding(s) (cached=${baseFindings.size}, live=${liveFindings.size})")
         return ok(id, findings, dur())
     }
 
@@ -87,6 +96,85 @@ internal object RuntimeEnvironmentDetector : Detector {
                 val scan = MapsParser.parse(mapsContent)
                 hookFrameworkFindings(pkg, scan).forEach { out += it }
                 rwxMappingFinding(pkg, scan)?.let { out += it }
+            }
+        }
+
+        return out
+    }
+
+    /**
+     * Live native-integrity probes from `NATIVE_INTEGRITY_DESIGN.md`.
+     * Run every call (NOT cached) because their outcomes can change
+     * mid-process — an attacker can mprotect+memcpy `.text` long
+     * after process start, dlopen a Frida gadget after onboarding,
+     * etc.
+     *
+     * Each Gx layer is independently failure-tolerant: a `null`
+     * return from any `NativeBridge.scan*` means that layer is
+     * unavailable on this device and produces zero findings. We
+     * never crash a `runtime.environment` evaluate because one
+     * native subsystem misfired.
+     */
+    private fun doLiveEvaluate(ctx: DetectorContext): List<Finding> {
+        if (!ctx.nativeReady) return emptyList()
+        val pkg = ctx.applicationContext.packageName.orEmpty()
+        val out = ArrayList<Finding>(4)
+
+        val textRecords = runCatching { NativeBridge.scanTextIntegrity() }.getOrNull()
+        if (textRecords != null) {
+            for (record in textRecords) {
+                NativeIntegrityFindings.textFinding(record, pkg)?.let { out += it }
+            }
+        }
+
+        val libRecords = runCatching { NativeBridge.scanLoadedLibraries() }.getOrNull()
+        if (libRecords != null) {
+            Log.i(TAG, "G3 inventory ok loaded_findings=${libRecords.size}")
+            for (record in libRecords) {
+                NativeIntegrityFindings.loadedLibraryFinding(record, pkg)?.let { out += it }
+            }
+        }
+
+        val gotRecords = runCatching { NativeBridge.scanGotIntegrity() }.getOrNull()
+        if (gotRecords != null) {
+            Log.i(TAG, "G4 GOT scan ok flagged=${gotRecords.size}")
+            for (record in gotRecords) {
+                out += NativeIntegrityFindings.gotIntegrityFindings(record, pkg)
+            }
+        }
+
+        // G5 + G6 — observe deterministic StackGuard violations
+        // (recorded by @Critical entry points) AND sampled
+        // StackWatchdog violations (recorded during recent
+        // collect() invocations). Both share the same pending
+        // store inside StackGuard so a single snapshot pulls
+        // both; the `details.source` field on each finding tells
+        // backends which producer recorded it.
+        //
+        // Snapshot semantics (NOT drain): every report includes
+        // every distinct violation seen since process start (cap'd
+        // by StackGuard's FIFO eviction). This protects the
+        // explicit consumer collect from a concurrent background
+        // pre-warm collect "consuming" the violations away — once
+        // a foreign frame has been seen above us, every report
+        // surfaces it.
+        val stackViolations = StackGuard.snapshot()
+        if (stackViolations.isNotEmpty()) {
+            Log.i(TAG, "G5/G6 stackguard snapshot violations=${stackViolations.size}")
+            for (v in stackViolations) {
+                out += NativeIntegrityFindings.stackForeignFrameFinding(v, pkg)
+            }
+        }
+
+        // G7 — same snapshot semantics for JNI return-address
+        // violations: every report includes every distinct
+        // violation seen since process start, irrespective of
+        // which other collect() coroutine ran first.
+        val callerRecords = runCatching { NativeBridge.snapshotCallerViolations() }.getOrNull()
+        if (callerRecords != null && callerRecords.isNotEmpty()) {
+            Log.i(TAG, "G7 caller verify snapshot violations=${callerRecords.size}")
+            for (record in callerRecords) {
+                NativeIntegrityFindings.callerOutOfRangeFinding(record, pkg)?.let { out += it }
             }
         }
 

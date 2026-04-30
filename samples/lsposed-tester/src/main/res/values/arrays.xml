@@ -1,0 +1,11 @@
+<resources>
+    <!--
+    Default scope for this LSPosed module: the sample app the
+    DeviceIntelligence library ships with. LSPosed Manager
+    pre-fills its scope picker with this list so the user only
+    has to flip a single switch to activate the hook.
+    -->
+    <string-array name="xposed_scope">
+        <item>io.ssemaj.sample</item>
+    </string-array>
+</resources>

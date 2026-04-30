@@ -26,6 +26,7 @@
 #include "art_integrity/registry.h"
 #include "art_integrity/snapshot.h"
 #include "log.h"
+#include "native_integrity/module.h"
 
 #include <cstdio>
 #include <jni.h>
@@ -50,6 +51,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     // resolved, so they MUST run after `initialize(env)`.
     art_integrity::initialize_jni_entry();
     art_integrity::initialize_access_flags();
+    // F19 / NATIVE_INTEGRITY_DESIGN.md — capture libdicore's
+    // load address + the system-library range map BEFORE any
+    // attacker hook can plausibly land. Same fail-soft pattern:
+    // initialize() never throws and never returns an error code;
+    // a failure to capture ranges silently degrades the dependent
+    // Gx detectors rather than blocking JNI_OnLoad.
+    native_integrity::initialize(env);
     return JNI_VERSION_1_6;
 }
 

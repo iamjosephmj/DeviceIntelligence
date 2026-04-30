@@ -307,4 +307,131 @@ internal object NativeBridge {
      */
     @JvmStatic
     external fun artIntegrityAccessFlagsBaselineIntact(): Boolean
+
+    /**
+     * F19 / NATIVE_INTEGRITY_DESIGN.md G1 — liveness probe for
+     * the `native_integrity` translation unit. Returns the
+     * sentinel `0xC0DE1170` (`kProbeAlive`) when the unit is
+     * linked; anything else means the build skipped it and the
+     * G2..G7 detectors will silently degrade.
+     */
+    @JvmStatic
+    external fun nativeIntegrityProbe(): Int
+
+    /**
+     * F19 G1 — packed `[libc, libm, libdl, libart, libdicore,
+     * other_system]` counts of RX ranges captured by the
+     * one-shot `dl_iterate_phdr` walk at JNI_OnLoad. A healthy
+     * device shows `libc>=1`, `libdl>=1`, `libart>=1`,
+     * `libdicore>=1`. Returns null only if the JNI allocation
+     * fails (never observed in practice).
+     */
+    @JvmStatic
+    external fun nativeIntegrityRangeCounts(): IntArray?
+
+    /**
+     * F19 G2 — installs the build-time expected `.text` SHA-256
+     * (selected from `Fingerprint.dicoreTextSha256ByAbi` for the
+     * running ABI) and the build-time `.so` inventory used later
+     * by G3. Idempotent. Empty inputs disable the corresponding
+     * detector layer (used when the fingerprint blob predates v2
+     * and has no per-ABI data).
+     *
+     * Returns true unconditionally; per-layer success/failure is
+     * logged on the native side under the `dicore` tag.
+     */
+    @JvmStatic
+    external fun initNativeIntegrity(
+        expectedTextSha256Hex: String,
+        expectedSoList: Array<String>,
+    ): Boolean
+
+    /**
+     * G3 / baseline — declare a directory whose contents the
+     * G3 injected-library scan should treat as trusted. Used by
+     * the runtime layer at first init to pass the consumer
+     * app's `applicationInfo.dataDir` (and the legacy
+     * `/data/data/<pkg>` symlink form) so libraries the app
+     * legitimately lazy-loads from its own private storage
+     * aren't reported as `injected_library`.
+     *
+     * Idempotent across repeated calls with the same path. The
+     * native side normalises trailing slashes.
+     *
+     * Returns true on accepted input; false only on null input
+     * (the Kotlin signature already disallows that, but the
+     * native side tolerates malformed paths gracefully).
+     */
+    @JvmStatic
+    external fun addTrustedNativeLibraryDirectory(path: String): Boolean
+
+    /**
+     * F19 G2 — recomputes SHA-256 of libdicore's `.text` segment
+     * and returns at most two pipe-delimited records the runtime
+     * lifts into `native_text_hash_mismatch` (vs build-time) and
+     * `native_text_drifted` (vs OnLoad snapshot) findings.
+     *
+     * Returns:
+     *   - null if the snapshot was never captured (G2 unavailable)
+     *   - empty array on a clean scan (no findings)
+     *   - 1-2 records of shape:
+     *       `hash_mismatch|<live_hex>|<expected_hex>`
+     *       `drifted|<live_hex>|<snapshot_hex>`
+     */
+    @JvmStatic
+    external fun scanTextIntegrity(): Array<String>?
+
+    /**
+     * F19 G3 — re-walks `dl_iterate_phdr` + `/proc/self/maps`,
+     * comparing each loaded library against the build-time
+     * inventory + system-path allowlist, and each executable
+     * mapping against the known-good labels.
+     *
+     * Returns one pipe-delimited record per flagged hit:
+     *   `<kind>|<path_or_anon_addr>|<perms>`
+     * Where `kind` is `injected_library` or
+     * `injected_anonymous_executable`. Empty array means a clean
+     * scan; null means the JNI allocation failed (treated as
+     * "skip" by the runtime).
+     */
+    @JvmStatic
+    external fun scanLoadedLibraries(): Array<String>?
+
+    /**
+     * F19 G4 — re-reads every snapshotted GOT/`.got.plt` slot
+     * in libdicore, classifies its current value via the
+     * range map, and returns one pipe-delimited record per
+     * flagged slot:
+     *   `<slot_idx>|<live_hex>|<snap_hex>|<live_class>|<snap_class>|<drifted>|<out_of_range>`
+     *
+     * Returns:
+     *   - null if the GOT snapshot was never captured (G4
+     *     unavailable; libdicore stripped, mmap failed, etc).
+     *   - empty array on a clean scan.
+     *   - 1+ records when slots drifted or resolve outside any
+     *     known system library.
+     */
+    @JvmStatic
+    external fun scanGotIntegrity(): Array<String>?
+
+    /**
+     * F19 G7 — snapshot accumulated caller-verification violations.
+     * Each record is one JNI call into libdicore whose immediate
+     * return address resolved outside libart's RX range. Format:
+     *   `<jni_function>|<return_addr_hex>|<region_name>`
+     *
+     * Empty array on a clean device. Returns null only if the
+     * JNI allocation fails.
+     *
+     * Snapshot semantics — records are NOT removed. Two
+     * concurrent collect() coroutines (e.g. the background
+     * pre-warm and an explicit consumer collect, both running
+     * on Dispatchers.IO) both see the full set instead of one
+     * "draining" the violation away from the other. Records
+     * are deduplicated by `(function, return_address)` at
+     * insert time and FIFO-evicted only on cap pressure (256
+     * distinct records max).
+     */
+    @JvmStatic
+    external fun snapshotCallerViolations(): Array<String>?
 }

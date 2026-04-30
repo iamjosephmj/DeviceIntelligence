@@ -30,6 +30,21 @@ add_library(dicore SHARED
         dicore/art_integrity/jni_entry.cpp
         dicore/art_integrity/access_flags.cpp
         dicore/art_integrity_jni.cpp
+        # F19 / NATIVE_INTEGRITY_DESIGN.md — anti-hooking + native
+        # integrity. G1 lays down the range_map + module skeleton;
+        # G2..G7 each add their own translation unit:
+        #   text_verify.cpp     (G2)
+        #   lib_inventory.cpp   (G3)
+        #   got_verify.cpp      (G4)
+        #   caller_verify.cpp   (G7)
+        dicore/native_integrity/range_map.cpp
+        dicore/native_integrity/baseline.cpp
+        dicore/native_integrity/text_verify.cpp
+        dicore/native_integrity/lib_inventory.cpp
+        dicore/native_integrity/got_verify.cpp
+        dicore/native_integrity/caller_verify.cpp
+        dicore/native_integrity/module.cpp
+        dicore/native_integrity_jni.cpp
 )
 
 # F12 emulator probe: per-ABI implementation. Each ABI build pulls
