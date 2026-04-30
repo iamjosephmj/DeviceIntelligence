@@ -35,8 +35,11 @@ import io.ssemaj.deviceintelligence.DetectorReport
 import io.ssemaj.deviceintelligence.DetectorStatus
 import io.ssemaj.deviceintelligence.DeviceIntelligence
 import io.ssemaj.deviceintelligence.Finding
+import io.ssemaj.deviceintelligence.IntegritySignal
+import io.ssemaj.deviceintelligence.IntegritySignalReport
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TelemetryReport
+import io.ssemaj.deviceintelligence.toIntegritySignalReport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -83,6 +86,15 @@ class MainActivity : Activity() {
 
     private lateinit var deviceCardBody: LinearLayout
     private lateinit var appCardBody: LinearLayout
+
+    private lateinit var signalsCard: LinearLayout
+    private lateinit var signalsBody: LinearLayout
+    private lateinit var signalsTitleRow: LinearLayout
+    private var signalsLastCount: Int = -1
+    /** Signals raised in the previous report; used to flashRipple
+     *  rows that have just appeared so the eye notices them. */
+    private var signalsLastSeen: Set<IntegritySignal> = emptySet()
+    private var signalsFirstRender: Boolean = true
 
     private lateinit var findingsCard: LinearLayout
     private lateinit var findingsBody: LinearLayout
@@ -311,6 +323,37 @@ class MainActivity : Activity() {
         }
         appCard.addView(appCardBody)
 
+        // ---- integrity signals (high-level verdict) ----
+        // Sits ABOVE Findings on purpose: a backend / product layer
+        // typically wants the coarse high-level verdict
+        // ("HOOKING_FRAMEWORK_DETECTED") before drilling into the
+        // per-kind findings that justify it.
+        signalsCard = ui.card(this).also { root.addView(it) }
+        signalsTitleRow = ui.titleRowWithIcon(
+            context = this,
+            iconRes = R.drawable.ic_shield,
+            titleText = "Integrity signals",
+            accessories = listOf(ui.badge(this, "0", Ui.Tone.NEUTRAL)),
+        )
+        signalsCard.addView(signalsTitleRow)
+        signalsCard.addView(
+            ui.subtitle(
+                this,
+                "Coarse high-level verdicts derived from the per-finding kinds. Each row " +
+                    "rolls up multiple Findings into one IntegritySignal — the surface a " +
+                    "product code path should pivot on.",
+            ),
+        )
+        signalsBody = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            layoutTransition = LayoutTransition().apply { setDuration(180) }
+        }
+        signalsCard.addView(signalsBody)
+
         // ---- findings ----
         findingsCard = ui.card(this).also { root.addView(it) }
         findingsTitleRow = ui.titleRowWithIcon(
@@ -321,7 +364,11 @@ class MainActivity : Activity() {
         )
         findingsCard.addView(findingsTitleRow)
         findingsCard.addView(
-            ui.subtitle(this, "Each row is one Finding. Severity is advisory; backends decide policy."),
+            ui.subtitle(
+                this,
+                "One row per underlying Finding — the forensic detail behind the high-level " +
+                    "signals above. Sorted worst-first; tap a row to expand its details map.",
+            ),
         )
         findingsBody = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -539,6 +586,7 @@ class MainActivity : Activity() {
         renderHero(report)
         renderDevice(report.device)
         renderApp(report.app)
+        renderSignals(report)
         renderFindings(report)
         renderDetectors(report.detectors)
         jsonView.text = lastJson
@@ -997,26 +1045,36 @@ class MainActivity : Activity() {
         ui.staggerReveal(appCardBody)
     }
 
-    private fun renderFindings(report: TelemetryReport) {
-        findingsBody.removeAllViews()
-        val findings = report.detectors.flatMap { d -> d.findings.map { d.id to it } }
-        // Replace the count badge. The tone follows the verdict (OK
-        // when 0, WARN otherwise) so it reads as a quick at-a-glance
-        // status. We pulse it whenever the count actually changes.
-        val newBadge = ui.badge(
-            this,
-            findings.size.toString(),
-            if (findings.isEmpty()) Ui.Tone.OK else Ui.Tone.WARN,
+    private fun renderSignals(report: TelemetryReport) {
+        signalsBody.removeAllViews()
+        val mapped: IntegritySignalReport = report.toIntegritySignalReport()
+        // Use a deterministic display order so the rows don't reshuffle
+        // between collects when the underlying set is the same — we
+        // sort by descending tone severity (BAD first), then by enum
+        // ordinal as a stable secondary key.
+        val raised = mapped.signals.sortedWith(
+            compareByDescending<IntegritySignal> { signalTonePriority(signalTone(it)) }
+                .thenBy { it.ordinal },
         )
-        replaceTitleAccessory(findingsTitleRow, newBadge)
-        if (findingsLastCount >= 0 && findingsLastCount != findings.size) {
+
+        // Replace count badge with a tone reflecting the worst raised
+        // signal; pulse it on count change so the eye is drawn to the
+        // delta when auto-collect is on.
+        val badgeTone = when {
+            raised.any { signalTone(it) == Ui.Tone.BAD } -> Ui.Tone.BAD
+            raised.any { signalTone(it) == Ui.Tone.WARN } -> Ui.Tone.WARN
+            raised.any { signalTone(it) == Ui.Tone.INFO } -> Ui.Tone.INFO
+            else -> Ui.Tone.OK
+        }
+        val newBadge = ui.badge(this, raised.size.toString(), badgeTone)
+        replaceTitleAccessory(signalsTitleRow, newBadge)
+        if (signalsLastCount >= 0 && signalsLastCount != raised.size) {
             ui.pulseBadge(newBadge)
         }
-        findingsLastCount = findings.size
+        signalsLastCount = raised.size
 
-        if (findings.isEmpty()) {
-            // Cheerful empty state: sparkle icon + reassuring copy. The
-            // sparkle icon is tinted OK so it pops against the card.
+        if (raised.isEmpty()) {
+            // Cheerful empty state mirrors Findings: sparkle + reassurance.
             val emptyRow = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -1037,7 +1095,7 @@ class MainActivity : Activity() {
             emptyRow.addView(sparkle)
             emptyRow.addView(
                 TextView(this).apply {
-                    text = "All clear. The JSON below is what your backend would store."
+                    text = "No integrity signals raised. Nothing for product code to gate on."
                     textSize = 12.5f
                     setTextColor(ui.palette.subtitle)
                     setLineSpacing(0f, 1.15f)
@@ -1048,35 +1106,253 @@ class MainActivity : Activity() {
                     )
                 },
             )
-            findingsBody.addView(emptyRow)
-            // Tiny rotation sweep on the sparkle so the empty state
-            // doesn't feel static. One-shot, ~600ms, decelerated.
+            signalsBody.addView(emptyRow)
             sparkle.rotation = -20f
             sparkle.animate().rotation(0f).setDuration(600)
                 .setInterpolator(DecelerateInterpolator()).start()
+            signalsLastSeen = emptySet()
+            signalsFirstRender = false
+            return
+        }
+
+        // If unmappedFindings is non-empty the consumer SDK is older
+        // than the runtime — flag it as an INFO row so it's visible
+        // without dominating. Drives forward-compat awareness.
+        val unmappedKindCount = mapped.unmappedFindings.size
+
+        val seenNow = HashSet<IntegritySignal>(raised.size)
+        for (signal in raised) {
+            seenNow += signal
+            val tone = signalTone(signal)
+            val findingsForSignal = mapped.evidence[signal].orEmpty()
+            // Subject = "<count> findings · sample.kind1, sample.kind2"
+            // truncated to keep the row readable; the full set lives
+            // in the Findings card below.
+            val subject = buildSignalSubject(findingsForSignal)
+            val row = ui.findingRow(
+                context = this,
+                severityLabel = severityShortFromTone(tone),
+                tone = tone,
+                kind = signal.name,
+                subject = subject,
+                message = signalDescription(signal),
+                severityIcon = severityIconFromTone(tone),
+            )
+            signalsBody.addView(row)
+            if (!signalsFirstRender && signal !in signalsLastSeen) {
+                row.post { ui.flashRipple(row, tone) }
+            }
+        }
+
+        if (unmappedKindCount > 0) {
+            val warnRow = TextView(this).apply {
+                text = "Note: $unmappedKindCount finding(s) had a kind this app's SDK doesn't " +
+                    "recognise — bump the io.ssemaj.deviceintelligence dependency to " +
+                    "classify them."
+                textSize = 11.5f
+                setTextColor(ui.toneFg(Ui.Tone.WARN))
+                setLineSpacing(0f, 1.15f)
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = Ui.dp(this@MainActivity, 10) }
+            }
+            signalsBody.addView(warnRow)
+        }
+
+        signalsLastSeen = seenNow
+        signalsFirstRender = false
+    }
+
+    /**
+     * Maps each [IntegritySignal] to a display tone that drives the
+     * row colour and the count-badge tint. Picks reflect the
+     * severity intent documented in [IntegritySignal] kdoc:
+     *  - BAD: active-attack channels (hooking, injection, cloners,
+     *    bootloader compromise, file-level APK tamper).
+     *  - WARN: degraded posture / configuration concerns
+     *    (root, debugger, debuggable mismatch, fingerprint asset
+     *    missing, TEE attestation downgrade).
+     *  - INFO: cohorting / non-tamper signals (emulator).
+     */
+    private fun signalTone(s: IntegritySignal): Ui.Tone = when (s) {
+        IntegritySignal.HOOKING_FRAMEWORK_DETECTED,
+        IntegritySignal.INJECTED_NATIVE_CODE,
+        IntegritySignal.APK_TAMPERED,
+        IntegritySignal.BOOTLOADER_INTEGRITY_FAILED,
+        IntegritySignal.APP_CLONED -> Ui.Tone.BAD
+
+        IntegritySignal.ROOT_INDICATORS_PRESENT,
+        IntegritySignal.TEE_ATTESTATION_DEGRADED,
+        IntegritySignal.APK_FINGERPRINT_UNAVAILABLE,
+        IntegritySignal.DEBUGGER_ATTACHED,
+        IntegritySignal.DEBUG_FLAG_MISMATCH -> Ui.Tone.WARN
+
+        IntegritySignal.EMULATOR_DETECTED -> Ui.Tone.INFO
+    }
+
+    /**
+     * Stable display copy for each signal — kept in sync with the
+     * IntegritySignal kdoc. Single sentence, lowercased except for
+     * acronyms, no terminating period (the row's own typography
+     * supplies the rhythm).
+     */
+    private fun signalDescription(s: IntegritySignal): String = when (s) {
+        IntegritySignal.APK_TAMPERED ->
+            "APK on disk has been modified or repackaged"
+        IntegritySignal.APK_FINGERPRINT_UNAVAILABLE ->
+            "Build-time fingerprint asset is missing or corrupt — APK can't be verified"
+        IntegritySignal.BOOTLOADER_INTEGRITY_FAILED ->
+            "Bootloader / TEE attestation chain anomalies (re-verify chain server-side)"
+        IntegritySignal.TEE_ATTESTATION_DEGRADED ->
+            "TEE attestation verdict is below STRONG_INTEGRITY"
+        IntegritySignal.HOOKING_FRAMEWORK_DETECTED ->
+            "Active code-level hooking detected (Java stack, ART internals, native binary, JNI return addresses)"
+        IntegritySignal.INJECTED_NATIVE_CODE ->
+            "Unknown shared library or anonymous executable mapping in process address space"
+        IntegritySignal.ROOT_INDICATORS_PRESENT ->
+            "Root indicators present (su binary, Magisk, test-keys, root-manager app)"
+        IntegritySignal.EMULATOR_DETECTED ->
+            "Process is running on an emulator (CPU-instruction-level signal)"
+        IntegritySignal.APP_CLONED ->
+            "Process is running inside a cloner / parallel-space container"
+        IntegritySignal.DEBUGGER_ATTACHED ->
+            "JVM debugger or kernel ptrace attached to the process"
+        IntegritySignal.DEBUG_FLAG_MISMATCH ->
+            "ApplicationInfo debuggable flag disagrees with ro.debuggable"
+    }
+
+    /**
+     * Build the "<n> finding(s)" subject string for a signal row.
+     * Deliberately omits the underlying kind names — those live in the
+     * Findings card and are not repeated here, so each card owns one
+     * level of the hierarchy exclusively.
+     */
+    private fun buildSignalSubject(findings: List<Finding>): String {
+        if (findings.isEmpty()) return ""
+        val n = findings.size
+        return if (n == 1) "1 underlying finding" else "$n underlying findings"
+    }
+
+    private fun severityShortFromTone(t: Ui.Tone): String = when (t) {
+        Ui.Tone.BAD -> "CRIT"
+        Ui.Tone.WARN -> "WARN"
+        Ui.Tone.INFO -> "INFO"
+        Ui.Tone.OK -> "OK"
+        Ui.Tone.NEUTRAL -> "NOTE"
+        Ui.Tone.ACCENT -> "INFO"
+    }
+
+    private fun severityIconFromTone(t: Ui.Tone): Int = when (t) {
+        Ui.Tone.BAD -> R.drawable.ic_alert
+        Ui.Tone.WARN -> R.drawable.ic_warning
+        Ui.Tone.INFO -> R.drawable.ic_info
+        Ui.Tone.OK -> R.drawable.ic_check
+        Ui.Tone.NEUTRAL -> R.drawable.ic_info
+        Ui.Tone.ACCENT -> R.drawable.ic_info
+    }
+
+    /** Higher = more important; used to sort signal rows. */
+    private fun signalTonePriority(t: Ui.Tone): Int = when (t) {
+        Ui.Tone.BAD -> 4
+        Ui.Tone.WARN -> 3
+        Ui.Tone.INFO -> 2
+        Ui.Tone.OK -> 1
+        Ui.Tone.NEUTRAL -> 0
+        Ui.Tone.ACCENT -> 0
+    }
+
+    private fun renderFindings(report: TelemetryReport) {
+        findingsBody.removeAllViews()
+        // Sort worst-first so the most-severe finding gets the eye.
+        // Stable secondary keys (detector id, kind) keep the ordering
+        // deterministic so rows don't shuffle between collects when
+        // the same set of findings is present.
+        val findings = report.detectors
+            .flatMap { d -> d.findings.map { d.id to it } }
+            .sortedWith(
+                compareByDescending<Pair<String, Finding>> { severityWeight(it.second.severity) }
+                    .thenBy { it.first }
+                    .thenBy { it.second.kind }
+                    .thenBy { it.second.subject ?: "" },
+            )
+
+        // Title-row count badge: tone reflects the worst severity in
+        // the list (mirrors the Signals card's badge tone logic).
+        val badgeTone = when {
+            findings.any { it.second.severity == Severity.CRITICAL } -> Ui.Tone.BAD
+            findings.any { it.second.severity == Severity.HIGH } -> Ui.Tone.WARN
+            findings.isNotEmpty() -> Ui.Tone.INFO
+            else -> Ui.Tone.OK
+        }
+        val newBadge = ui.badge(this, findings.size.toString(), badgeTone)
+        replaceTitleAccessory(findingsTitleRow, newBadge)
+        if (findingsLastCount >= 0 && findingsLastCount != findings.size) {
+            ui.pulseBadge(newBadge)
+        }
+        findingsLastCount = findings.size
+
+        if (findings.isEmpty()) {
+            renderFindingsEmptyState()
             findingsLastSeen = emptySet()
             findingsFirstRender = false
             return
         }
+
         // Build a stable key per finding so we can flag rows that
         // weren't present in the previous render and ripple them.
         val seenNow = HashSet<String>(findings.size)
         for ((detectorId, finding) in findings) {
             val key = findingKey(detectorId, finding)
             seenNow += key
-            val row = buildFindingRow(detectorId, finding)
+            val row = buildRichFindingRow(detectorId, finding)
             findingsBody.addView(row)
             if (!findingsFirstRender && key !in findingsLastSeen) {
-                // New finding since last render. Highlight by flashing
-                // the row's background to the severity tone, fading out
-                // over ~700ms so the eye notices it without a hard
-                // flash. Posted so the row is laid out first.
-                val tone = severityTone(finding.severity)
-                row.post { ui.flashRipple(row, tone) }
+                row.post { ui.flashRipple(row, severityTone(finding.severity)) }
             }
         }
         findingsLastSeen = seenNow
         findingsFirstRender = false
+    }
+
+    private fun renderFindingsEmptyState() {
+        val emptyRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = Ui.dp(this@MainActivity, 12) }
+        }
+        val sparkle = ui.iconView(
+            this, R.drawable.ic_sparkle,
+            sizeDp = 18, tint = ui.toneFg(Ui.Tone.OK),
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                Ui.dp(this@MainActivity, 18),
+                Ui.dp(this@MainActivity, 18),
+            ).apply { rightMargin = Ui.dp(this@MainActivity, 10) }
+        }
+        emptyRow.addView(sparkle)
+        emptyRow.addView(
+            TextView(this).apply {
+                text = "All clear. Zero findings, zero high-level signals — every detector " +
+                    "saw a clean runtime environment."
+                textSize = 12.5f
+                setTextColor(ui.palette.subtitle)
+                setLineSpacing(0f, 1.15f)
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f,
+                )
+            },
+        )
+        findingsBody.addView(emptyRow)
+        sparkle.rotation = -20f
+        sparkle.animate().rotation(0f).setDuration(600)
+            .setInterpolator(DecelerateInterpolator()).start()
     }
 
     /** Stable identity for a finding across collects, so ripple-on-new
@@ -1084,19 +1360,195 @@ class MainActivity : Activity() {
     private fun findingKey(detectorId: String, finding: Finding): String =
         "$detectorId|${finding.severity}|${finding.kind}|${finding.subject ?: ""}|${finding.message}"
 
-    private fun buildFindingRow(detectorId: String, finding: Finding): View {
+    /**
+     * Refined finding row. Layout:
+     *
+     *   ┌─[tone bar]─┬───────────────────────────────────┐
+     *   │           │ [SEV] kind_name              [▾]  │
+     *   │           │ [detector.id]                    │
+     *   │           │ subject                          │
+     *   │           │ message text                     │
+     *   │           │   (collapsed) details kv block   │
+     *   └───────────┴───────────────────────────────────┘
+     *
+     * The tone bar on the left provides a strong colour cue without
+     * stealing horizontal real estate from the text. The chevron
+     * rotates and the details block fades in / out on tap; the whole
+     * row container is the touch target so users don't have to hit
+     * the small chevron itself.
+     *
+     * The mapped [IntegritySignal] is intentionally omitted from the
+     * row; the Signals card above already names every raised signal,
+     * and repeating the name on every finding row was visual noise.
+     */
+    private fun buildRichFindingRow(
+        detectorId: String,
+        finding: Finding,
+    ): View {
         val tone = severityTone(finding.severity)
-        val subjectLabel = listOfNotNull(detectorId, finding.subject?.takeIf { it.isNotBlank() })
-            .joinToString(" · ")
-        return ui.findingRow(
-            context = this,
-            severityLabel = severityShort(finding.severity),
-            tone = tone,
-            kind = finding.kind,
-            subject = subjectLabel,
-            message = finding.message,
-            severityIcon = severityIcon(finding.severity),
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = Ui.dp(this@MainActivity, 14) }
+        }
+
+        // 3dp tone-tinted left bar, full row height. The bar is the
+        // strongest visual cue for severity at a glance — the eye can
+        // colour-scan a long list without reading the badges.
+        val bar = View(this).apply {
+            setBackgroundColor(ui.toneFg(tone))
+            layoutParams = LinearLayout.LayoutParams(
+                Ui.dp(this@MainActivity, 3),
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ).apply { rightMargin = Ui.dp(this@MainActivity, 12) }
+        }
+        container.addView(bar)
+
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f,
+            )
+            // Animate the show/hide of the details block when the row
+            // is tapped — without this the kv list pops in instantly
+            // and the row jumps height, which reads as broken.
+            layoutTransition = LayoutTransition().apply {
+                enableTransitionType(LayoutTransition.CHANGING)
+                setDuration(160)
+            }
+        }
+
+        // ---- top row: [SEV pill] [kind] ........... [chevron] ----
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
+        topRow.addView(
+            ui.badge(this, severityShort(finding.severity), tone).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { rightMargin = Ui.dp(this@MainActivity, 8) }
+            },
         )
+        topRow.addView(
+            TextView(this).apply {
+                text = finding.kind
+                textSize = 13f
+                setTextColor(ui.palette.title)
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f,
+                )
+            },
+        )
+        // Chevron is added later (we may keep it null when there are
+        // no details to expand), so the top-row reference is needed.
+        col.addView(topRow)
+
+        // ---- second row: [detectorId chip] ----
+        // We deliberately do NOT show the mapped IntegritySignal here;
+        // the Signals card above already names every signal, and the
+        // chip-on-every-row form repeated those names to the point of
+        // visual noise. Each card now owns one level of the hierarchy
+        // exclusively: signals up there, kinds + detectors down here.
+        val chipRow = ui.badgeRow(this, topMargin = 6)
+        ui.addToBadgeRow(chipRow, ui.badge(this, detectorId, Ui.Tone.NEUTRAL))
+        col.addView(chipRow)
+
+        // ---- subject (only when non-blank, since not every finding
+        //      has one — e.g. apk-level findings keep subject = pkg
+        //      but native-integrity findings sometimes leave it null) ----
+        finding.subject?.takeIf { it.isNotBlank() }?.let { subj ->
+            col.addView(
+                TextView(this).apply {
+                    text = subj
+                    textSize = 11.5f
+                    setTextColor(ui.palette.muted)
+                    typeface = Typeface.MONOSPACE
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply { topMargin = Ui.dp(this@MainActivity, 6) }
+                },
+            )
+        }
+
+        // ---- message ----
+        col.addView(
+            TextView(this).apply {
+                text = finding.message
+                textSize = 12.5f
+                setTextColor(ui.palette.subtitle)
+                setLineSpacing(0f, 1.2f)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = Ui.dp(this@MainActivity, 4) }
+            },
+        )
+
+        // ---- details (collapsed by default; tap row to toggle) ----
+        if (finding.details.isNotEmpty()) {
+            val detailsBlock = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = View.GONE
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = Ui.dp(this@MainActivity, 8) }
+            }
+            for ((k, v) in finding.details) {
+                detailsBlock.addView(
+                    ui.kvWithIcon(
+                        context = this,
+                        iconRes = null,
+                        key = k,
+                        value = v,
+                    ),
+                )
+            }
+            col.addView(detailsBlock)
+
+            // Append a chevron to topRow that rotates as the details
+            // expand. Sized 16dp so it lines up vertically with the
+            // SEV pill text but stays subtle.
+            val chevron = ImageView(this).apply {
+                setImageResource(R.drawable.ic_chevron_down)
+                imageTintList = ColorStateList.valueOf(ui.palette.muted)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    Ui.dp(this@MainActivity, 16),
+                    Ui.dp(this@MainActivity, 16),
+                ).apply { leftMargin = Ui.dp(this@MainActivity, 8) }
+            }
+            topRow.addView(chevron)
+
+            col.isClickable = true
+            col.isFocusable = true
+            col.setOnClickListener {
+                val expanding = detailsBlock.visibility == View.GONE
+                detailsBlock.visibility = if (expanding) View.VISIBLE else View.GONE
+                chevron.animate()
+                    .rotation(if (expanding) 180f else 0f)
+                    .setDuration(180)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .start()
+            }
+        }
+
+        container.addView(col)
+        return container
     }
 
     private fun severityShort(s: Severity): String = when (s) {
@@ -1106,11 +1558,11 @@ class MainActivity : Activity() {
         Severity.LOW -> "LOW"
     }
 
-    private fun severityIcon(s: Severity): Int = when (s) {
-        Severity.CRITICAL -> R.drawable.ic_alert
-        Severity.HIGH -> R.drawable.ic_warning
-        Severity.MEDIUM -> R.drawable.ic_info
-        Severity.LOW -> R.drawable.ic_info
+    private fun severityWeight(s: Severity): Int = when (s) {
+        Severity.CRITICAL -> 4
+        Severity.HIGH -> 3
+        Severity.MEDIUM -> 2
+        Severity.LOW -> 1
     }
 
     private fun renderDetectors(detectors: List<DetectorReport>) {

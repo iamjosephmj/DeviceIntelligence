@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>An open-source Android telemetry SDK for understanding the device ecosystem of your userbase.</strong><br/>
-  APK integrity · hardware-backed key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · app-cloner detection.<br/>
+  APK integrity · hardware-backed key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · app-cloner detection · 8-layer native anti-hooking stack with self-adapting trust baseline.<br/>
   <em>Not a RASP. Not a kill-switch. Just structured, deterministic facts your backend can analyze.</em>
 </p>
 
@@ -17,21 +17,17 @@
 </p>
 
 <p align="center">
-  <em>Sample app · stock Pixel 9 Pro on the left (clean release build) · the same APK with a single byte XOR'd in the middle · the raw <code>collectJson()</code> output on the right.</em>
+  <em>Sample app, same release APK on three devices. <strong>Left</strong> — stock Pixel 9 Pro, clean: both the high-level <em>Integrity signals</em> card and the per-finding <em>Findings</em> card are empty. <strong>Middle</strong> — Pixel 6 Pro running KernelSU + LSPosed + BootloaderSpoofer + HideMyAndroid + HideMyApplist, the Signals card lifts the underlying findings into 5 product-shaped verdicts (<code>BOOTLOADER_INTEGRITY_FAILED</code>, <code>HOOKING_FRAMEWORK_DETECTED</code>, <code>TEE_ATTESTATION_DEGRADED</code>, <code>ROOT_INDICATORS_PRESENT</code>, <code>DEBUG_FLAG_MISMATCH</code>). <strong>Right</strong> — the Findings card sorts the underlying records worst-first; tap any row to reveal the diagnostic <code>details</code> map a SOC team would pivot on.</em>
 </p>
 
 <p align="center">
-  <img src="docs/images/p9_genuine_top.png" alt="DeviceIntelligence sample app — clean release build on a stock Pixel 9 Pro, zero findings" width="32%"/>
-  <img src="docs/images/p9_tampered_findings.png" alt="DeviceIntelligence sample app — tampered build, integrity.apk and attestation.key both fire critical findings" width="32%"/>
-  <img src="docs/images/p9_genuine_json.png" alt="DeviceIntelligence sample app — canonical JSON telemetry blob" width="32%"/>
+  <img src="docs/images/p9_clean_signals_findings.png" alt="DeviceIntelligence sample app — clean Pixel 9 Pro: Integrity signals and Findings cards both empty (zero threats detected)" width="32%"/>
+  <img src="docs/images/p6_rooted_signals_card.png" alt="DeviceIntelligence sample app — rooted Pixel 6 Pro with LSPosed: Integrity signals card showing 5 high-level verdicts including HOOKING_FRAMEWORK_DETECTED and BOOTLOADER_INTEGRITY_FAILED" width="32%"/>
+  <img src="docs/images/p6_rooted_findings_expanded.png" alt="DeviceIntelligence sample app — Findings card with one row expanded, showing the per-finding details map (device_recognition, app_recognition, bootloader_locked, verified_boot_state, verdict_authoritative, reason)" width="32%"/>
 </p>
 
 <p align="center">
-  <em>Bonus — the same APK on a real adversarial device (Pixel 6 Pro · KernelSU + LSPosed + BootloaderSpoofer + HideMyAndroid + HideMyApplist all actively running). Six findings, including <code>rwx_memory_mapping</code> from <code>runtime.environment</code> — the universal RWX-page fingerprint that catches LSPosed, YAHFA, SandHook, Frida and Substrate without naming any of them.</em>
-</p>
-
-<p align="center">
-  <img src="docs/images/p6_rooted_findings.png" alt="DeviceIntelligence sample app on a rooted Pixel 6 Pro — six findings spanning bootloader, runtime, and root surfaces, including the rwx_memory_mapping LSPosed catch" width="65%"/>
+  <em>The Signals card is what your product code branches on (<code>HOOKING_FRAMEWORK_DETECTED in signals → showSecurityBanner()</code>). The Findings card is the forensic detail your backend stores. Same JSON, two consumption surfaces — see <a href="#high-level-signals-integritysignal">High-level signals</a>.</em>
 </p>
 
 ---
@@ -86,6 +82,11 @@ dispatches the work to `Dispatchers.IO` for you:
 lifecycleScope.launch {
     val report = DeviceIntelligence.collect(context)        // typed object
     val json = DeviceIntelligence.collectJson(context)      // canonical JSON
+
+    // Optional: collapse the ~40 per-kind findings into 11 high-level
+    // signals for product code paths that only need a verdict.
+    val signals = report.toIntegritySignals()
+    if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) { /* ... */ }
 }
 ```
 
@@ -163,7 +164,7 @@ with `findings: []`.
 | Bootloader integrity | `integrity.bootloader`   | Cross-checks `attestation.key`'s chain to surface TEE spoofing / cached chains |
 | ART integrity        | `integrity.art`          | In-process ART tampering across 5 vectors (Frida, Xposed, LSPosed, Pine, …)   |
 | Key attestation      | `attestation.key`        | TEE / StrongBox attestation: Verified Boot, bootloader lock, OS patch level   |
-| Runtime environment  | `runtime.environment`    | Debugger / ptrace / hooker libs / RWX trampoline pages / `ro.debuggable` mismatch |
+| Runtime environment  | `runtime.environment`    | Debugger / ptrace / `ro.debuggable` mismatch + native integrity stack (`.text` hash, GOT integrity, injected libraries, JNI return-address verification, Java stack hooker scan) — see [Anti-hooking detection](#anti-hooking-detection) |
 | Root indicators      | `runtime.root`           | `su` binary, Magisk artifacts, `test-keys`, root-manager apps                 |
 | Emulator probe       | `runtime.emulator`       | CPU-instruction-level signals (arm64 MRS / x86_64 CPUID hypervisor bit)       |
 | App cloner           | `runtime.cloner`         | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches         |
@@ -417,7 +418,7 @@ The full per-detector deep dive lives in
 - [`integrity.bootloader`](docs/DETECTORS.md#integritybootloader) — TEE-spoofing / cached-chain detection
 - [`integrity.art`](docs/DETECTORS.md#integrityart) — 5-vector deep dive (entry-point rewrites, JNIEnv hijacks, inline trampolines, `entry_point_from_jni_` overwrites, `ACC_NATIVE` flips)
 - [`attestation.key`](docs/DETECTORS.md#attestationkey) — TEE / StrongBox attestation evidence + advisory verdict
-- [`runtime.environment`](docs/DETECTORS.md#runtimeenvironment) — debugger / hookers / RWX pages / Zygisk fingerprint
+- [`runtime.environment`](docs/DETECTORS.md#runtimeenvironment) — debugger / hookers / RWX pages / Zygisk fingerprint **+ G-stack native integrity** (8-layer anti-hooking, see [below](#anti-hooking-detection))
 - [`runtime.root`](docs/DETECTORS.md#runtimeroot) — `su`, Magisk, `test-keys`, root-manager apps
 - [`runtime.emulator`](docs/DETECTORS.md#runtimeemulator) — arm64 MRS / x86_64 CPUID hypervisor bit
 - [`runtime.cloner`](docs/DETECTORS.md#runtimecloner) — foreign APK mappings, mount-namespace inconsistencies
@@ -441,6 +442,216 @@ The [`tools/red-team/`](tools/red-team/README.md) harness ships Frida
 scripts that intentionally trigger each `integrity.art` finding — useful
 after any code change.
 
+## High-level signals (`IntegritySignal`)
+
+`TelemetryReport` is intentionally low-level — every detector emits its
+own granular `Finding.kind` (`apk_signer_mismatch`, `art_method_entry_drifted`,
+`injected_anonymous_executable`, etc.). That granularity is the right
+thing to ship to a backend: it preserves forensic evidence and lets a
+SOC team pivot per signal. But it is the wrong thing to put in front of
+a UI gate or a feature-flag check that just needs a verdict.
+
+The `IntegritySignal` mapper collapses the ~40 per-kind identifiers down
+to **11 orthogonal high-level signals**:
+
+| `IntegritySignal`               | Backed by `Finding.kind` (examples)                                                                                                                                               |
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `APK_TAMPERED`                 | `apk_signer_mismatch`, `apk_entry_modified`, `apk_entry_added`, `apk_entry_removed`, `apk_source_dir_unexpected`, `installer_not_whitelisted`                                       |
+| `APK_FINGERPRINT_UNAVAILABLE`  | `fingerprint_asset_missing`, `fingerprint_key_missing`, `fingerprint_bad_magic`, `fingerprint_corrupt`                                                                              |
+| `BOOTLOADER_INTEGRITY_FAILED`  | `bootloader_integrity_anomaly`, `bootloader_strongbox_unavailable`                                                                                                                  |
+| `TEE_ATTESTATION_DEGRADED`     | `tee_integrity_verdict`                                                                                                                                                            |
+| `HOOKING_FRAMEWORK_DETECTED`   | every `art_*` and `jni_env_*` kind, plus `hook_framework_present`, `rwx_memory_mapping`, `stack_foreign_frame`, `native_caller_out_of_range`, `native_text_*`, `got_entry_*`        |
+| `INJECTED_NATIVE_CODE`         | `injected_library`, `injected_anonymous_executable`                                                                                                                                |
+| `ROOT_INDICATORS_PRESENT`      | `su_binary_present`, `magisk_artifact_present`, `test_keys_build`, `which_su_succeeded`, `root_manager_app_installed`                                                                |
+| `EMULATOR_DETECTED`            | `running_on_emulator`                                                                                                                                                              |
+| `APP_CLONED`                   | `apk_path_mismatch`, `data_dir_mount_invalid`, `uid_mismatch`                                                                                                                       |
+| `DEBUGGER_ATTACHED`            | `debugger_attached`                                                                                                                                                                |
+| `DEBUG_FLAG_MISMATCH`          | `ro_debuggable_mismatch`                                                                                                                                                           |
+
+Two entry points, both pure functions over a [`TelemetryReport`]:
+
+```kotlin
+val report = DeviceIntelligence.collect(context)
+
+// 1. Just the deduplicated set of high-level signals.
+val signals: Set<IntegritySignal> = report.toIntegritySignals()
+if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) {
+    showSecurityBanner()
+}
+
+// 2. Signals + the underlying Finding(s) that produced each one,
+//    plus any findings whose kind this SDK version doesn't recognise
+//    (forward-compat safety net — a non-empty unmappedFindings list
+//    is your cue to bump the SDK).
+val full: IntegritySignalReport = report.toIntegritySignalReport()
+full.evidence[IntegritySignal.ROOT_INDICATORS_PRESENT]?.forEach { f ->
+    Log.w("MyApp", "root indicator: ${f.kind} subject=${f.subject}")
+}
+full.unmappedFindings.forEach { f ->
+    Log.w("MyApp", "unknown finding kind ${f.kind} — please upgrade")
+}
+```
+
+The mapper is **stateless and pure** — call it from any thread; cache
+the result yourself if you care. It pivots only on the stable
+`Finding.kind` (never on `severity` or detector status) and the full
+mapping table is exposed as `IntegritySignalMapper.kindToSignal` for
+backends that want to replicate the lifting server-side.
+
+The mapper is intentionally **not** an enforcement layer — it does not
+return a single boolean ("trusted / untrusted"), because the right
+threshold depends on the consumer's threat model. A banking app might
+treat any of `HOOKING_FRAMEWORK_DETECTED`, `INJECTED_NATIVE_CODE`, or
+`APK_TAMPERED` as a session-ending signal; a streaming app might only
+care about `EMULATOR_DETECTED` for cohorting. Build the policy on top
+of the signal set; keep the mapper focused on classification.
+
+The split between the two surfaces is visible end-to-end in the sample
+app: every signal in the **Signals card** is backed by one or more
+records in the **Findings card** below it (sorted worst-first, tap to
+expand the diagnostic `details` map). Same `TelemetryReport` — two
+consumption layers, no overlap.
+
+<p align="center">
+  <img src="docs/images/p6_rooted_signals_card.png" alt="Sample app — Integrity signals card on a rooted Pixel 6 Pro showing 5 high-level verdicts" width="48%"/>
+  <img src="docs/images/p6_rooted_findings_card.png" alt="Sample app — Findings card on the same device showing the underlying findings sorted worst-first, each row collapsed" width="48%"/>
+</p>
+
+## Anti-hooking detection
+
+`runtime.environment` ships an eight-layer **native integrity stack**
+(internally G0–G7) that detects code-level hooking — Frida, LSPosed,
+Xposed, Zygisk modules, raw `mprotect+memcpy` patches — without
+maintaining a hardcoded list of OEM partition paths or kernel labels.
+Full design lives in [**`NATIVE_INTEGRITY_DESIGN.md`**](NATIVE_INTEGRITY_DESIGN.md).
+
+| Layer | What it watches            | Catches                                                                                    | Finding kinds                                                |
+|------|----------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| G0   | Build-time fingerprint v2  | `libdicore.so` per-ABI `.text` SHA-256 + bundled `.so` inventory shipped to runtime         | (initialisation, no findings)                                |
+| G1   | Range map                  | classifies any code pointer as `libc` / `libm` / `libdl` / `libart` / `libdicore` / other  | (prerequisite for G2/G4/G7)                                  |
+| G2   | `.text` hash               | runtime byte patches into `libdicore`'s executable segment (Frida `mprotect+memcpy`)       | `native_text_hash_mismatch`, `native_text_drifted`           |
+| G3   | Loaded library inventory   | unexpected `.so` files or anonymous executable mappings appearing post-baseline (Frida `frida-agent-64.so`, Zygisk modules) | `injected_library`, `injected_anonymous_executable`          |
+| G4   | GOT / GOT.PLT integrity    | function-pointer rewrites in libdicore's Global Offset Table (PLT/GOT hooks)               | `got_entry_drifted`, `got_entry_out_of_range`                |
+| G5   | Java stack scan            | LSPosed / Xposed / YAHFA / SandHook trampolines visible in `Throwable().stackTrace`        | `stack_foreign_frame`                                        |
+| G6   | Stack watchdog             | probabilistic deeper-stack sampling on the collector thread to catch G5-evading hooks      | `stack_foreign_frame`                                        |
+| G7   | JNI return-address verify  | JNI calls returning into Frida trampoline pages instead of trusted ART regions             | `native_caller_out_of_range`                                 |
+
+### Self-adapting trust model — no OEM allowlists
+
+Earlier iterations had a hardcoded list of "trusted system paths"
+(`/system/`, `/system_ext/`, `/product/`, `/odm/`, `/vendor/`,
+`/apex/`, etc.) and "trusted ART JIT cache labels"
+(`[anon:dalvik-jit-code-cache]`, `[anon_shmem:jit-cache]`, etc.). Every
+new OEM that shipped a new partition or every Linux-kernel rename of an
+anonymous-mapping label produced a flood of false positives until the
+allowlist was patched.
+
+The current architecture replaces those allowlists with a **baseline
+captured at `JNI_OnLoad`**:
+
+- Walks `dl_iterate_phdr` to snapshot every loaded library's path.
+- Parses `/proc/self/maps` to snapshot every executable mapping
+  (file-backed AND label-bearing anonymous).
+- Records each library's parent directory and each anonymous mapping's
+  label.
+- All later G3 / G7 trust decisions are made against this snapshot:
+  - **Directory inheritance**: if zygote loaded any library from
+    `/foo_partition/lib64/` at start, future loads from the same
+    directory inherit trust automatically — without ever naming the
+    partition in code.
+  - **Label inheritance**: a current anonymous executable mapping is
+    trusted iff its `[anon:...]` / `[anon_shmem:...]` label was in the
+    baseline (handles JIT cache growth across process lifetime).
+  - **Address membership**: any RX page that was already in the
+    baseline is trusted forever.
+
+Verified zero G-stack false positives across four distinct OEM lineages
+without code changes per device:
+
+| OEM lineage                 | Status | G-stack false positives | Hooker detection still works |
+|-----------------------------|--------|-------------------------|------------------------------|
+| Google / Pixel (AOSP)       | Clean  | 0                       | (n/a)                        |
+| Xiaomi / HyperOS 3 (Android 16) | Clean  | 0                       | (n/a)                        |
+| Nubia / Nubia OS (Android 15)   | Clean  | 0                       | (n/a)                        |
+| Pixel 6 Pro + LSPosed       | Hooked | 0                       | `stack_foreign_frame: org.lsposed.lspd.impl.LSPosedBridge$NativeHooker` |
+| Pixel 6 Pro + Frida         | Hooked | 0                       | G2 `.text` patch + G3 `injected_library` from `/data/local/tmp/` + G7 `native_caller_out_of_range` into Frida trampoline pages |
+
+### Lazy-loaded library trust
+
+The Kotlin layer additionally declares the consumer app's own private
+storage as trusted at first init:
+
+```text
+applicationInfo.dataDir         e.g. /data/user/0/<pkg>
+/data/data/<pkg>                 legacy / symlinked form
+applicationInfo.nativeLibraryDir e.g. /data/app/.../lib/<abi>
+```
+
+This eliminates false positives from libraries the consumer app
+legitimately lazy-loads from its own sandbox (CodePush, Expo updates,
+in-app SDK extractors) without weakening hooker detection: Frida agents
+come from `/data/local/tmp/` or `/memfd:` paths; LSPosed lives under
+`/apex/com.lsposed.lspd/`; Zygisk modules under `/data/adb/modules/`.
+None of those paths intersect any consumer's app sandbox.
+
+If a consumer ships an embedded JIT runtime (V8, Mono, Dart VM with
+JIT) that allocates new RX pages with a brand-new label post-baseline,
+they can declare additional trusted paths at runtime via
+`NativeBridge.addTrustedNativeLibraryDirectory(path)` (called before
+the first `collect()`).
+
+### Earliest-possible bootstrap
+
+The native lib loads — and therefore the G3/G7 baseline is captured —
+**before the consumer's `Application` instance is even constructed**.
+Two layers cooperate:
+
+1. **`DeviceIntelligenceComponentFactory`** subclasses
+   `android.app.AppComponentFactory` (API 28+) and triggers
+   `System.loadLibrary("dicore")` inside `instantiateApplication()`.
+   This runs before `Application.attachBaseContext`, before any
+   `ContentProvider` attaches, and before the first byte of consumer
+   `Application` code executes. Wired by the library's manifest with
+   no `tools:replace` — AGP merger silently honors any consumer-defined
+   factory and falls back to layer 2.
+2. **`DeviceIntelligenceInitProvider`** runs at
+   `initOrder="2147483647"` (`Integer.MAX_VALUE`), beating every other
+   ContentProvider in the merged manifest (AndroidX Startup uses
+   10000, Firebase ~100, WorkManager ~200). Acts as the bootstrap on
+   API < 28 or when a consumer overrides `appComponentFactory`. Also
+   kicks off the background prewarm collect once `Context` is
+   available.
+
+Verified on Pixel 9 Pro:
+
+```text
+T+  0ms   Process spawned by zygote
+T+ 87ms   JNI_OnLoad fires           ← AppComponentFactory triggered libdicore load
+T+ 94ms   G3/G7 baseline captured    ← TRUST SNAPSHOT LOCKED IN HERE
+T+111ms   instantiateApplication() returns
+T+127ms   Application instantiated
+T+150ms   ContentProvider runs → trust dirs + prewarm collect
+T+163ms   MainActivity.onCreate
+```
+
+The baseline locks in 33 ms before the Application instance exists and
+69 ms before `MainActivity.onCreate`, leaving zero window for consumer
+code to dlopen anything that would land in the trust set.
+
+### What we still don't catch (be honest)
+
+- **Hookers injected before `JNI_OnLoad`** (LSPosed's `liblspd.so` is
+  loaded by zygote *into every app process*, before any user code
+  runs). Those land in our baseline → trusted by G3/G7. But G5
+  (Java stack scan) still fires the moment they actually invoke a
+  hook — empirically verified on Pixel 6 + LSPosed.
+- **An attacker with arbitrary file write into the app's own data
+  dir.** Such an attacker already owns the app and doesn't need to
+  hook; the G-stack is anti-hooking, not anti-malware.
+- **Truly novel firmware doing something nobody's seen.**
+  Architecturally narrowed to "single specific finding to investigate"
+  rather than "flood of FPs", but not zero.
+
 ## Permissions
 
 | Permission             | Where                                | Required by                              | Opt-in                                   |
@@ -462,7 +673,7 @@ unaffected).
 
 | Concern         | Behavior                                                                                                                                                                                                |
 |-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Cold start      | A manifest-merged `ContentProvider` triggers `System.loadLibrary("dicore")` and a background pre-warm before `Application.onCreate`. First user-visible `collect()` returns in single-digit ms.        |
+| Cold start      | On API 28+, a manifest-merged `AppComponentFactory` triggers `System.loadLibrary("dicore")` inside `instantiateApplication()` — **before the Application instance exists**, before any ContentProvider attaches. This locks in the G3/G7 anti-hooking baseline (~94 ms after process spawn on a Pixel 9 Pro) against the cleanest possible process snapshot. A manifest-merged `ContentProvider` (`initOrder=Integer.MAX_VALUE`) then declares the app's private dirs as trusted and kicks off a background pre-warm. First user-visible `collect()` returns in single-digit ms. See [Earliest-possible bootstrap](#earliest-possible-bootstrap). |
 | Threading       | `suspend fun collect()` dispatches its work to `Dispatchers.IO` — call from any coroutine context including `Dispatchers.Main`. `collectBlocking()` is the synchronous Java/legacy variant; do NOT call it from `Dispatchers.Main`. The library owns its own internal scope for the init pre-warm. |
 | `collect()`     | ~tens of ms on a warm process; cancellable between detectors (a cancelled coroutine resumes with `CancellationException` after the currently-running detector finishes).                                |
 | `observe()`     | `Flow<TelemetryReport>` that emits on `Dispatchers.IO` every `interval` (default 2 s) until the collecting scope is cancelled. Pair with `CollectOptions(only = setOf("integrity.art"))` for cheap hot-loop polling. |
@@ -497,12 +708,17 @@ updates.
 ## Project layout
 
 ```
-deviceintelligence/         ← runtime AAR (Kotlin + JNI native lib libdicore.so)
-deviceintelligence-gradle/  ← build-time plugin (sibling project)
-samples/minimal/            ← sample app: programmatic Kotlin UI (no XML, no Compose)
-tools/                      ← APK build / instrumentation helper scripts
-dist/                       ← demo APKs the build scripts produce
-jitpack.yml                 ← JitPack build config (SDK + NDK install + publish)
+deviceintelligence/             ← runtime AAR (Kotlin + JNI native lib libdicore.so)
+                                  cpp/dicore/native_integrity/ ← G0–G7 anti-hooking stack
+deviceintelligence-gradle/      ← build-time plugin (sibling project)
+samples/minimal/                ← sample app: programmatic Kotlin UI (no XML, no Compose)
+samples/lsposed-tester/         ← reference LSPosed module; hooks the SDK's own collect()
+                                  to verify G5 stack_foreign_frame fires end-to-end
+samples/xposed-api-stubs/       ← compileOnly Xposed API stubs for the LSPosed sample
+tools/                          ← APK build / instrumentation helper scripts
+dist/                           ← demo APKs the build scripts produce
+jitpack.yml                     ← JitPack build config (SDK + NDK install + publish)
+NATIVE_INTEGRITY_DESIGN.md      ← full design of the 8-layer anti-hooking stack
 ```
 
 The runtime SDK has roughly two layers: **Kotlin orchestration** (public API,
