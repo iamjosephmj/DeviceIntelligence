@@ -16,6 +16,24 @@
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-yellow.svg">
 </p>
 
+<p align="center">
+  <em>Sample app · stock Pixel 9 Pro on the left (clean release build) · the same APK with a single byte XOR'd in the middle · the raw <code>collectJson()</code> output on the right.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/p9_genuine_top.png" alt="DeviceIntelligence sample app — clean release build on a stock Pixel 9 Pro, zero findings" width="32%"/>
+  <img src="docs/images/p9_tampered_findings.png" alt="DeviceIntelligence sample app — tampered build, integrity.apk and attestation.key both fire critical findings" width="32%"/>
+  <img src="docs/images/p9_genuine_json.png" alt="DeviceIntelligence sample app — canonical JSON telemetry blob" width="32%"/>
+</p>
+
+<p align="center">
+  <em>Bonus — the same APK on a real adversarial device (Pixel 6 Pro · KernelSU + LSPosed + BootloaderSpoofer + HideMyAndroid + HideMyApplist all actively running). Six findings, including <code>rwx_memory_mapping</code> from <code>runtime.environment</code> — the universal RWX-page fingerprint that catches LSPosed, YAHFA, SandHook, Frida and Substrate without naming any of them.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/p6_rooted_findings.png" alt="DeviceIntelligence sample app on a rooted Pixel 6 Pro — six findings spanning bootloader, runtime, and root surfaces, including the rwx_memory_mapping LSPosed catch" width="65%"/>
+</p>
+
 ---
 
 ## Install
