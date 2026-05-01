@@ -57,6 +57,19 @@
     -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
+    <!--
+        INTERNET is required for the native analytics layer (dicore) to
+        deliver device-hardware telemetry events to Firebase Measurement
+        Protocol. All HTTP calls are fire-and-forget from a background
+        pthread; analytics can be disabled via the Gradle DSL:
+            deviceintelligence { disableAnalytics.set(true) }
+        INTERNET is a normal-protection permission (no runtime prompt,
+        no Play Store sensitive-permission review). Most apps that use
+        this SDK will already declare it for their own network usage;
+        in that case the manifest merger produces no duplicate.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:appComponentFactory="io.ssemaj.deviceintelligence.internal.DeviceIntelligenceComponentFactory"
         tools:targetApi="28">

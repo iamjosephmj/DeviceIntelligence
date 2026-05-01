@@ -11,7 +11,8 @@ import org.gradle.api.tasks.TaskAction
 /**
  * Emits a tiny `AndroidManifest.xml` fragment containing only the
  * permissions the consumer opted into via the `deviceintelligence`
- * Gradle DSL block (e.g. `enableVpnDetection = true`).
+ * Gradle DSL block (e.g. `enableVpnDetection = true`), plus a
+ * `<meta-data>` opt-out tag when `disableAnalytics = true`.
  *
  * The fragment is wired into the consumer's variant manifest pipeline
  * via `variant.sources.manifests.addGeneratedManifestFile`, so AGP's
@@ -37,6 +38,14 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
     abstract val needsUseBiometric: Property<Boolean>
 
     /**
+     * True iff `disableAnalytics = true` in the consumer's DSL.
+     * When true, injects a manifest `<meta-data>` tag that the native
+     * layer reads at startup to skip all analytics work.
+     */
+    @get:Input
+    abstract val disableAnalytics: Property<Boolean>
+
+    /**
      * Variant name, baked in only for diagnostic output / cache key
      * differentiation across multi-variant builds.
      */
@@ -58,6 +67,7 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
             if (needsAccessNetworkState.getOrElse(false)) add(ACCESS_NETWORK_STATE)
             if (needsUseBiometric.getOrElse(false)) add(USE_BIOMETRIC)
         }
+        val optOutAnalytics = disableAnalytics.getOrElse(false)
         // We always write a valid manifest, even when no permissions
         // are opted in, so AGP's manifest merger always finds the
         // file we declared via addGeneratedManifestFile and never
@@ -73,10 +83,22 @@ abstract class GenerateOptionalManifestTask : DefaultTask() {
                 append(p)
                 append("\" />\n")
             }
+            if (optOutAnalytics) {
+                append("    <application>\n")
+                append("        <!-- Analytics opt-out: native layer reads this at startup")
+                append(" and skips all tracking. -->\n")
+                append("        <meta-data\n")
+                append("            android:name=\"io.ssemaj.di.analytics\"\n")
+                append("            android:value=\"disabled\" />\n")
+                append("    </application>\n")
+            }
             append("</manifest>\n")
         }
         out.writeText(xml)
-        logger.info("io.ssemaj: wrote optional-permissions manifest to ${out.absolutePath} (${perms.size} permission(s))")
+        logger.info(
+            "io.ssemaj: wrote optional manifest to ${out.absolutePath} " +
+                "(${perms.size} permission(s), analytics=${if (optOutAnalytics) "disabled" else "enabled"})"
+        )
     }
 
     private companion object {

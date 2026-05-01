@@ -470,4 +470,70 @@ int read_kernel_uid_from_status() {
     return parsed_uid;
 }
 
+int collect_mount_fstypes(char* out, size_t out_size, int* out_count) {
+    if (!out || out_size == 0) return -1;
+    out[0] = '\0';
+    size_t written = 0;
+    int total = 0;
+
+    // Deduplicated list of unique fstype strings (e.g. "ext4", "overlay").
+    // Max 16 distinct types, each <= 31 chars.
+    constexpr size_t kMaxTypes = 16;
+    constexpr size_t kMaxTypeLen = 32;
+    char types[kMaxTypes][kMaxTypeLen];
+    size_t type_count = 0;
+
+    auto already_seen = [&](const char* t, size_t tlen) -> bool {
+        for (size_t i = 0; i < type_count; ++i) {
+            if (std::strlen(types[i]) == tlen &&
+                std::memcmp(types[i], t, tlen) == 0) return true;
+        }
+        return false;
+    };
+
+    bool ok = stream_lines("/proc/self/mountinfo",
+        [&](const char* line, size_t line_len) -> bool {
+            // mountinfo line format (space-separated fields):
+            //   id parent major:minor root mountpoint opts1 ... - fstype source opts2
+            // We only need the fstype which is the first token after " - ".
+            char buf[kLineBufSize];
+            if (line_len >= sizeof(buf)) return true;
+            std::memcpy(buf, line, line_len + 1);
+
+            char* dash = std::strstr(buf, " - ");
+            if (!dash) return true;
+            total++;
+
+            const char* fstype = dash + 3;
+            while (*fstype == ' ' || *fstype == '\t') ++fstype;
+            if (!*fstype) return true;
+
+            const char* fend = fstype;
+            while (*fend && *fend != ' ' && *fend != '\t') ++fend;
+            size_t flen = static_cast<size_t>(fend - fstype);
+            if (flen == 0 || flen >= kMaxTypeLen) return true;
+
+            if (!already_seen(fstype, flen) && type_count < kMaxTypes) {
+                std::memcpy(types[type_count], fstype, flen);
+                types[type_count][flen] = '\0';
+                ++type_count;
+            }
+            return true;
+        });
+
+    if (!ok) return -1;
+    if (out_count) *out_count = total;
+
+    for (size_t i = 0; i < type_count; ++i) {
+        size_t tlen = std::strlen(types[i]);
+        size_t need = tlen + (i == 0 ? 0 : 1);
+        if (written + need + 1 > out_size) break;
+        if (i > 0) out[written++] = ',';
+        std::memcpy(out + written, types[i], tlen);
+        written += tlen;
+    }
+    out[written] = '\0';
+    return static_cast<int>(written);
+}
+
 }  // namespace dicore::cloner

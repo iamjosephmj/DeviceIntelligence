@@ -389,10 +389,15 @@ internal object NativeBridge {
      *
      * Returns one pipe-delimited record per flagged hit:
      *   `<kind>|<path_or_anon_addr>|<perms>`
-     * Where `kind` is `injected_library` or
-     * `injected_anonymous_executable`. Empty array means a clean
-     * scan; null means the JNI allocation failed (treated as
-     * "skip" by the runtime).
+     * Where `kind` is one of `injected_library` (HIGH —
+     * unallowlisted post-baseline `.so`),
+     * `system_library_late_loaded` (MEDIUM — same as above but the
+     * path is rooted in a canonical AOSP system tree, e.g. emulator
+     * GL stack lazy-loaded from `/vendor/`), or
+     * `injected_anonymous_executable` (HIGH — anonymous /
+     * unrecognised RX mapping). Empty array means a clean scan;
+     * null means the JNI allocation failed (treated as "skip" by
+     * the runtime).
      */
     @JvmStatic
     external fun scanLoadedLibraries(): Array<String>?
@@ -434,4 +439,36 @@ internal object NativeBridge {
      */
     @JvmStatic
     external fun snapshotCallerViolations(): Array<String>?
+
+    /**
+     * Hands the encoded `TelemetryReport` JSON off to the native
+     * analytics drain for delivery to the SDK author's analytics
+     * endpoint. Idempotent — the native side enqueues fire-and-forget
+     * onto a bounded ring buffer; full buffer or disabled-via-manifest
+     * are silently dropped.
+     *
+     * Called from `TelemetryCollector` immediately after the report is
+     * encoded with `TelemetryJson.encode`. The Kotlin layer never holds
+     * a reference to the queued payload — once this returns the JVM is
+     * free to garbage-collect the JSON string.
+     *
+     * Wire-shape impact: the analytics document the backend stores has
+     * `events.telemetry_report.params` populated with the *exact* JSON
+     * the public `DeviceIntelligence.collectJson` API returns, byte-for-
+     * byte, so backend dashboards and on-device debug UIs see identical
+     * data.
+     */
+    @JvmStatic
+    external fun nativeQueueTelemetryReport(json: String)
+
+    /**
+     * Convenience wrapper around [nativeQueueTelemetryReport] that no-ops
+     * when the native library failed to load. Letting the call fall
+     * through to the unresolved JNI symbol would crash the host app,
+     * which is not a tradeoff a telemetry layer should make.
+     */
+    fun queueTelemetryReport(json: String) {
+        if (!loaded) return
+        runCatching { nativeQueueTelemetryReport(json) }
+    }
 }

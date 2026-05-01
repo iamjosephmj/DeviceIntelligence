@@ -14,6 +14,7 @@
 // `art_integrity_jni.cpp` and `jni_bridge.cpp` is tracked as a
 // separate G7.5 follow-up.
 
+#include "analytics.h"
 #include "native_integrity/baseline.h"
 #include "native_integrity/caller_verify.h"
 #include "native_integrity/caller_verify_macro.h"
@@ -30,6 +31,33 @@
 namespace dicore {
 
 extern "C" {
+
+/**
+ * Called by Kotlin's `TelemetryCollector.collect(...)` immediately after
+ * the public `TelemetryReport` is encoded to JSON. Forwards the entire
+ * JSON to the native analytics queue as a single `telemetry_report`
+ * event, so the backend stores it verbatim under the corresponding run
+ * document's `events.telemetry_report.params` field.
+ *
+ * The C++ analytics layer never inspects the JSON beyond splicing it
+ * into the request envelope, so the wire shape on the backend is a
+ * 1:1 mirror of what `DeviceIntelligence.collectJson(...)` returns.
+ *
+ * Null / empty input is a no-op (defensive — the Kotlin signature
+ * already disallows null, but the analytics drain ignores empty
+ * payloads and we don't want to queue an obviously-broken event).
+ */
+JNIEXPORT void JNICALL
+Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeQueueTelemetryReport(
+        JNIEnv* env, jclass, jstring jJson) {
+    if (jJson == nullptr) return;
+    const char* json = env->GetStringUTFChars(jJson, nullptr);
+    if (json == nullptr) return;
+    if (json[0] != '\0') {
+        analytics::queue_event("telemetry_report", json);
+    }
+    env->ReleaseStringUTFChars(jJson, json);
+}
 
 /**
  * G1 CTF probe. Returns `kProbeAlive` when the native_integrity
@@ -157,9 +185,9 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_addTrustedNativeLibraryD
  *   `<kind>|<path_or_anon_addr>|<perms>`
  *
  * Where `kind` is one of `injected_library` /
- * `injected_anonymous_executable`. Empty array means the scan
- * succeeded with no findings (clean device). Returns null only
- * on JNI allocation failure.
+ * `injected_anonymous_executable` / `system_library_late_loaded`.
+ * Empty array means the scan succeeded with no findings (clean
+ * device). Returns null only on JNI allocation failure.
  *
  * Capped at 64 records per scan so a pathologically broken
  * system doesn't spam the JNI return array; in practice a clean
@@ -180,9 +208,19 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanLoadedLibraries(
     char buf[600];
     for (size_t i = 0; i < n; ++i) {
         const auto& r = records[i];
-        const char* kind = (r.kind == native_integrity::InventoryRecord::Kind::INJECTED_LIBRARY)
-            ? "injected_library"
-            : "injected_anonymous_executable";
+        const char* kind;
+        switch (r.kind) {
+            case native_integrity::InventoryRecord::Kind::INJECTED_LIBRARY:
+                kind = "injected_library";
+                break;
+            case native_integrity::InventoryRecord::Kind::SYSTEM_LIB_LATE_LOADED:
+                kind = "system_library_late_loaded";
+                break;
+            case native_integrity::InventoryRecord::Kind::INJECTED_ANON_EXEC:
+            default:
+                kind = "injected_anonymous_executable";
+                break;
+        }
         std::snprintf(buf, sizeof(buf), "%s|%s|%s", kind, r.path, r.perms);
         jstring s = env->NewStringUTF(buf);
         if (!s) return nullptr;

@@ -81,4 +81,27 @@ abstract class DeviceIntelligenceExtension {
      * `-Pdeviceintelligence.disableAutoRuntimeDependency=true`.
      */
     abstract val disableAutoRuntimeDependency: Property<Boolean>
+
+    /**
+     * Opt OUT of anonymous device-hardware telemetry.
+     *
+     * DeviceIntelligence collects hardware-level signals from the native
+     * layer (ABI, API level, manufacturer, model, SoC, CPU vendor from
+     * emulator probe, ART/native integrity result codes, mount filesystem
+     * types, loaded library basenames) and sends them to Firebase
+     * Measurement Protocol to help improve the SDK's detector accuracy.
+     *
+     * No package names, certificate hashes, memory addresses, user
+     * identifiers, or any app-specific data are ever collected.
+     * The "client_id" is a one-way SHA-256 of `ro.build.fingerprint`
+     * and cannot be reversed to any user or device identifier.
+     *
+     * Analytics are **enabled by default**. Set to `true` to opt out.
+     * When opted out, the plugin injects a manifest `<meta-data>` tag
+     * that the native layer reads at startup and uses to skip all
+     * tracking work entirely (no threads started, no HTTP calls made).
+     *
+     * Default `false` (analytics on).
+     */
+    abstract val disableAnalytics: Property<Boolean>
 }

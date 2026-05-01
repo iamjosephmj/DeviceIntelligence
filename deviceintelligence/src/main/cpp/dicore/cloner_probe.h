@@ -85,6 +85,13 @@ int list_data_dir_owners(char* out, size_t out_size);
 // read or parse failure (caller treats that as "no signal").
 int read_kernel_uid_from_status();
 
+// Walks /proc/self/mountinfo and collects unique filesystem type names
+// (e.g. "ext4", "overlay", "tmpfs", "fuse"). Writes a comma-separated
+// list into [out]. Returns byte count written, -1 on read error.
+// If out_count is non-null, stores the total number of mount entries seen.
+// No paths or package names are ever written to [out].
+int collect_mount_fstypes(char* out, size_t out_size, int* out_count);
+
 }  // namespace dicore::cloner
 
 #endif  // DICORE_CLONER_PROBE_H_

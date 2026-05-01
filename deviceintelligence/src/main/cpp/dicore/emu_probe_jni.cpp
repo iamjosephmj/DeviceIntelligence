@@ -8,8 +8,6 @@
 
 #include "emu_probe.h"
 
-#include <atomic>
-#include <cstring>
 #include <jni.h>
 #include <mutex>
 

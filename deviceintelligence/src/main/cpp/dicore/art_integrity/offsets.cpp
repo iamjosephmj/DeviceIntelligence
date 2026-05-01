@@ -11,10 +11,8 @@ namespace {
 // 64-bit ART layout of `entry_point_from_quick_compiled_code_`,
 // per Android API. See header for the struct breakdown.
 //
-// API 28-36 all land at 0x20: the layout has been stable across
-// every release we've shipped against. The per-API table exists
-// so that the day Google moves the field we patch ONE row, not a
-// scatter of magic numbers.
+// The per-API table exists so that the day Google moves the field
+// we patch ONE row, not a scatter of magic numbers.
 //
 // If a row is missing for a future API, we fall back to the
 // highest-known entry and log a WARN.
@@ -24,18 +22,30 @@ struct OffsetEntry {
 };
 
 constexpr OffsetEntry kTable[] = {
-    // API 28-32 (Android 9 -> 12L): dex_code_item_offset_ present
-    // in the header, ArtMethod sizeof = 0x28, entry_point at 0x20.
+    // API 28-30 (Android 9 -> 11): `dex_code_item_offset_` is
+    // present in the header, ArtMethod sizeof = 0x28, entry_point
+    // at 0x20.
     {28, 0x20},
     {29, 0x20},
     {30, 0x20},
-    {31, 0x20},
-    {32, 0x20},
-    // API 33-36 (Android 13 -> 16): dex_code_item_offset_ removed,
-    // ArtMethod sizeof = 0x20, entry_point at 0x18. Empirically
-    // verified on Pixel 6 Pro (API 36) and Pixel 9 Pro (API 36):
-    // reading 0x18 returns a pointer in libart's RX range, while
-    // 0x20 reads into the next ArtMethod's declaring_class_.
+    // API 31-36 (Android 12 -> 16): `dex_code_item_offset_` was
+    // removed by AOSP CL 1810420 ("ART: Remove
+    // ArtMethod::dex_code_item_offset_") which landed before the
+    // Android 12 release. ArtMethod sizeof = 0x20, entry_point at
+    // 0x18. Empirically confirmed on:
+    //  - Pixel 6 Pro / Pixel 9 Pro at API 36 — reading 0x18
+    //    returns a libart-RX pointer, 0x20 reads into the next
+    //    ArtMethod's declaring_class_.
+    //  - Huawei (HwART, EMUI 12) at API 31 — same pattern. The
+    //    user-visible symptom of a wrong offset is Vector A
+    //    reporting `out_of_range=N/N readable` because every
+    //    declaring_class_ compressed reference falls outside
+    //    libart / boot OAT / JIT cache, plus Vector E reporting
+    //    spurious `drifted` findings (the field at 0x18 is then
+    //    `entry_point_from_quick_compiled_code_`, which legitimately
+    //    moves under lazy resolution / re-JIT).
+    {31, 0x18},
+    {32, 0x18},
     {33, 0x18},
     {34, 0x18},
     {35, 0x18},

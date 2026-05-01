@@ -606,6 +606,16 @@ internal object ArtIntegrityDetector : Detector {
      * `data_` (ProfilingInfo / hotness counter), whose value
      * legitimately changes during JIT activity, so we suppress
      * drift there.
+     *
+     * **Drift is also gated on a non-benign transition**
+     * (`shouldReportJniEntryDrift`). HwART (and AOSP under some
+     * conditions) re-links a declared-native method's `data_`
+     * slot during normal execution: the JNI_OnLoad snapshot may
+     * capture a lazy-resolution stub, and the first call resolves
+     * it to the actual JNI bridge — the address differs but both
+     * sit in legitimate ART memory. Empirically observed on
+     * Huawei API 31; suppressed here so a clean device stays
+     * silent.
      */
     internal fun vectorEFindingsFromRecords(records: Array<String>, pkg: String): List<Finding> {
         val findings = ArrayList<Finding>()
@@ -630,7 +640,7 @@ internal object ArtIntegrityDetector : Detector {
                     ),
                 )
             }
-            if (parsed.drifted && parsed.isNativeBySpec) {
+            if (parsed.drifted && parsed.isNativeBySpec && shouldReportJniEntryDrift(parsed)) {
                 findings += Finding(
                     kind = KIND_ART_METHOD_JNI_ENTRY_DRIFTED,
                     severity = Severity.HIGH,
@@ -647,6 +657,58 @@ internal object ArtIntegrityDetector : Detector {
             }
         }
         return findings
+    }
+
+    /**
+     * Vector E drift is reported when the snapshot→live transition
+     * cannot be explained by benign ART-internal re-linking of a
+     * declared-native method's `data_` slot.
+     *
+     * Benign known→known transitions on devices we've tested:
+     *
+     *  - **libart → libart**: ART can re-resolve a JNI bridge
+     *    within libart's RX segment. Empirically observed on
+     *    Huawei API 31 for `Object#hashCode` and friends, where
+     *    the snapshot captured a `art_jni_dlsym_lookup_*` stub
+     *    and the first call replaced it with the actual bridge.
+     *
+     *  - **libart → boot_oat / boot_oat → libart**: cross-region
+     *    resolution between the boot image and libart. Less
+     *    common but observed on some HwART / Samsung builds.
+     *
+     *  - **boot_oat → boot_oat**: rare bridge movement within
+     *    boot images; treat as benign.
+     *
+     * Transitions that **always** report:
+     *
+     *  - **anything → unknown**: covered by the dedicated
+     *    out_of_range path above; drift fires too because the
+     *    value also changed (and a backend may want both).
+     *
+     *  - **unknown → anything**: an unknown snapshot covers
+     *    boot.art-resident stubs the classifier doesn't
+     *    recognise. A value change there is the canonical
+     *    Frida-Java attack on declared-native methods (e.g.
+     *    bridge overwrite of `Object.hashCode`'s `data_`); we
+     *    can't distinguish "stub resolved into bridge" from
+     *    "attacker bridge install" without more context, so we
+     *    report and let the backend pivot on
+     *    `live_classification`.
+     *
+     *  - **libart → jit_cache / boot_oat → jit_cache /
+     *    jit_cache → anything**: declared-native methods do
+     *    not legitimately route through the JIT cache for
+     *    their `data_` slot. Anything involving JIT here is
+     *    surprising and worth surfacing.
+     */
+    private fun shouldReportJniEntryDrift(record: JniEntryScanRecord): Boolean {
+        val snap = record.snapshotClass
+        val live = record.liveClass
+        if (snap == "libart" && live == "libart") return false
+        if (snap == "libart" && live == "boot_oat") return false
+        if (snap == "boot_oat" && live == "libart") return false
+        if (snap == "boot_oat" && live == "boot_oat") return false
+        return true
     }
 
     /**

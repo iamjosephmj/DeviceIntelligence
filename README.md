@@ -1,33 +1,27 @@
 <h1 align="center">DeviceIntelligence</h1>
 
 <p align="center">
-  <strong>An open-source Android telemetry SDK for understanding the device ecosystem of your userbase.</strong><br/>
-  APK integrity · hardware-backed key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · app-cloner detection · 8-layer native anti-hooking stack with self-adapting trust baseline.<br/>
-  <em>Not a RASP. Not a kill-switch. Just structured, deterministic facts your backend can analyze.</em>
+  <strong>Open-source Android telemetry SDK for understanding the device ecosystem of your userbase.</strong><br/>
+  APK integrity · key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · cloner detection · 8-layer native anti-hooking stack.<br/>
+  <em>Not a RASP. Not a kill-switch. Just structured, deterministic JSON your backend can analyze.</em>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
   <a href="https://jitpack.io/#iamjosephmj/DeviceIntelligence"><img alt="JitPack" src="https://jitpack.io/v/iamjosephmj/DeviceIntelligence.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
-  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28%20(Android%209.0)-green.svg">
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
-  <img alt="Schema" src="https://img.shields.io/badge/wire_schema-v2-orange.svg">
-  <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-yellow.svg">
 </p>
 
 <p align="center">
-  <em>Sample app, same release APK on three devices. <strong>Left</strong> — stock Pixel 9 Pro, clean: both the high-level <em>Integrity signals</em> card and the per-finding <em>Findings</em> card are empty. <strong>Middle</strong> — Pixel 6 Pro running KernelSU + LSPosed + BootloaderSpoofer + HideMyAndroid + HideMyApplist, the Signals card lifts the underlying findings into 5 product-shaped verdicts (<code>BOOTLOADER_INTEGRITY_FAILED</code>, <code>HOOKING_FRAMEWORK_DETECTED</code>, <code>TEE_ATTESTATION_DEGRADED</code>, <code>ROOT_INDICATORS_PRESENT</code>, <code>DEBUG_FLAG_MISMATCH</code>). <strong>Right</strong> — the Findings card sorts the underlying records worst-first; tap any row to reveal the diagnostic <code>details</code> map a SOC team would pivot on.</em>
+  <img src="docs/images/p9_clean_signals_findings.png" alt="Clean Pixel 9 Pro" width="32%"/>
+  <img src="docs/images/p6_rooted_signals_card.png" alt="Rooted Pixel 6 Pro — Signals card" width="32%"/>
+  <img src="docs/images/p6_rooted_findings_expanded.png" alt="Rooted Pixel 6 Pro — Findings card expanded" width="32%"/>
 </p>
 
 <p align="center">
-  <img src="docs/images/p9_clean_signals_findings.png" alt="DeviceIntelligence sample app — clean Pixel 9 Pro: Integrity signals and Findings cards both empty (zero threats detected)" width="32%"/>
-  <img src="docs/images/p6_rooted_signals_card.png" alt="DeviceIntelligence sample app — rooted Pixel 6 Pro with LSPosed: Integrity signals card showing 5 high-level verdicts including HOOKING_FRAMEWORK_DETECTED and BOOTLOADER_INTEGRITY_FAILED" width="32%"/>
-  <img src="docs/images/p6_rooted_findings_expanded.png" alt="DeviceIntelligence sample app — Findings card with one row expanded, showing the per-finding details map (device_recognition, app_recognition, bootloader_locked, verified_boot_state, verdict_authoritative, reason)" width="32%"/>
-</p>
-
-<p align="center">
-  <em>The Signals card is what your product code branches on (<code>HOOKING_FRAMEWORK_DETECTED in signals → showSecurityBanner()</code>). The Findings card is the forensic detail your backend stores. Same JSON, two consumption surfaces — see <a href="#high-level-signals-integritysignal">High-level signals</a>.</em>
+  <em>Same release APK, three devices. Left — clean Pixel 9 Pro. Middle — Pixel 6 Pro running KernelSU + LSPosed, Signals card lifts findings into product-shaped verdicts. Right — Findings card sorted worst-first, tap to expand the diagnostic <code>details</code> map.</em>
 </p>
 
 ---
@@ -35,18 +29,12 @@
 ## Install
 
 Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence).
-Replace `0.4.0` with the latest tag.
 
-**1. `settings.gradle.kts`** — declare the JitPack repo and map the plugin id
-to its JitPack-published module ([why](#why-the-eachplugin-block)):
+**`settings.gradle.kts`**
 
 ```kotlin
 pluginManagement {
-    repositories {
-        maven("https://jitpack.io")
-        gradlePluginPortal()
-        google()
-    }
+    repositories { maven("https://jitpack.io"); gradlePluginPortal(); google() }
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id == "io.ssemaj.deviceintelligence") {
@@ -64,191 +52,75 @@ dependencyResolutionManagement {
 }
 ```
 
-**2. `app/build.gradle.kts`** — apply the plugin. Nothing else: the plugin
-auto-wires the matching runtime AAR.
+**`app/build.gradle.kts`**
 
 ```kotlin
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("io.ssemaj.deviceintelligence") version "0.4.0"
+    id("io.ssemaj.deviceintelligence") version "0.5.0"
 }
 ```
 
-**3. Collect at runtime** — call from any coroutine; the library
-dispatches the work to `Dispatchers.IO` for you:
+**Collect**
 
 ```kotlin
 lifecycleScope.launch {
-    val report = DeviceIntelligence.collect(context)        // typed object
-    val json = DeviceIntelligence.collectJson(context)      // canonical JSON
+    val report = DeviceIntelligence.collect(context)
+    val json   = DeviceIntelligence.collectJson(context)
 
-    // Optional: collapse the ~40 per-kind findings into 11 high-level
-    // signals for product code paths that only need a verdict.
     val signals = report.toIntegritySignals()
-    if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) { /* ... */ }
+    if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) { /* … */ }
 }
 ```
 
-For Java callers and synchronous boundaries (worker threads, JNI, tests),
-use `DeviceIntelligence.collectBlocking(context)` / `collectJsonBlocking(context)`.
-
-For long-running observation (e.g. watching `integrity.art` for a runtime
-Frida attach), `observe()` returns a `Flow<TelemetryReport>`:
-
-```kotlin
-DeviceIntelligence
-    .observe(context, interval = 2.seconds)
-    .onEach { report -> render(report) }
-    .launchIn(lifecycleScope)
-```
-
-The library auto-initializes via a manifest-merged `ContentProvider` and
-pre-warms in the background, so the first user-visible `collect()` returns
-from cached state in single-digit ms. To consume the in-flight pre-warm
-instead of racing it, `awaitPrewarm(context)` returns the same report the
-init provider is computing.
-
-`kotlinx-coroutines-android` (1.9.0) is the lone runtime dependency. If your
-app already uses coroutines (most modern Android apps do), Gradle dedupes —
-no extra APK weight.
-
-For VPN / biometrics-enrollment opt-ins, library-only mode (no plugin),
-selective collection, and monorepo wiring, see [Advanced setup](#advanced-setup).
-
----
-
-## What it is
-
-```text
-DeviceIntelligence.collect(context).toJson()
-   ↓
-{ schema_version, library_version, device, app, detectors[], summary }
-   ↓
-your backend / data warehouse  →  dashboards, cohorts, fraud signals
-```
-
-DeviceIntelligence collects structured facts about the runtime environment
-of your app — APK integrity, in-process tampering, hardware-backed device
-attestation, bootloader state, root indicators, emulator characteristics,
-and app-cloner signals — and hands them back as a single deterministic JSON
-report.
-
-> **This is NOT a RASP.** It does not block sessions, kill processes, lock
-> data, prompt the user, or interrupt any flow. It only observes. The
-> intended use case is **ecosystem analysis** — *"what fraction of my MAU
-> is on rooted devices?"*, *"how many sessions originate from emulators?"*,
-> *"which hooking frameworks show up in my install base?"*. Your backend
-> ingests the JSON, aggregates it, and surfaces the patterns. If you later
-> decide to act on a signal, the policy lives in your backend — never inside
-> this library. See [Why telemetry, not RASP?](#why-telemetry-not-rasp).
-
-## Try the sample
-
-```sh
-git clone https://github.com/iamjosephmj/DeviceIntelligence.git
-cd DeviceIntelligence
-./gradlew :samples:minimal:installDebug
-adb shell am start -n io.ssemaj.sample/.MainActivity
-```
-
-A card-based viewer that re-runs every detector on demand and lets you copy
-the canonical JSON. On a clean device, every detector reports `status: "ok"`
-with `findings: []`.
+`kotlinx-coroutines-android` is the only runtime dependency. For Java callers use `collectBlocking()`; for long-running observation use `observe()`.
 
 ## What it collects
 
 | Detector             | id                       | What it observes                                                              |
 |----------------------|--------------------------|-------------------------------------------------------------------------------|
 | APK integrity        | `integrity.apk`          | APK bytes vs. the build-time fingerprint baked by the Gradle plugin           |
-| Bootloader integrity | `integrity.bootloader`   | Cross-checks `attestation.key`'s chain to surface TEE spoofing / cached chains |
+| Bootloader integrity | `integrity.bootloader`   | TEE-spoofing / cached-chain detection on `attestation.key`                    |
 | ART integrity        | `integrity.art`          | In-process ART tampering across 5 vectors (Frida, Xposed, LSPosed, Pine, …)   |
 | Key attestation      | `attestation.key`        | TEE / StrongBox attestation: Verified Boot, bootloader lock, OS patch level   |
-| Runtime environment  | `runtime.environment`    | Debugger / ptrace / `ro.debuggable` mismatch + native integrity stack (`.text` hash, GOT integrity, injected libraries, JNI return-address verification, Java stack hooker scan) — see [Anti-hooking detection](#anti-hooking-detection) |
+| Runtime environment  | `runtime.environment`    | Debugger / ptrace / native integrity stack (text hash, GOT, injected libs, …) |
 | Root indicators      | `runtime.root`           | `su` binary, Magisk artifacts, `test-keys`, root-manager apps                 |
 | Emulator probe       | `runtime.emulator`       | CPU-instruction-level signals (arm64 MRS / x86_64 CPUID hypervisor bit)       |
 | App cloner           | `runtime.cloner`         | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches         |
 
-Detector IDs are `<category>.<scope>` pairs. Each detector is independent —
-adding a new one is a single line in `TelemetryCollector` and a class
-implementing the internal `Detector` interface. No public-API or wire-format
-changes.
+Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses ~40 finding kinds into 11 product-shaped verdicts (`HOOKING_FRAMEWORK_DETECTED`, `ROOT_INDICATORS_PRESENT`, …) for UI / feature-flag code.
 
-The full per-detector reference (threat model, finding kinds, sample tripped
-JSON, costs, caveats) lives in [**`docs/DETECTORS.md`**](docs/DETECTORS.md).
+> **Not a RASP.** It does not block sessions, kill processes, or interrupt any flow. It only observes. Build enforcement on the JSON your backend ingests; keep the policy off-device.
 
-## Why telemetry, not RASP?
+## JSON contract
 
-DeviceIntelligence is for product, security, and trust-and-safety teams that
-want **visibility into the device ecosystem of their userbase** without
-taking on the brittleness of an enforcement layer.
+`DeviceIntelligence.collectJson(context)` returns a single deterministic
+document. The shape is stable across releases that share the same
+`schema_version` (currently `2`). For every `Finding`, the fields
+`kind` / `severity` / `subject` / `message` are stable; `details` is
+opaque diagnostic data — useful for forensics, but its keys may change
+between releases without a `schema_version` bump, so don't key on them
+server-side.
 
-|                                  | Play Integrity      | RASP / in-app SDKs    | RootBeer-style libs | **DeviceIntelligence**         |
-|----------------------------------|---------------------|-----------------------|---------------------|--------------------------------|
-| Open source                      | No                  | No                    | Yes                 | **Yes (Apache 2.0)**           |
-| Works without GMS                | No                  | Yes                   | Yes                 | **Yes**                        |
-| Hardware-backed attestation      | Verdict only        | Sometimes             | No                  | **Yes (raw chain → backend)**  |
-| Multi-layer (defense-in-depth)   | Single verdict      | Yes                   | Single signal       | **8 orthogonal detectors**     |
-| Documents bypass model           | Mixed               | Rarely                | No                  | **Yes — every signal**         |
-| Stable wire format               | Yes                 | Vendor-specific       | No                  | **Yes (`schema_version: 2`)**  |
-| Decides on-device                | No                  | **Yes — the point**   | N/A                 | **No — the point**             |
-| Designed for fleet analysis      | Per-session         | No                    | No                  | **Yes (deterministic JSON)**   |
-
-Three reasons enforcement stays out of the library:
-
-1. **No single signal is authoritative.** Value comes from fleet-wide
-   correlation in a backend you control — not on-device "if rooted then
-   crash" branches.
-2. **On-device policy is the brittle part of every RASP.** An attacker with
-   userland can patch out `if (tampered) System.exit()`. They can't patch
-   out the JSON your backend already received.
-3. **Visibility is its own product.** Knowing 3% of MAU runs rooted, that
-   emulator traffic spiked 4× during a promo, or that one APK build is
-   being repackaged in the wild is actionable on its own.
-
-If you want enforcement, build it on top of the JSON DeviceIntelligence
-ships you, or pair this library with a separate RASP — let each layer do
-what it's good at.
-
-## Output shape
-
-`device.*` ships ~60 fields grouped by purpose. Every observability field is
-nullable: a single failing accessor only blanks that one field, never the
-surrounding report.
-
-| Group                                                                                                                    | What backends use it for                                                                                |
-|--------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| **Identity** (`manufacturer`, `model`, `sdk_int`, `abi`, `fingerprint`)                                                  | Always-present basics                                                                                   |
-| **Hardware identity** (`brand`, `board`, `hardware`, `bootloader_version`, `radio_version`, `build_*`, `soc_*`)          | Cohort by SoC / OEM ROM. Catches every emulator (`hardware = goldfish/ranchu`) and every custom ROM.    |
-| **Resources** (`total_ram_mb`, `cpu_cores`, `screen_*`, `sensor_count`, `boot_count`)                                    | Form-factor + emulator heuristics                                                                       |
-| **GPU / EGL** (`gl_es_version`, `egl_implementation`)                                                                    | Strong emulator tell — `swiftshader` / `mesa` give them away.                                           |
-| **Locale + timezone** (`default_locale`, `system_locales`, `timezone_id`, `auto_time_*`)                                 | Geo-cohort without GPS. Manual clock on a "production" device usually means a fraud rig.                |
-| **Display extras** (`display_refresh_rate_hz`, `display_supported_refresh_rates_hz`, `display_hdr_types`)                | Modern flagships report 120Hz + HDR10+; emulators stuck at 60Hz with no HDR.                            |
-| **Security posture** (`strongbox_available`, `device_secure`, `biometrics_enrolled`†, `adb_enabled`, `developer_options_enabled`) | Bot farms / dev rigs leak here — no lockscreen, ADB on, dev options on.                          |
-| **Battery + thermal** (`battery_*`, `thermal_status`)                                                                    | Emulators report `Unknown` battery tech. Click farms are always plugged in.                             |
-| **Network** (`vpn_active`†)                                                                                              | Active VPN transport — opt-in.                                                                          |
-| **Google ecosystem** (`play_services_*`, `play_store_version_code`, `gms_signer_sha256`)                                 | Confirms real Google-signed GMS vs. MicroG / Huawei / re-signed copies (via signer hash).               |
-
-† Requires opt-in via the Gradle DSL — see [Permissions](#permissions).
-
-A clean device emits empty `findings[]` everywhere and
-`summary.total_findings: 0`. You can alert on `total_findings > 0`
-server-side without parsing each detector individually.
+**`status` vs `findings`** answer different questions. `status`
+(`ok` / `inconclusive` / `error`) means "did the detector run?";
+`findings[]` means "what did it see?". A rooted device looks like
+`status: "ok"` plus a non-empty `findings[]`. Drive your "device looks
+tampered" decision off `summary.detectors_with_findings`, not `status`.
 
 <details>
 <summary><b>Full clean-device report (click to expand)</b></summary>
 
-Captured live from a clean Pixel 9 Pro running `samples/minimal`. Locale,
-timezone, install timestamps, `vpn_active`, `boot_count`, and APK random
-suffixes were swapped for generic values; everything else (StrongBox-backed
-attestation, Tensor G4 SoC, Mali GPU, 120Hz panel, GMS signer SHA) is the
-unmodified real value. For tripped-detector examples, see
+Captured live from a clean Pixel 9 Pro. Locale, timezone, install
+timestamps, `vpn_active`, `boot_count`, and APK random suffixes were
+swapped for generic values; everything else (StrongBox-backed
+attestation, Tensor G4 SoC, Mali GPU, 120Hz panel, GMS signer SHA) is
+the unmodified real value. For tripped-detector examples, see
 [`docs/DETECTORS.md`](docs/DETECTORS.md).
 
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.4.0",
+  "library_version": "0.5.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -314,7 +186,7 @@ unmodified real value. For tripped-detector examples, see
     "installer_package": null,
     "signer_cert_sha256": ["a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"],
     "build_variant": "debug",
-    "library_plugin_version": "0.4.0",
+    "library_plugin_version": "0.5.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
@@ -367,496 +239,35 @@ unmodified real value. For tripped-detector examples, see
 
 </details>
 
-## Stable contract
+A clean device emits empty `findings[]` everywhere and
+`summary.total_findings: 0`. You can alert on `total_findings > 0`
+server-side without parsing each detector individually.
 
-For each `Finding` these fields are stable across releases that share the
-same `schema_version` (currently `2`):
+## Try the sample
 
-- **`kind`** — stable identifier
-- **`severity`** — `low` / `medium` / `high` / `critical` (suggested; backends override per policy)
-- **`subject`** — what was checked (package name, APK entry, region label)
-- **`message`** — deterministic human-readable one-liner
-
-`details` is **opaque diagnostic data**. Useful for forensics. Its keys may
-change between releases without a `schema_version` bump — don't key on them
-server-side.
-
-### `status` vs `findings` — read this once
-
-A common gotcha: a detector can report `status: "ok"` *and* still have a
-non-empty `findings` array. The two fields answer different questions:
-
-- **`status`** — "did the detector run?" → `ok` / `inconclusive` / `error`
-- **`findings[]`** — "what did it see?"
-
-So a rooted device looks like:
-
-```json
-{
-  "id": "runtime.root",
-  "status": "ok",
-  "findings": [
-    { "kind": "root_manager_app_installed", "severity": "high", ... }
-  ]
-}
+```sh
+git clone https://github.com/iamjosephmj/DeviceIntelligence.git
+cd DeviceIntelligence
+./gradlew :samples:minimal:installDebug
+adb shell am start -n io.ssemaj.sample/.MainActivity
 ```
-
-`status: "ok"` means the detector ran successfully. The finding means it
-caught something. Both facts are independently true.
-
-**Why split it?** A backend has to distinguish three "no findings" cases
-that look identical if you collapse them: clean device, broken on this
-device (`inconclusive`), and crashed (`error`). Drive your "device looks
-tampered" decision off `summary.detectors_with_findings`, not `status`.
-
-## Detector reference
-
-The full per-detector deep dive lives in
-[**`docs/DETECTORS.md`**](docs/DETECTORS.md):
-
-- [`integrity.apk`](docs/DETECTORS.md#integrityapk) — APK bytes vs. the build-time fingerprint
-- [`integrity.bootloader`](docs/DETECTORS.md#integritybootloader) — TEE-spoofing / cached-chain detection
-- [`integrity.art`](docs/DETECTORS.md#integrityart) — 5-vector deep dive (entry-point rewrites, JNIEnv hijacks, inline trampolines, `entry_point_from_jni_` overwrites, `ACC_NATIVE` flips)
-- [`attestation.key`](docs/DETECTORS.md#attestationkey) — TEE / StrongBox attestation evidence + advisory verdict
-- [`runtime.environment`](docs/DETECTORS.md#runtimeenvironment) — debugger / hookers / RWX pages / Zygisk fingerprint **+ G-stack native integrity** (8-layer anti-hooking, see [below](#anti-hooking-detection))
-- [`runtime.root`](docs/DETECTORS.md#runtimeroot) — `su`, Magisk, `test-keys`, root-manager apps
-- [`runtime.emulator`](docs/DETECTORS.md#runtimeemulator) — arm64 MRS / x86_64 CPUID hypervisor bit
-- [`runtime.cloner`](docs/DETECTORS.md#runtimecloner) — foreign APK mappings, mount-namespace inconsistencies
-
-Two cross-cutting facts:
-
-1. **`attestation.key`'s chain is the one authoritative signal**, but only
-   after a backend re-verifies it server-side against Google's pinned
-   attestation root + revocation list. Everything else — every `runtime.*`
-   finding, every `integrity.*` finding, even the library's own `verdict_*`
-   strings — is advisory. The chain bytes ship on the typed
-   `AttestationReport.chainB64` for backend uploaders; the JSON ships only
-   the compact actionable subset.
-2. **`integrity.art` does not memoize across `collect()` calls.** A cached
-   verdict would let any Frida / LSPosed / Zygisk attach landing *after*
-   the first collect hide forever behind the frozen pre-attach result.
-   Every other detector caches what it sensibly can; `integrity.art` is the
-   explicit non-cached counterpart.
-
-The [`tools/red-team/`](tools/red-team/README.md) harness ships Frida
-scripts that intentionally trigger each `integrity.art` finding — useful
-after any code change.
-
-## High-level signals (`IntegritySignal`)
-
-`TelemetryReport` is intentionally low-level — every detector emits its
-own granular `Finding.kind` (`apk_signer_mismatch`, `art_method_entry_drifted`,
-`injected_anonymous_executable`, etc.). That granularity is the right
-thing to ship to a backend: it preserves forensic evidence and lets a
-SOC team pivot per signal. But it is the wrong thing to put in front of
-a UI gate or a feature-flag check that just needs a verdict.
-
-The `IntegritySignal` mapper collapses the ~40 per-kind identifiers down
-to **11 orthogonal high-level signals**:
-
-| `IntegritySignal`               | Backed by `Finding.kind` (examples)                                                                                                                                               |
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `APK_TAMPERED`                 | `apk_signer_mismatch`, `apk_entry_modified`, `apk_entry_added`, `apk_entry_removed`, `apk_source_dir_unexpected`, `installer_not_whitelisted`                                       |
-| `APK_FINGERPRINT_UNAVAILABLE`  | `fingerprint_asset_missing`, `fingerprint_key_missing`, `fingerprint_bad_magic`, `fingerprint_corrupt`                                                                              |
-| `BOOTLOADER_INTEGRITY_FAILED`  | `bootloader_integrity_anomaly`, `bootloader_strongbox_unavailable`                                                                                                                  |
-| `TEE_ATTESTATION_DEGRADED`     | `tee_integrity_verdict`                                                                                                                                                            |
-| `HOOKING_FRAMEWORK_DETECTED`   | every `art_*` and `jni_env_*` kind, plus `hook_framework_present`, `rwx_memory_mapping`, `stack_foreign_frame`, `native_caller_out_of_range`, `native_text_*`, `got_entry_*`        |
-| `INJECTED_NATIVE_CODE`         | `injected_library`, `injected_anonymous_executable`                                                                                                                                |
-| `ROOT_INDICATORS_PRESENT`      | `su_binary_present`, `magisk_artifact_present`, `test_keys_build`, `which_su_succeeded`, `root_manager_app_installed`                                                                |
-| `EMULATOR_DETECTED`            | `running_on_emulator`                                                                                                                                                              |
-| `APP_CLONED`                   | `apk_path_mismatch`, `data_dir_mount_invalid`, `uid_mismatch`                                                                                                                       |
-| `DEBUGGER_ATTACHED`            | `debugger_attached`                                                                                                                                                                |
-| `DEBUG_FLAG_MISMATCH`          | `ro_debuggable_mismatch`                                                                                                                                                           |
-
-Two entry points, both pure functions over a [`TelemetryReport`]:
-
-```kotlin
-val report = DeviceIntelligence.collect(context)
-
-// 1. Just the deduplicated set of high-level signals.
-val signals: Set<IntegritySignal> = report.toIntegritySignals()
-if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) {
-    showSecurityBanner()
-}
-
-// 2. Signals + the underlying Finding(s) that produced each one,
-//    plus any findings whose kind this SDK version doesn't recognise
-//    (forward-compat safety net — a non-empty unmappedFindings list
-//    is your cue to bump the SDK).
-val full: IntegritySignalReport = report.toIntegritySignalReport()
-full.evidence[IntegritySignal.ROOT_INDICATORS_PRESENT]?.forEach { f ->
-    Log.w("MyApp", "root indicator: ${f.kind} subject=${f.subject}")
-}
-full.unmappedFindings.forEach { f ->
-    Log.w("MyApp", "unknown finding kind ${f.kind} — please upgrade")
-}
-```
-
-The mapper is **stateless and pure** — call it from any thread; cache
-the result yourself if you care. It pivots only on the stable
-`Finding.kind` (never on `severity` or detector status) and the full
-mapping table is exposed as `IntegritySignalMapper.kindToSignal` for
-backends that want to replicate the lifting server-side.
-
-The mapper is intentionally **not** an enforcement layer — it does not
-return a single boolean ("trusted / untrusted"), because the right
-threshold depends on the consumer's threat model. A banking app might
-treat any of `HOOKING_FRAMEWORK_DETECTED`, `INJECTED_NATIVE_CODE`, or
-`APK_TAMPERED` as a session-ending signal; a streaming app might only
-care about `EMULATOR_DETECTED` for cohorting. Build the policy on top
-of the signal set; keep the mapper focused on classification.
-
-The split between the two surfaces is visible end-to-end in the sample
-app: every signal in the **Signals card** is backed by one or more
-records in the **Findings card** below it (sorted worst-first, tap to
-expand the diagnostic `details` map). Same `TelemetryReport` — two
-consumption layers, no overlap.
-
-<p align="center">
-  <img src="docs/images/p6_rooted_signals_card.png" alt="Sample app — Integrity signals card on a rooted Pixel 6 Pro showing 5 high-level verdicts" width="48%"/>
-  <img src="docs/images/p6_rooted_findings_card.png" alt="Sample app — Findings card on the same device showing the underlying findings sorted worst-first, each row collapsed" width="48%"/>
-</p>
-
-## Anti-hooking detection
-
-`runtime.environment` ships an eight-layer **native integrity stack**
-(internally G0–G7) that detects code-level hooking — Frida, LSPosed,
-Xposed, Zygisk modules, raw `mprotect+memcpy` patches — without
-maintaining a hardcoded list of OEM partition paths or kernel labels.
-Full design lives in [**`NATIVE_INTEGRITY_DESIGN.md`**](NATIVE_INTEGRITY_DESIGN.md).
-
-| Layer | What it watches            | Catches                                                                                    | Finding kinds                                                |
-|------|----------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------|
-| G0   | Build-time fingerprint v2  | `libdicore.so` per-ABI `.text` SHA-256 + bundled `.so` inventory shipped to runtime         | (initialisation, no findings)                                |
-| G1   | Range map                  | classifies any code pointer as `libc` / `libm` / `libdl` / `libart` / `libdicore` / other  | (prerequisite for G2/G4/G7)                                  |
-| G2   | `.text` hash               | runtime byte patches into `libdicore`'s executable segment (Frida `mprotect+memcpy`)       | `native_text_hash_mismatch`, `native_text_drifted`           |
-| G3   | Loaded library inventory   | unexpected `.so` files or anonymous executable mappings appearing post-baseline (Frida `frida-agent-64.so`, Zygisk modules) | `injected_library`, `injected_anonymous_executable`          |
-| G4   | GOT / GOT.PLT integrity    | function-pointer rewrites in libdicore's Global Offset Table (PLT/GOT hooks)               | `got_entry_drifted`, `got_entry_out_of_range`                |
-| G5   | Java stack scan            | LSPosed / Xposed / YAHFA / SandHook trampolines visible in `Throwable().stackTrace`        | `stack_foreign_frame`                                        |
-| G6   | Stack watchdog             | probabilistic deeper-stack sampling on the collector thread to catch G5-evading hooks      | `stack_foreign_frame`                                        |
-| G7   | JNI return-address verify  | JNI calls returning into Frida trampoline pages instead of trusted ART regions             | `native_caller_out_of_range`                                 |
-
-### Self-adapting trust model — no OEM allowlists
-
-Earlier iterations had a hardcoded list of "trusted system paths"
-(`/system/`, `/system_ext/`, `/product/`, `/odm/`, `/vendor/`,
-`/apex/`, etc.) and "trusted ART JIT cache labels"
-(`[anon:dalvik-jit-code-cache]`, `[anon_shmem:jit-cache]`, etc.). Every
-new OEM that shipped a new partition or every Linux-kernel rename of an
-anonymous-mapping label produced a flood of false positives until the
-allowlist was patched.
-
-The current architecture replaces those allowlists with a **baseline
-captured at `JNI_OnLoad`**:
-
-- Walks `dl_iterate_phdr` to snapshot every loaded library's path.
-- Parses `/proc/self/maps` to snapshot every executable mapping
-  (file-backed AND label-bearing anonymous).
-- Records each library's parent directory and each anonymous mapping's
-  label.
-- All later G3 / G7 trust decisions are made against this snapshot:
-  - **Directory inheritance**: if zygote loaded any library from
-    `/foo_partition/lib64/` at start, future loads from the same
-    directory inherit trust automatically — without ever naming the
-    partition in code.
-  - **Label inheritance**: a current anonymous executable mapping is
-    trusted iff its `[anon:...]` / `[anon_shmem:...]` label was in the
-    baseline (handles JIT cache growth across process lifetime).
-  - **Address membership**: any RX page that was already in the
-    baseline is trusted forever.
-
-Verified zero G-stack false positives across four distinct OEM lineages
-without code changes per device:
-
-| OEM lineage                 | Status | G-stack false positives | Hooker detection still works |
-|-----------------------------|--------|-------------------------|------------------------------|
-| Google / Pixel (AOSP)       | Clean  | 0                       | (n/a)                        |
-| Xiaomi / HyperOS 3 (Android 16) | Clean  | 0                       | (n/a)                        |
-| Nubia / Nubia OS (Android 15)   | Clean  | 0                       | (n/a)                        |
-| Pixel 6 Pro + LSPosed       | Hooked | 0                       | `stack_foreign_frame: org.lsposed.lspd.impl.LSPosedBridge$NativeHooker` |
-| Pixel 6 Pro + Frida         | Hooked | 0                       | G2 `.text` patch + G3 `injected_library` from `/data/local/tmp/` + G7 `native_caller_out_of_range` into Frida trampoline pages |
-
-### Lazy-loaded library trust
-
-The Kotlin layer additionally declares the consumer app's own private
-storage as trusted at first init:
-
-```text
-applicationInfo.dataDir         e.g. /data/user/0/<pkg>
-/data/data/<pkg>                 legacy / symlinked form
-applicationInfo.nativeLibraryDir e.g. /data/app/.../lib/<abi>
-```
-
-This eliminates false positives from libraries the consumer app
-legitimately lazy-loads from its own sandbox (CodePush, Expo updates,
-in-app SDK extractors) without weakening hooker detection: Frida agents
-come from `/data/local/tmp/` or `/memfd:` paths; LSPosed lives under
-`/apex/com.lsposed.lspd/`; Zygisk modules under `/data/adb/modules/`.
-None of those paths intersect any consumer's app sandbox.
-
-If a consumer ships an embedded JIT runtime (V8, Mono, Dart VM with
-JIT) that allocates new RX pages with a brand-new label post-baseline,
-they can declare additional trusted paths at runtime via
-`NativeBridge.addTrustedNativeLibraryDirectory(path)` (called before
-the first `collect()`).
-
-### Earliest-possible bootstrap
-
-The native lib loads — and therefore the G3/G7 baseline is captured —
-**before the consumer's `Application` instance is even constructed**.
-Two layers cooperate:
-
-1. **`DeviceIntelligenceComponentFactory`** subclasses
-   `android.app.AppComponentFactory` (API 28+) and triggers
-   `System.loadLibrary("dicore")` inside `instantiateApplication()`.
-   This runs before `Application.attachBaseContext`, before any
-   `ContentProvider` attaches, and before the first byte of consumer
-   `Application` code executes. Wired by the library's manifest with
-   no `tools:replace` — AGP merger silently honors any consumer-defined
-   factory and falls back to layer 2.
-2. **`DeviceIntelligenceInitProvider`** runs at
-   `initOrder="2147483647"` (`Integer.MAX_VALUE`), beating every other
-   ContentProvider in the merged manifest (AndroidX Startup uses
-   10000, Firebase ~100, WorkManager ~200). Acts as the bootstrap on
-   API < 28 or when a consumer overrides `appComponentFactory`. Also
-   kicks off the background prewarm collect once `Context` is
-   available.
-
-Verified on Pixel 9 Pro:
-
-```text
-T+  0ms   Process spawned by zygote
-T+ 87ms   JNI_OnLoad fires           ← AppComponentFactory triggered libdicore load
-T+ 94ms   G3/G7 baseline captured    ← TRUST SNAPSHOT LOCKED IN HERE
-T+111ms   instantiateApplication() returns
-T+127ms   Application instantiated
-T+150ms   ContentProvider runs → trust dirs + prewarm collect
-T+163ms   MainActivity.onCreate
-```
-
-The baseline locks in 33 ms before the Application instance exists and
-69 ms before `MainActivity.onCreate`, leaving zero window for consumer
-code to dlopen anything that would land in the trust set.
-
-### What we still don't catch (be honest)
-
-- **Hookers injected before `JNI_OnLoad`** (LSPosed's `liblspd.so` is
-  loaded by zygote *into every app process*, before any user code
-  runs). Those land in our baseline → trusted by G3/G7. But G5
-  (Java stack scan) still fires the moment they actually invoke a
-  hook — empirically verified on Pixel 6 + LSPosed.
-- **An attacker with arbitrary file write into the app's own data
-  dir.** Such an attacker already owns the app and doesn't need to
-  hook; the G-stack is anti-hooking, not anti-malware.
-- **Truly novel firmware doing something nobody's seen.**
-  Architecturally narrowed to "single specific finding to investigate"
-  rather than "flood of FPs", but not zero.
 
 ## Permissions
 
-| Permission             | Where                                | Required by                              | Opt-in                                   |
-|------------------------|--------------------------------------|------------------------------------------|------------------------------------------|
-| `QUERY_ALL_PACKAGES`   | Library manifest (always merged)     | `runtime.root` `root_manager_app_installed` channel | Strip via `tools:node="remove"` |
-| `ACCESS_NETWORK_STATE` | Generated fragment (opt-in)          | `DeviceContext.vpnActive`                | `enableVpnDetection.set(true)`           |
-| `USE_BIOMETRIC`        | Generated fragment (opt-in)          | `DeviceContext.biometricsEnrolled`       | `enableBiometricsDetection.set(true)`    |
+| Permission             | Required by                                         | Opt-in                                |
+|------------------------|-----------------------------------------------------|---------------------------------------|
+| `QUERY_ALL_PACKAGES`   | `runtime.root` `root_manager_app_installed` channel | Strip via `tools:node="remove"`       |
+| `ACCESS_NETWORK_STATE` | `DeviceContext.vpnActive`                           | `enableVpnDetection.set(true)`        |
+| `USE_BIOMETRIC`        | `DeviceContext.biometricsEnrolled`                  | `enableBiometricsDetection.set(true)` |
 
-When you opt out, the affected field reports `null` (not `false`) so
-backends can distinguish "no signal" from "negative signal".
+When you opt out, the field reports `null` (not `false`).
 
-`QUERY_ALL_PACKAGES` is a
-[Play-restricted permission](https://support.google.com/googleplay/android-developer/answer/10158779)
-— justify it in your Play Console submission under "anti-malware / device
-security", or strip it as shown above (the rest of the library is
-unaffected).
+## Documentation
 
-## Performance & threading
-
-| Concern         | Behavior                                                                                                                                                                                                |
-|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Cold start      | On API 28+, a manifest-merged `AppComponentFactory` triggers `System.loadLibrary("dicore")` inside `instantiateApplication()` — **before the Application instance exists**, before any ContentProvider attaches. This locks in the G3/G7 anti-hooking baseline (~94 ms after process spawn on a Pixel 9 Pro) against the cleanest possible process snapshot. A manifest-merged `ContentProvider` (`initOrder=Integer.MAX_VALUE`) then declares the app's private dirs as trusted and kicks off a background pre-warm. First user-visible `collect()` returns in single-digit ms. See [Earliest-possible bootstrap](#earliest-possible-bootstrap). |
-| Threading       | `suspend fun collect()` dispatches its work to `Dispatchers.IO` — call from any coroutine context including `Dispatchers.Main`. `collectBlocking()` is the synchronous Java/legacy variant; do NOT call it from `Dispatchers.Main`. The library owns its own internal scope for the init pre-warm. |
-| `collect()`     | ~tens of ms on a warm process; cancellable between detectors (a cancelled coroutine resumes with `CancellationException` after the currently-running detector finishes).                                |
-| `observe()`     | `Flow<TelemetryReport>` that emits on `Dispatchers.IO` every `interval` (default 2 s) until the collecting scope is cancelled. Pair with `CollectOptions(only = setOf("integrity.art"))` for cheap hot-loop polling. |
-| `awaitPrewarm()`| Returns the in-flight init pre-warm if one is being computed, otherwise runs a fresh `collect()`. Use it on splash screens to avoid a redundant collect.                                                |
-| Caching         | Most detectors cache for the process lifetime (attestation chain, `/proc/self/maps`, `/proc/mounts`, root-manager lookup). **`integrity.art` re-runs on every call** by design — see above.             |
-| Native lib size | `libdicore.so` ~230–250 KB stripped per ABI (release, `arm64-v8a` + `x86_64` only), built with `-fvisibility=hidden`, `-ffunction-sections`, `--gc-sections`.                                           |
-
-## Building from source
-
-```sh
-# Tests + sample APK
-./gradlew :deviceintelligence:test :samples:minimal:assembleDebug
-
-# Library AAR (release)
-./gradlew :deviceintelligence:assembleRelease
-# → deviceintelligence/build/outputs/aar/deviceintelligence-release.aar
-
-# Gradle plugin (sibling project; not composite-included in root settings)
-./gradlew -p deviceintelligence-gradle build
-
-# Publish both halves to local Maven (mirrors what JitPack does on tag)
-./gradlew :deviceintelligence:publishToMavenLocal
-./gradlew -p deviceintelligence-gradle publishToMavenLocal
-```
-
-Requirements: JDK 17 (Android Studio's bundled JBR works fine), Android SDK
-`platforms;android-36` + `build-tools;36.0.0`, Android NDK `27.0.12077973`.
-Maven Central is not wired yet — follow
-[issues](https://github.com/iamjosephmj/DeviceIntelligence/issues) for
-updates.
-
-## Project layout
-
-```
-deviceintelligence/             ← runtime AAR (Kotlin + JNI native lib libdicore.so)
-                                  cpp/dicore/native_integrity/ ← G0–G7 anti-hooking stack
-deviceintelligence-gradle/      ← build-time plugin (sibling project)
-samples/minimal/                ← sample app: programmatic Kotlin UI (no XML, no Compose)
-samples/lsposed-tester/         ← reference LSPosed module; hooks the SDK's own collect()
-                                  to verify G5 stack_foreign_frame fires end-to-end
-samples/xposed-api-stubs/       ← compileOnly Xposed API stubs for the LSPosed sample
-tools/                          ← APK build / instrumentation helper scripts
-dist/                           ← demo APKs the build scripts produce
-jitpack.yml                     ← JitPack build config (SDK + NDK install + publish)
-NATIVE_INTEGRITY_DESIGN.md      ← full design of the 8-layer anti-hooking stack
-```
-
-The runtime SDK has roughly two layers: **Kotlin orchestration** (public API,
-the `Detector` plugin contract, `TelemetryCollector`, hand-rolled JSON
-serializer with zero third-party deps), and **native probes** (C++17 doing
-the things the JVM either can't or can't do efficiently — raw syscalls for
-the cloner probe, arm64 MRS / x86_64 CPUID for the emulator probe, APK
-ZIP / signing-block parse, `/proc/self/maps` read).
-
-## Advanced setup
-
-### Opt-in detectors
-
-```kotlin
-deviceintelligence {
-    verbose.set(true)
-    enableVpnDetection.set(true)         // injects ACCESS_NETWORK_STATE
-    enableBiometricsDetection.set(true)  // injects USE_BIOMETRIC
-}
-```
-
-### Library-only mode (no plugin)
-
-If you want the runtime AAR without the Gradle plugin's build-time work —
-for example, you want to **skip `integrity.apk` entirely** — drop the
-plugin and pull the AAR directly:
-
-```kotlin
-// settings.gradle.kts: just the JitPack repo, no eachPlugin block needed
-dependencyResolutionManagement {
-    repositories { google(); mavenCentral(); maven("https://jitpack.io") }
-}
-
-// app/build.gradle.kts
-dependencies {
-    implementation("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence:0.4.0")
-}
-```
-
-Without the plugin, the `integrity.apk` fingerprint asset is absent at
-runtime, so the APK-integrity detector reports `status: "inconclusive"`
-with `inconclusive_reason: "asset_missing"`. Every other detector works
-unchanged.
-
-### Monorepo / vendor fork
-
-If your root `settings.gradle.kts` `include`s `:deviceintelligence`, the
-plugin substitutes `project(":deviceintelligence")` for the JitPack
-coordinate so local Kotlin / native changes are picked up without
-publishing. This is what [`samples/minimal`](samples/minimal/build.gradle.kts)
-relies on.
-
-To force the **published** AAR anyway (e.g. AAR delivered via a wrapper
-module the plugin can't see), set `disableAutoRuntimeDependency = true` in
-the DSL — or pass `-Pdeviceintelligence.disableAutoRuntimeDependency=true`
-on the command line — and add the `implementation(...)` line yourself,
-locked to the same version as the plugin.
-
-### What the Gradle plugin does at build time
-
-Per variant:
-
-1. Computes a SHA-256 fingerprint over your APK's entries.
-2. Encrypts the fingerprint blob with a per-build XOR key whose chunks are
-   split across generated Kotlin classes — a *cost amplifier* (not
-   encryption) that defeats `unzip + grep` and naive blob substitution.
-3. Injects the encrypted blob as `assets/io.ssemaj/fingerprint.bin` and
-   re-signs the APK with your `signingConfig` (v1+v2+v3).
-4. Generates a manifest fragment with whatever opt-in permissions you
-   enabled and wires it into the variant via `addGeneratedManifestFile`.
-5. Adds the matching runtime AAR coordinate to your `implementation`
-   configuration — same group, same version as the plugin itself, so the
-   runtime classes that read the build-time fingerprint are always at the
-   exact wire-schema version the plugin emitted them under.
-
-### Why the `eachPlugin` block
-
-Gradle resolves a plugin id (`io.ssemaj.deviceintelligence`) by looking for
-its plugin-marker artifact at `<group>:<id>:<version>`. The
-[standard JitPack-Gradle-plugin pattern](https://docs.jitpack.io/building/#gradle-plugins)
-is to redirect that lookup to the actual published coordinate
-(`com.github.iamjosephmj.DeviceIntelligence:deviceintelligence-gradle:<version>`).
-Five lines, one-time setup.
-
-## Contributing
-
-Issues, PRs, and ideas for new detectors welcome. A few principles:
-
-1. **Telemetry, not RASP.** Anything that reaches into `System.exit`,
-   `Process.killProcess`, "wipe encrypted data", or "lock the user out"
-   territory belongs in the consumer's policy layer, not here. PRs that
-   add on-device enforcement will be declined on principle.
-2. **Document the bypass model.** Every detector explains *exactly* how
-   that signal can be defeated. Be honest. A "perfect" detector wouldn't
-   survive the next minor Android release; what you want is a layer that's
-   *expensive enough to bypass* relative to its cost to maintain.
-3. **No throwing.** Detectors wrap failures and return
-   `DetectorStatus.ERROR`. A throw breaks `collect()` for the consumer.
-4. **Wire format = stable contract.** Adding fields to `Finding.details` is
-   fine without a schema bump. Renaming or removing anything stable
-   (`kind`, `severity`, `subject`, `message`, the field names under
-   `device` / `app` / `summary`) requires bumping `schema_version`.
-5. **Keep it small.** Native lib is ~230–250 KB stripped per ABI; new
-   native code should justify its bytes. The pure-Kotlin orchestrator has
-   exactly one runtime dependency (`kotlinx-coroutines-android`) — adding
-   a second needs a strong justification.
-
-For non-trivial changes, please open an issue first so we can talk through
-the design.
-
-### Reporting a security issue
-
-If you think you've found a security-relevant bug (a way to make a detector
-miss something, crash the host app, or exfiltrate data the library
-shouldn't be exposing), please **do not file a public issue**. Email the
-maintainer at the address listed on the GitHub profile, or open a private
-[security advisory](https://github.com/iamjosephmj/DeviceIntelligence/security/advisories).
-
-## Prior art and acknowledgments
-
-- [Google's Android Key Attestation sample](https://github.com/google/android-key-attestation) — reference for parsing the `KeyDescription` extension.
-- [AOSP Verified Boot docs](https://source.android.com/docs/security/features/verifiedboot) — semantics of `verified_boot_state` and the bootloader-lock signals.
-- [Tricky Store](https://github.com/5ec1cff/TrickyStore) and the broader LSPosed / Magisk research community — the bypass model `integrity.bootloader` is built around.
-- [RootBeer](https://github.com/scottyab/rootbeer), [SafetyNetSamples](https://github.com/googlesamples/android-play-safetynet) — prior art for `runtime.root`.
-- [Frida](https://frida.re/), [LSPosed](https://github.com/LSPosed/LSPosed) — the canonical hooking-framework signatures `runtime.environment` watches for.
-
-If your project is a direct inspiration and isn't credited, please open a PR.
+- [**`docs/DETECTORS.md`**](docs/DETECTORS.md) — full per-detector reference (threat model, finding kinds, sample tripped JSON, costs, caveats)
+- [**`NATIVE_INTEGRITY_DESIGN.md`**](NATIVE_INTEGRITY_DESIGN.md) — design of the 8-layer (G0–G7) anti-hooking stack
+- [**`tools/red-team/`**](tools/red-team/README.md) — Frida scripts that intentionally trip each `integrity.art` finding
 
 ## License
 
-Apache 2.0 — see the [`LICENSE`](LICENSE) file for the full text.
-
-```
-Copyright 2026 Joseph James (iamjosephmj)
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-```
+Apache 2.0 — see [`LICENSE`](LICENSE).

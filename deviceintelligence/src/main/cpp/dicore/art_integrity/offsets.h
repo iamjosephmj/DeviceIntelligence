@@ -11,7 +11,7 @@
 // Field history on 64-bit ART (the only architecture we ship; the
 // AAR is ABI-filtered to arm64-v8a + x86_64):
 //
-// API 28-32 (Android 9 -> 12L), `dex_code_item_offset_` still present:
+// API 28-30 (Android 9 -> 11), `dex_code_item_offset_` still present:
 //   ArtMethod {
 //     GcRoot<mirror::Class> declaring_class_;     // 4 bytes
 //     uint32_t access_flags_;                     // 4 bytes
@@ -27,7 +27,7 @@
 //   }
 //   sizeof = 0x28
 //
-// API 33-36 (Android 13 -> 16), `dex_code_item_offset_` removed:
+// API 31-36 (Android 12 -> 16), `dex_code_item_offset_` removed:
 //   ArtMethod {
 //     GcRoot<mirror::Class> declaring_class_;     // 4 bytes
 //     uint32_t access_flags_;                     // 4 bytes
@@ -41,12 +41,17 @@
 //   }
 //   sizeof = 0x20
 //
-// Empirical check: reading 0x20 on API 36 yielded the *next*
-// ArtMethod's `declaring_class_` (the same low-32-bit GcRoot value
-// repeated for sibling methods of the same class). 0x18 is the
-// correct slot for entry_point on API 33+; AOSP commit history for
-// `art/runtime/art_method.h` confirms `dex_code_item_offset_` was
-// removed for T+ to make ArtMethod 8 bytes smaller.
+// Empirical confirmation across both layouts:
+//  - Pixel 6 Pro / Pixel 9 Pro, API 36: reading 0x20 yields the
+//    *next* ArtMethod's `declaring_class_` (low-32-bit GcRoot
+//    value, identical for sibling methods of the same class).
+//    0x18 yields a libart-RX pointer.
+//  - Huawei HwART / EMUI 12, API 31: same pattern as Pixel API
+//    36 — confirms the smaller layout is in use on Android 12,
+//    not just Android 13+. AOSP CL 1810420 ("ART: Remove
+//    ArtMethod::dex_code_item_offset_") landed before the
+//    Android 12 release, so this is the AOSP canonical layout
+//    for S+, and OEMs (Huawei, Samsung) follow it.
 //
 // The per-API table is the central place to update when AOSP
 // changes the layout. New Android versions land here first; every

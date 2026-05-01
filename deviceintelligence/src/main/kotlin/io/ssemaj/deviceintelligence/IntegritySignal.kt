@@ -393,6 +393,16 @@ private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     // ---- runtime.environment injected native code (G3) ----
     put("injected_library", IntegritySignal.INJECTED_NATIVE_CODE)
     put("injected_anonymous_executable", IntegritySignal.INJECTED_NATIVE_CODE)
+    // `system_library_late_loaded` is intentionally NOT mapped here.
+    // It's a MEDIUM-severity, forensics-only finding emitted when a
+    // library missed the JNI_OnLoad baseline but lives under a
+    // dm-verity-protected AOSP system path (e.g. `/vendor/lib64/`
+    // GL drivers lazy-loaded by the emulator). Surfacing it as
+    // [INJECTED_NATIVE_CODE] would trip the high-level signal on
+    // every clean emulator, defeating the whole point of the soft
+    // classification. If a real attacker is ever found writing into
+    // a system partition, that's caught by `runtime.root` /
+    // `integrity.bootloader` / `attestation.key`, not here.
 
     // ---- runtime.environment debugger surface ----
     put("debugger_attached", IntegritySignal.DEBUGGER_ATTACHED)

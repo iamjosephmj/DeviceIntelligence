@@ -25,6 +25,7 @@
 #include "art_integrity/ranges.h"
 #include "art_integrity/registry.h"
 #include "art_integrity/snapshot.h"
+#include "analytics.h"
 #include "log.h"
 #include "native_integrity/module.h"
 
@@ -58,6 +59,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     // a failure to capture ranges silently degrades the dependent
     // Gx detectors rather than blocking JNI_OnLoad.
     native_integrity::initialize(env);
+    // Analytics init: reads opt-out flag, derives client_id, starts
+    // background drain thread. Must run after native_integrity so
+    // the process state is stable; fail-soft — never blocks the load.
+    analytics::init(vm, env);
     return JNI_VERSION_1_6;
 }
 

@@ -5,10 +5,10 @@
 //
 //   1. CNTFRQ_EL0 (EL0-readable): generic timer frequency. QEMU's
 //      default Cortex-A57 model reports 62.5 MHz (62_500_000). Real
-//      ARMv8 silicon ships 19.2 MHz (Snapdragon family), 24 MHz
-//      (Exynos / MediaTek typical), 25 MHz, or 26 MHz. The 62.5 MHz
-//      value is so distinctively QEMU that it's a single-signal
-//      verdict.
+//      ARMv8 silicon ships 19.2 MHz (Snapdragon family), 13 / 24 MHz
+//      (MediaTek), 24 MHz (Exynos typical), 25 MHz, or 26 MHz. The
+//      62.5 MHz value is so distinctively QEMU that it's a
+//      single-signal verdict.
 //
 //   2. CTR_EL0 (EL0-readable): Cache Type Register. Recorded for
 //      telemetry; we don't gate the verdict on it.
@@ -19,15 +19,29 @@
 //      disabled by a custom kernel an MRS to these from EL0 raises
 //      SIGILL; we wrap each read in a sigsetjmp/longjmp guard so the
 //      SDK keeps working in degraded mode (CNTFRQ alone is still
-//      enough for a verdict).
+//      enough for a verdict). These are recorded for telemetry only;
+//      see the decision-rule note below.
 //
 // Decision rule:
-//   decisive = (CNTFRQ == 62_500_000)                    // HIGH
-//           || (REVIDR == 0 AND MIDR matches QEMU model) // 2x MEDIUM
+//   decisive = (CNTFRQ == 62_500_000)
 //
-// The latter two count together because either alone has known
-// false-positive cases on some real cores (early Cortex-A53 silicon
-// has REVIDR=0 too).
+// Why CNTFRQ-only: an earlier revision of this probe also flipped
+// `decisive` when REVIDR_EL1 == 0 AND MIDR_EL1's Implementer/PartNum
+// matched QEMU's default (Implementer=0x41 ARM Ltd, PartNum in
+// {0xD03 A53, 0xD05 A55, 0xD07 A57, 0xD08 A72}). That rule turns
+// out to be a real-silicon false positive across most of the
+// commodity ARM mobile-SoC market: MediaTek, UniSoC, Spreadtrum,
+// AllWinner, Rockchip, etc. ship vanilla ARM reference cores under
+// Implementer=0x41 (they don't customize MIDR), and most of them
+// don't write a non-zero REVIDR either. Concrete observed false
+// positive: a real Xiaomi/realme MT6877 device (Cortex-A55) reports
+// midr=0x412fd050, revidr=0x0, cntfrq=13_000_000 — clearly real
+// silicon, but the old rule fired on the (revidr_zero && midr_qemu)
+// pair.
+//
+// The MIDR/REVIDR/ISAR0 values are still captured in `raw` so a
+// maintainer can post-mortem reports without re-running the probe;
+// they just don't influence `decisive` anymore.
 
 #include "emu_probe.h"
 
@@ -144,11 +158,16 @@ Signals probe() {
     bool have_isar0  = SAFE_MRS(isar0,  "ID_AA64ISAR0_EL1");
 
     bool cntfrq_qemu = have_cntfrq && cntfrq == 62'500'000ULL;
+    // revidr_zero and midr_qemu are deliberately *not* gating the
+    // verdict (see file-header decision-rule note). They're computed
+    // here only so they can show up in `present` for telemetry, which
+    // lets us see "CPU IDs look QEMU-shaped but CNTFRQ disagrees" on
+    // real silicon vs. true emulators in the dashboard.
     bool revidr_zero = have_revidr && revidr == 0;
     bool midr_qemu = have_midr && midr_matches_qemu_default(midr);
 
     s.present = cntfrq_qemu || revidr_zero || midr_qemu;
-    s.decisive = cntfrq_qemu || (revidr_zero && midr_qemu);
+    s.decisive = cntfrq_qemu;
 
     size_t off = 0;
     append_fmt(s.raw, sizeof(s.raw), &off, "arch=arm64");

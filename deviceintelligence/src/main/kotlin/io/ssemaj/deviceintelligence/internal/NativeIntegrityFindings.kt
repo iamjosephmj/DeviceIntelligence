@@ -25,6 +25,31 @@ internal object NativeIntegrityFindings {
     const val KIND_NATIVE_TEXT_DRIFTED: String = "native_text_drifted"
     const val KIND_INJECTED_LIBRARY: String = "injected_library"
     const val KIND_INJECTED_ANONYMOUS_EXECUTABLE: String = "injected_anonymous_executable"
+
+    /**
+     * A library that wasn't on the JNI_OnLoad baseline AND wasn't on
+     * the build-time inventory, but whose absolute path is rooted in
+     * a canonical AOSP system tree (`/system/`, `/system_ext/`,
+     * `/product/`, `/odm/`, `/vendor/`, `/apex/`,
+     * `/data/dalvik-cache/`).
+     *
+     * Common on emulators (the `/vendor/lib64/` GL emulation pipeline
+     * is lazy-loaded after `JNI_OnLoad` and therefore misses the
+     * baseline) and on OEMs that defer vendor HAL initialisation. We
+     * intentionally don't drop the finding — it's still useful
+     * forensic context — but we surface it at MEDIUM severity rather
+     * than HIGH because the read-only system partitions are
+     * dm-verity-protected and tampering with them requires
+     * bootloader-unlock + remount, which is independently caught by
+     * `runtime.root` / `integrity.bootloader` / `attestation.key`.
+     *
+     * Crucially this kind is NOT mapped to
+     * [IntegritySignal.INJECTED_NATIVE_CODE] in the high-level signal
+     * roll-up: a clean emulator must not trip the high-level
+     * "injected native code" signal just because the GL stack was
+     * lazy-loaded.
+     */
+    const val KIND_SYSTEM_LIBRARY_LATE_LOADED: String = "system_library_late_loaded"
     const val KIND_GOT_ENTRY_DRIFTED: String = "got_entry_drifted"
     const val KIND_GOT_ENTRY_OUT_OF_RANGE: String = "got_entry_out_of_range"
     const val KIND_STACK_FOREIGN_FRAME: String = "stack_foreign_frame"
@@ -78,7 +103,8 @@ internal object NativeIntegrityFindings {
      * Returns null if the record is malformed.
      *
      * Record formats (kind|path|perms):
-     *   `injected_library|<absolute_so_path>|`               (perms empty)
+     *   `injected_library|<absolute_so_path>|`                 (perms empty)
+     *   `system_library_late_loaded|<absolute_so_path>|`       (perms empty)
      *   `injected_anonymous_executable|<anon_descriptor>|<perms>`
      */
     fun loadedLibraryFinding(record: String, subject: String?): Finding? {
@@ -92,6 +118,19 @@ internal object NativeIntegrityFindings {
                 subject = subject,
                 message = "Library loaded into the process is not on the build-time inventory and " +
                     "doesn't live under any allowlisted system path",
+                details = mapOf(
+                    "library_path" to path,
+                    "source" to "scan_loaded_libraries",
+                ),
+            )
+            "system_library_late_loaded" -> Finding(
+                kind = KIND_SYSTEM_LIBRARY_LATE_LOADED,
+                severity = Severity.MEDIUM,
+                subject = subject,
+                message = "System library was not present at JNI_OnLoad and isn't on the build-time " +
+                    "inventory, but lives under a read-only AOSP system partition (`/system/`, " +
+                    "`/vendor/`, `/apex/`, …) — almost always a vendor library lazy-loaded after " +
+                    "process start; kept for forensic completeness",
                 details = mapOf(
                     "library_path" to path,
                     "source" to "scan_loaded_libraries",

@@ -535,6 +535,92 @@ class ArtIntegrityDetectorTest {
         assertTrue(ArtIntegrityDetector.KIND_ART_METHOD_JNI_ENTRY_DRIFTED in kinds)
     }
 
+    @Test
+    fun `vectorEFindingsFromRecords suppresses drift on libart-to-libart lazy bridge resolution`() {
+        // HwART (and AOSP under some conditions) re-resolves a
+        // declared-native method's `data_` slot from a
+        // `art_jni_dlsym_lookup_*` stub to the actual JNI bridge
+        // on first call. Both addresses sit inside libart's RX
+        // segment — the value differs but the classification is
+        // identical. This is benign ART machinery, not a
+        // Frida-Java attack. Empirically observed on Huawei API
+        // 31 for `Object.hashCode` and friends.
+        val records = arrayOf(
+            "java.lang.Object#hashCode|0x77139d0070|0x77139d01e0|libart|libart|1|1|1",
+        )
+        val findings = ArtIntegrityDetector.vectorEFindingsFromRecords(records, pkg)
+        assertEquals(0, findings.size)
+    }
+
+    @Test
+    fun `vectorEFindingsFromRecords suppresses drift on cross-region libart-boot_oat lazy resolution`() {
+        // Cross-region resolution within ART memory: bridge
+        // resolved from a libart stub into a boot OAT body, or
+        // vice versa. Less common than libart→libart but observed
+        // on some HwART / Samsung builds. Both directions are
+        // benign for declared-native methods.
+        val libartToBootOat = arrayOf(
+            "java.lang.Object#hashCode|0x720000a0|0x77139d01e0|boot_oat|libart|1|1|1",
+        )
+        assertEquals(
+            0,
+            ArtIntegrityDetector.vectorEFindingsFromRecords(libartToBootOat, pkg).size,
+        )
+        val bootOatToLibart = arrayOf(
+            "java.lang.Object#hashCode|0x77139d0070|0x72000000|libart|boot_oat|1|1|1",
+        )
+        assertEquals(
+            0,
+            ArtIntegrityDetector.vectorEFindingsFromRecords(bootOatToLibart, pkg).size,
+        )
+    }
+
+    @Test
+    fun `vectorEFindingsFromRecords suppresses drift WITHIN boot_oat`() {
+        // Bridge moved between boot OAT segments — rare but
+        // benign for declared-native methods.
+        val records = arrayOf(
+            "java.lang.Object#getClass|0x72005000|0x72000000|boot_oat|boot_oat|1|1|1",
+        )
+        val findings = ArtIntegrityDetector.vectorEFindingsFromRecords(records, pkg)
+        assertEquals(0, findings.size)
+    }
+
+    @Test
+    fun `vectorEFindingsFromRecords still emits drift on libart-to-jit_cache transition`() {
+        // Declared-native methods do NOT legitimately route
+        // through the JIT cache for their `data_` slot. A
+        // libart→jit_cache transition would be Frida-Java
+        // installing a bridge that happened to land in a JIT
+        // page — surface it.
+        val records = arrayOf(
+            "java.lang.Object#hashCode|0x484b0510|0x77139d01e0|jit_cache|libart|1|1|1",
+        )
+        val findings = ArtIntegrityDetector.vectorEFindingsFromRecords(records, pkg)
+        assertEquals(1, findings.size)
+        assertEquals(
+            ArtIntegrityDetector.KIND_ART_METHOD_JNI_ENTRY_DRIFTED,
+            findings[0].kind,
+        )
+    }
+
+    @Test
+    fun `vectorEFindingsFromRecords still emits drift on unknown-to-libart transition`() {
+        // unknown snapshot can mean (a) boot.art-resident stub
+        // (benign) or (b) attacker pre-poisoning. We can't tell
+        // them apart at this layer, so we report and let backends
+        // pivot on `snapshot_classification` / `live_classification`.
+        val records = arrayOf(
+            "java.lang.Object#hashCode|0x77139d01e0|0x7982f08000|libart|unknown|1|1|1",
+        )
+        val findings = ArtIntegrityDetector.vectorEFindingsFromRecords(records, pkg)
+        assertEquals(1, findings.size)
+        assertEquals(
+            ArtIntegrityDetector.KIND_ART_METHOD_JNI_ENTRY_DRIFTED,
+            findings[0].kind,
+        )
+    }
+
     // ---- Vector F — access_flags_ ACC_NATIVE bit watch tests ----
 
     @Test

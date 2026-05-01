@@ -48,6 +48,40 @@ bool starts_with(const char* s, const char* prefix) {
     return std::strncmp(s, prefix, std::strlen(prefix)) == 0;
 }
 
+/**
+ * Canonical AOSP read-only system partition prefixes — stable since
+ * Android 8 (Project Treble). Anything mapped from these directories
+ * was placed there by a system update through dm-verity / vbmeta and
+ * cannot be modified without bootloader-unlock + filesystem remount
+ * (which other detectors catch independently:
+ *  - `runtime.root` flips on Magisk / SuperSU / unlocked-bootloader
+ *  - `integrity.bootloader` flips when verifiedboot != Verified
+ *  - `attestation.key` ships the attestation chain to the backend).
+ *
+ * On emulators and OEMs that lazy-load vendor GL / HAL implementations
+ * after JNI_OnLoad, the OEM-self-adapt baseline rule misses these
+ * libraries — they become "loaded post-baseline from a directory the
+ * baseline never saw". This list is the safety net so those false
+ * positives surface as `system_library_late_loaded` (MEDIUM, kept for
+ * forensics) rather than `injected_library` (HIGH, panicky).
+ */
+constexpr const char* kSystemPathPrefixes[] = {
+    "/system/",
+    "/system_ext/",
+    "/product/",
+    "/odm/",
+    "/vendor/",
+    "/apex/",
+    "/data/dalvik-cache/",
+};
+
+bool is_system_path_prefix(const char* path) {
+    for (const char* p : kSystemPathPrefixes) {
+        if (starts_with(path, p)) return true;
+    }
+    return false;
+}
+
 const char* basename_of(const char* path) {
     const char* slash = std::strrchr(path, '/');
     return slash ? slash + 1 : path;
@@ -117,12 +151,26 @@ void scan_loaded_libs_via_dl(std::vector<InventoryRecord>& out, size_t capacity)
         //    happened post-baseline.
         if (is_filename_allowlisted(basename_of(name))) return 0;
 
-        // Anything else: loaded into our address space AFTER we
-        // initialised, from a directory we've never seen the
-        // legitimate Android boot chain use, AND not declared by
-        // the consumer app. That's the injected-library signal.
+        // Falls outside baseline + filename inventory. Two cases:
+        //
+        //  - Path is rooted in a canonical AOSP system partition
+        //    (`/system/`, `/vendor/`, `/apex/`, …). Read-only,
+        //    dm-verity-protected; an attacker writing here needs
+        //    bootloader unlock + remount, which is itself caught
+        //    by `runtime.root` + `integrity.bootloader`. Common on
+        //    emulators (lazy-loaded GL stack from `/vendor/`) and
+        //    OEMs that defer vendor library init. Surface as a
+        //    SOFT finding so the data is preserved for forensics
+        //    without producing 30+ HIGH-severity false positives.
+        //
+        //  - Anywhere else (`/data/local/tmp/`, `/sdcard/`,
+        //    `/storage/`, `/dev/shm/`, …). That's the canonical
+        //    Frida-gadget / LD_PRELOAD signal. Surface as a HARD
+        //    finding (HIGH severity).
         InventoryRecord rec{};
-        rec.kind = InventoryRecord::Kind::INJECTED_LIBRARY;
+        rec.kind = is_system_path_prefix(name)
+            ? InventoryRecord::Kind::SYSTEM_LIB_LATE_LOADED
+            : InventoryRecord::Kind::INJECTED_LIBRARY;
         const size_t copy_len = std::min<size_t>(std::strlen(name), sizeof(rec.path) - 1);
         std::memcpy(rec.path, name, copy_len);
         rec.path[copy_len] = '\0';
@@ -212,6 +260,15 @@ void scan_anon_exec_via_maps(std::vector<InventoryRecord>& out, size_t capacity)
             if (is_library_in_baseline(path_buf)) continue;
             // Build-time inventory match.
             if (is_filename_allowlisted(basename_of(path_buf))) continue;
+            // Canonical AOSP system path → already represented by
+            // the dl-iterate-phdr scanner as a SYSTEM_LIB_LATE_LOADED
+            // record (one finding per library, not one per PT_LOAD
+            // segment). Skip here to avoid the double-count we saw
+            // on emulators where every late-loaded `/vendor/lib64/`
+            // GL library produced both an `injected_library` and
+            // an `injected_anonymous_executable` finding for the
+            // same `.so`.
+            if (is_system_path_prefix(path_buf)) continue;
 
             // Anything else → flag, with the file path as `path`.
             InventoryRecord rec{};

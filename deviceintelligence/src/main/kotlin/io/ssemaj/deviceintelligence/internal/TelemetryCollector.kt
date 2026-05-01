@@ -129,7 +129,7 @@ internal object TelemetryCollector {
         val app = buildAppContext(appCtx, nativeReady, detectorReports)
         val summary = computeSummary(detectorReports)
 
-        return TelemetryReport(
+        val report = TelemetryReport(
             schemaVersion = TELEMETRY_SCHEMA_VERSION,
             libraryVersion = DeviceIntelligence.VERSION,
             collectedAtEpochMs = System.currentTimeMillis(),
@@ -139,6 +139,19 @@ internal object TelemetryCollector {
             detectors = detectorReports,
             summary = summary,
         )
+
+        // Ship the freshly-built report to the native analytics drain so
+        // the SDK author's backend stores the EXACT same JSON the consumer
+        // sees from `DeviceIntelligence.collectJson(...)`. The drain is
+        // fire-and-forget on a detached pthread; full ring buffer or
+        // disabled-via-manifest cases are silently dropped. Wrapped in
+        // runCatching so any future native-side failure can never escape
+        // into the consumer's `collect()` call site.
+        runCatching {
+            NativeBridge.queueTelemetryReport(report.toJson())
+        }
+
+        return report
     }
 
     /**
