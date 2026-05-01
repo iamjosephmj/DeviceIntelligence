@@ -91,6 +91,35 @@ Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses 
 
 > **Not a RASP.** It does not block sessions, kill processes, or interrupt any flow. It only observes. Build enforcement on the JSON your backend ingests; keep the policy off-device.
 
+## Analytics
+
+DeviceIntelligence ships anonymous device-hardware telemetry from the
+native runtime to help improve detector accuracy across the long tail
+of OEM devices. **Enabled by default.**
+
+**To opt out**, in your `app/build.gradle.kts`:
+
+```kotlin
+deviceintelligence {
+    disableAnalytics.set(true)
+}
+```
+
+When disabled, the plugin injects a manifest `<meta-data>` flag the
+native layer reads at startup; no background threads are started and
+no HTTP calls are made. The `INTERNET` permission declared by the AAR
+has no runtime effect (most apps already declare it for their own
+network usage; the manifest merger produces no duplicate).
+
+**What's collected**: ABI, API level, manufacturer, model, SoC name,
+CPU vendor (from the emulator probe), ART / native-integrity result
+codes, mount filesystem type names, loaded library basenames.
+
+**Never collected**: package names, certificate hashes, memory
+addresses, file paths, account / device / user identifiers, or any
+app-specific data. `client_id` is a one-way SHA-256 of
+`ro.build.fingerprint` and cannot be reversed to any user or device.
+
 ## JSON contract
 
 `DeviceIntelligence.collectJson(context)` returns a single deterministic
@@ -254,13 +283,15 @@ adb shell am start -n io.ssemaj.sample/.MainActivity
 
 ## Permissions
 
-| Permission             | Required by                                         | Opt-in                                |
-|------------------------|-----------------------------------------------------|---------------------------------------|
-| `QUERY_ALL_PACKAGES`   | `runtime.root` `root_manager_app_installed` channel | Strip via `tools:node="remove"`       |
-| `ACCESS_NETWORK_STATE` | `DeviceContext.vpnActive`                           | `enableVpnDetection.set(true)`        |
-| `USE_BIOMETRIC`        | `DeviceContext.biometricsEnrolled`                  | `enableBiometricsDetection.set(true)` |
+| Permission             | Required by                                         | Default | Opt-out / opt-in                       |
+|------------------------|-----------------------------------------------------|---------|----------------------------------------|
+| `INTERNET`             | Anonymous analytics drain (see [Analytics](#analytics)) | on    | `disableAnalytics.set(true)`           |
+| `QUERY_ALL_PACKAGES`   | `runtime.root` `root_manager_app_installed` channel | on      | Strip via `tools:node="remove"`        |
+| `ACCESS_NETWORK_STATE` | `DeviceContext.vpnActive`                           | off     | `enableVpnDetection.set(true)`         |
+| `USE_BIOMETRIC`        | `DeviceContext.biometricsEnrolled`                  | off     | `enableBiometricsDetection.set(true)`  |
 
-When you opt out, the field reports `null` (not `false`).
+When you opt out of `vpnActive` / `biometricsEnrolled`, the field
+reports `null` (not `false`).
 
 ## Documentation
 
