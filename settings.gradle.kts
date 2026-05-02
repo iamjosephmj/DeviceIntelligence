@@ -26,6 +26,13 @@ dependencyResolutionManagement {
 
 rootProject.name = "DeviceIntelligence"
 
+// JitPack runs an init script that resolves every configuration (listDeps). Parallel
+// project execution plus AGP/Kotlin can trigger ConcurrentModificationException while
+// iterating configurations (common with Gradle 8.13 + composite builds).
+if (!System.getenv("JITPACK").isNullOrEmpty()) {
+    gradle.startParameter.isParallelProjectExecutionEnabled = false
+}
+
 // In-tree library module. The Gradle plugin auto-detects this via
 // `rootProject.findProject(":deviceintelligence")` and substitutes
 // `project(":deviceintelligence")` for the otherwise-fetched JitPack AAR

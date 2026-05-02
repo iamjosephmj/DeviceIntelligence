@@ -170,3 +170,15 @@ afterEvaluate {
         }
     }
 }
+
+// JitPack applies `/deps.gradle`, which registers `:deviceintelligence:listDeps` to walk
+// configurations for metadata. That can throw ConcurrentModificationException with AGP 8.13 +
+// Kotlin when configurations mutate during traversal. Our `jitpack.yml` publishes via
+// `publishToMavenLocal`; listing is auxiliary — disable only when `JITPACK=true`.
+if (!System.getenv("JITPACK").isNullOrEmpty()) {
+    tasks.whenTaskAdded {
+        if (name == "listDeps") {
+            enabled = false
+        }
+    }
+}
