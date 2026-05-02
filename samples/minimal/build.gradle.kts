@@ -1,8 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    // Sample-only: pin JitPack to the commit that resolves reliably for consumers.
-    id("io.ssemaj.deviceintelligence") version "364d502a"
+    alias(libs.plugins.deviceintelligence)
 }
 
 android {
@@ -14,7 +13,7 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 1
-        versionName = "364d502a"
+        versionName = "0.5.2"
     }
 
     // Sample-only: reuse the SDK-installed debug keystore for release
