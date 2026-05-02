@@ -164,5 +164,18 @@ afterEvaluate {
                 )
             }
         }
+
+        repositories {
+            System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
+                maven {
+                    name = "GitHubPackages"
+                    url = uri("https://maven.pkg.github.com/$gpr")
+                    credentials {
+                        username = System.getenv("GITHUB_ACTOR").orEmpty()
+                        password = System.getenv("GITHUB_TOKEN").orEmpty()
+                    }
+                }
+            }
+        }
     }
 }
