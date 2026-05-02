@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.2"
-deviceintelligence = "364d502a"
+deviceintelligence = "0.5.2"
 kotlin = "2.0.21"
 # kotlinx-coroutines 1.9.0 pairs with Kotlin 2.0.x. Bumping the
 # Kotlin version implies re-checking the matching coroutines line.

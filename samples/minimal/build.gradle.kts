@@ -1,7 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.deviceintelligence)
+    // Sample-only: pin JitPack to the commit that resolves reliably for consumers.
+    id("io.ssemaj.deviceintelligence") version "364d502a"
 }
 
 android {
