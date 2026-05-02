@@ -79,18 +79,18 @@ static_assert(kSymbolCount <= kInlineMaxTargets,
 // ----------------------------------------------------------------
 // Embedded baseline table.
 //
-// Populated via the M8 "extract" workflow:
-//   1. Build the SDK with all M8 code in place.
-//   2. Run `NativeBridge.artIntegrityExtractPrologueBaseline()`
-//      on a known-clean device.
-//   3. The returned strings are `"<symbol>|<api_int>|<hex_bytes>"`.
-//   4. Paste a matching `BaselineEntry` row into [kBaselines]
-//      below, keeping the table sorted by api/symbol for
-//      readability.
-//
+// Empty by default fleet-wide (see `kBaselines` rationale below).
 // Symbols + APIs without a row are scanned for drift but skipped
 // for baseline-mismatch — the absence of an embedded baseline
 // is NOT a finding, just a coverage gap.
+//
+// To populate for an internal fleet:
+//   1. Run `NativeBridge.artIntegrityExtractPrologueBaseline()`
+//      on every clean device variant in your sample.
+//   2. The returned strings are `"<symbol>|<api_int>|<hex_bytes>"`.
+//   3. Only embed rows whose 16-byte prefix is byte-identical
+//      across EVERY sampled device for that (api_int, symbol).
+//      Rows that vary across builds re-introduce false positives.
 // ----------------------------------------------------------------
 struct BaselineEntry {
     int api_int;
@@ -98,63 +98,38 @@ struct BaselineEntry {
     uint8_t bytes[kPrologueBytes];
 };
 
-// Per-arch baseline tables. Only symbols whose first
-// `kPrologueBytes` are byte-identical across multiple clean
-// devices on a given API are embedded here. Symbols whose
-// prologues contain PC-relative branches or offsets (which
-// legitimately vary per-build at the same API) are deliberately
-// omitted to avoid swamping the report with `baseline_mismatch`
-// false positives. The drift check (snapshot vs live) catches
-// post-load tampering for those symbols just as well.
+// Per-arch baseline tables.
 //
-// To extend the table:
-//   1. Run `NativeBridge.artIntegrityExtractPrologueBaseline()`
-//      on multiple clean devices of the target API.
-//   2. Compare outputs across devices; only embed rows where
-//      every clean device produced the same 16-byte prefix.
-//   3. Paste matching rows here; keep the table sorted by
-//      api_int then symbol for human-friendly diffing.
-#if defined(__aarch64__)
-const BaselineEntry kBaselines[] = {
-    // API 36 — Pixel 9 Pro (Tensor G4) + Pixel 6 Pro (Tensor G1)
-    {36, "_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc",
-     {0xff,0x43,0x02,0xd1,0xfd,0x7b,0x05,0xa9,
-      0xf8,0x5f,0x06,0xa9,0xf6,0x57,0x07,0xa9}},
-    {36, "_ZN3art11ClassLinker9FindClassEPNS_6ThreadEPKcmNS_6HandleINS_6mirror11ClassLoaderEEE",
-     {0xff,0x43,0x05,0xd1,0xfd,0x7b,0x0f,0xa9,
-      0xfc,0x6f,0x10,0xa9,0xfa,0x67,0x11,0xa9}},
-    {36, "_ZN3art9JavaVMExt17LoadNativeLibraryEP7_JNIEnvRKNSt3__112basic_stringIcNS3_11char_traitsIcEENS3_9allocatorIcEEEEP8_jobjectP7_jclassPS9_",
-     {0xff,0xc3,0x04,0xd1,0xfd,0x7b,0x0d,0xa9,
-      0xfc,0x6f,0x0e,0xa9,0xfa,0x67,0x0f,0xa9}},
-    {36, "_ZN3art9JNIEnvExt11NewLocalRefEPNS_6mirror6ObjectE",
-     {0xff,0x43,0x01,0xd1,0xfd,0x7b,0x03,0xa9,
-      0xf4,0x4f,0x04,0xa9,0xfd,0xc3,0x00,0x91}},
-    {36, "_ZN3art6Thread21QuickDeliverExceptionEb",
-     {0xfd,0x7b,0xba,0xa9,0xfc,0x6f,0x01,0xa9,
-      0xfa,0x67,0x02,0xa9,0xf8,0x5f,0x03,0xa9}},
-    {36, "_ZN3art16WellKnownClasses4InitEP7_JNIEnv",
-     {0xfd,0x7b,0xbd,0xa9,0xf5,0x0b,0x00,0xf9,
-      0xf4,0x4f,0x02,0xa9,0xfd,0x03,0x00,0x91}},
-    {36, "JNI_GetCreatedJavaVMs",
-     {0xe8,0x03,0x1f,0x2a,0xe1,0x00,0x00,0x34,
-      0x89,0x1f,0x00,0xb0,0x29,0x69,0x40,0xf9}},
-    {36, "JNI_CreateJavaVM",
-     {0xff,0xc3,0x02,0xd1,0xfd,0x7b,0x06,0xa9,
-      0xf9,0x3b,0x00,0xf9,0xf8,0x5f,0x08,0xa9}},
-};
-#else
-// x86_64 baselines — not yet harvested. Run the
-// extract helper on an x86_64 emulator + add rows here.
-// (Empty arrays aren't standard C++, so we expose a zero
-// pointer instead.)
+// Intentionally empty for every arch by default. Earlier versions
+// embedded API-36 arm64 rows harvested from a small Pixel test
+// fleet (Tensor G4 + Tensor G1), but field telemetry showed those
+// rows produced a steady stream of MEDIUM `baseline_mismatch`
+// false positives on benign devices: prologue bytes legitimately
+// vary across clean libart builds at the same API level, even on
+// the same arch. The drivers of that variance are mundane (stack
+// frame size immediates, PIC offsets baked into adrp/ldr pairs,
+// register-allocation and inlining differences across AOSP revs).
+//
+// Rather than chase a per-libart-build harvest pipeline, the
+// detector now relies on Vector D's drift check (live vs the
+// JNI_OnLoad snapshot we capture in-process) for real-hook
+// detection. Drift compares the device against itself, so it is
+// immune to build skew and is what actually catches runtime
+// patches by Frida / Xposed / LSPosed. The "patched before our
+// JNI_OnLoad ran" attack the embedded table was meant to backstop
+// is independently caught by `injected_library`,
+// `hook_framework_present`, the GOT and `.text` integrity layers,
+// the stack and caller-verification layers, and ART Vectors A/C.
+//
+// To re-enable a build-time baseline (e.g. for an internal fleet
+// where you control the libart variant population), fill
+// kBaselines with rows in the format `{api_int, symbol, bytes}`
+// harvested via `NativeBridge.artIntegrityExtractPrologueBaseline()`.
+// Only embed rows where EVERY clean device in your sample fleet
+// produces the same 16-byte prefix, otherwise the false-positive
+// pattern returns.
 const BaselineEntry* const kBaselines = nullptr;
-#endif
-
-#if defined(__aarch64__)
-constexpr size_t kBaselineCount = sizeof(kBaselines) / sizeof(kBaselines[0]);
-#else
 constexpr size_t kBaselineCount = 0;
-#endif
 
 const BaselineEntry* find_baseline(int api_int, const char* symbol) {
     for (size_t i = 0; i < kBaselineCount; ++i) {
