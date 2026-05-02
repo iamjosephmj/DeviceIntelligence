@@ -13,7 +13,7 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = 1
-        versionName = "0.5.3"
+        versionName = "0.5.4"
     }
 
     // Sample-only: reuse the SDK-installed debug keystore for release
