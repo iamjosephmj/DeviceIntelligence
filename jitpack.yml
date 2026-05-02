@@ -8,44 +8,41 @@
 #      base image ships with.
 #
 #   2. There are two publishable modules: the runtime AAR (`:deviceintelligence`)
-#      and the Gradle plugin (under `deviceintelligence-gradle/`, not included as
-#      a composite in the root settings). A single root `./gradlew` invocation does
-#      not reach the plugin's `publishToMavenLocal`, so we invoke each half in
-#      turn so both land in `~/.m2/repository/$GROUP_PATH/...` for JitPack to pick up.
+#      and the Gradle plugin (under `deviceintelligence-gradle/`). We invoke
+#      each publish in turn so both land in `~/.m2/repository/$GROUP_PATH/...`.
 #
-# JitPack picks up VERSION_NAME from the git tag automatically and exposes
-# it as a Gradle property; both build files read it via providers.gradleProperty
-# (root) / Properties() in deviceintelligence-gradle/build.gradle.kts (included
-# build). No manual version bump needed at tag time.
+# Important: run the SDK bootstrap in ONE shell block so `export PATH` and
+# other env vars persist for `sdkmanager`. Some CI runners treat each YAML
+# list item as a separate subshell; split `export` + `sdkmanager` lines then
+# fail with "sdkmanager: not found" and JitPack only shows a terse
+# "Error building" in the UI — open the full build log for the real stderr.
+#
+# JitPack maps the git tag to Gradle `VERSION_NAME` for tag builds; local
+# `gradle.properties` is the fallback for non-tag builds.
 
 jdk:
-  - openjdk17
+  - openjdk21
 
 before_install:
-  # Pull a slim Android SDK + the exact NDK / CMake / build-tools / platform
-  # we use locally. This step is the bulk of JitPack's per-tag build time
-  # (~6-8 min on a cold cache, ~2 min once JitPack caches sdkmanager).
-  - export ANDROID_SDK_ROOT="$HOME/android-sdk"
-  - export ANDROID_HOME="$ANDROID_SDK_ROOT"
-  - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-  - curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-  - unzip -qo /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-  - mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-  - export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-  - yes | sdkmanager --licenses > /dev/null
-  - sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
+  - |
+    set -euo pipefail
+    export ANDROID_SDK_ROOT="$HOME/android-sdk"
+    export ANDROID_HOME="$ANDROID_SDK_ROOT"
+    mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+    curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+    unzip -qo /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+    mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+    chmod +x ./gradlew
+    yes | sdkmanager --licenses
+    sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
 
 install:
-  # Two-step publish — JitPack picks up everything that lands in mavenLocal
-  # under our group (com.github.iamjosephmj.DeviceIntelligence).
-  #
-  # Step 1: the runtime AAR (`deviceintelligence` module). This compiles
-  # libdicore.so for arm64-v8a + x86_64 via CMake+NDK and packages the
-  # release variant + sources + javadoc.
-  - ANDROID_HOME="$HOME/android-sdk" ./gradlew :deviceintelligence:publishToMavenLocal --no-daemon -x test
-  # Step 2: the Gradle plugin (`deviceintelligence-gradle` included build).
-  # Publishes the plugin JAR, the auto-generated marker POM (which makes
-  # `id("io.ssemaj.deviceintelligence") version "X"` resolvable for
-  # consumers without a settings-time resolutionStrategy hack), and the
-  # main + sources + javadoc artifacts.
-  - ANDROID_HOME="$HOME/android-sdk" ./gradlew -p deviceintelligence-gradle publishToMavenLocal --no-daemon
+  - |
+    set -euo pipefail
+    export ANDROID_SDK_ROOT="$HOME/android-sdk"
+    export ANDROID_HOME="$ANDROID_SDK_ROOT"
+    export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+    chmod +x ./gradlew
+    ./gradlew :deviceintelligence:publishToMavenLocal --no-daemon -x test
+    ./gradlew -p deviceintelligence-gradle publishToMavenLocal --no-daemon -x test
