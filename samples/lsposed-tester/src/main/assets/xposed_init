@@ -1,1 +1,3 @@
 io.ssemaj.lspmodule.MainHook
+io.ssemaj.lspmodule.DexInjectionHook
+io.ssemaj.lspmodule.EarlyDexInjectionHook

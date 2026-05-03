@@ -24,4 +24,33 @@ public final class XposedHelpers {
             Object... parameterTypesAndCallback) {
         return null;
     }
+
+    /**
+     * Resolves a class via the supplied {@link ClassLoader}.
+     * Equivalent to {@code Class.forName(className, true, classLoader)};
+     * Xposed's runtime variant additionally caches lookups.
+     */
+    public static Class<?> findClass(String className, ClassLoader classLoader) {
+        return null;
+    }
+
+    /**
+     * Reads a static reference-typed field. Used for grabbing the
+     * `INSTANCE` field of a Kotlin `object` from the host process.
+     */
+    public static Object getStaticObjectField(Class<?> clazz, String fieldName) {
+        return null;
+    }
+
+    /**
+     * Invokes a method on the supplied receiver, picking the
+     * matching overload by argument count and runtime types.
+     * The runtime variant is loose about boxing/unboxing and
+     * subtype matching, which is what makes it usable from a
+     * module that has no compile-time type information about
+     * the host.
+     */
+    public static Object callMethod(Object obj, String methodName, Object... args) {
+        return null;
+    }
 }
