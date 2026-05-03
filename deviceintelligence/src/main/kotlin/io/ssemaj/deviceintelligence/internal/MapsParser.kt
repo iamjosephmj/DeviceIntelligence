@@ -48,6 +48,37 @@ internal object MapsParser {
      *  - `libriru`, `libzygisk`: Riru / Zygisk loaders that LSPosed
      *    and other Magisk modules rely on.
      *  - `libtaichi`: Taichi (Xposed-on-non-rooted-devices framework).
+     *  - `libdobby`, `dobby_bridge`: Dobby — general-purpose ARM
+     *    inline-hook lib (github.com/jmpews/Dobby). The
+     *    `dobby_bridge` symbol-name shows up in maps even for
+     *    statically-linked uses, making this a strong signal.
+     *  - `libwhale`: Whale — Java method-hook framework
+     *    (github.com/asLody/whale). EdXposed-adjacent; minimal
+     *    legitimate-embed risk.
+     *  - `libyahfa`: YAHFA — "Yet Another Hook Framework for ART"
+     *    (github.com/PAGalaxyLab/YAHFA). Used as the ART-side
+     *    backend by EdXposed and some LSPosed configurations.
+     *  - `libfasthook`: FastHook
+     *    (github.com/turing-technician/FastHook). Niche but
+     *    seen in game-modding kits.
+     *  - `libil2cppdumper`, `zygisk-il2cpp`: zygisk-il2cpp-dumper —
+     *    Zygisk module that dumps Unity IL2CPP game logic. Common
+     *    on cheating frameworks targeting Unity-based games.
+     *
+     * NOT in this list (intentionally — known false-positive risk):
+     *  - **ShadowHook** (`libshadowhook`) — open-sourced by Bytedance
+     *    and shipped IN their own apps (TikTok, Douyin, CapCut,
+     *    Lemon8) for legitimate in-app patching. Detecting the
+     *    library name alone would FP on every Bytedance install.
+     *    Catching ShadowHook-driven attacks specifically requires
+     *    the embedded-vs-injected distinction (cross-reference
+     *    against the consumer app's build-time native-lib
+     *    inventory). Tracked under CTF_ROADMAP for a future
+     *    release.
+     *  - **SandHook** (`libsandhook`), **Pine** (`libpine`) — used
+     *    as ART-hook backends by both attack tooling AND some
+     *    legitimate game-cheat-prevention frameworks. Same
+     *    embedded-vs-injected distinction needed before adding.
      */
     internal val HOOK_FRAMEWORK_SIGNATURES: List<HookFramework> = listOf(
         HookFramework("frida", listOf("frida-agent", "frida-gadget", "gum-js-loop")),
@@ -57,6 +88,11 @@ internal object MapsParser {
         HookFramework("riru", listOf("libriru")),
         HookFramework("zygisk", listOf("libzygisk")),
         HookFramework("taichi", listOf("libtaichi")),
+        HookFramework("dobby", listOf("libdobby", "dobby_bridge")),
+        HookFramework("whale", listOf("libwhale")),
+        HookFramework("yahfa", listOf("libyahfa")),
+        HookFramework("fasthook", listOf("libfasthook")),
+        HookFramework("il2cpp_dumper", listOf("libil2cppdumper", "zygisk-il2cpp")),
     )
 
     internal data class HookFramework(val canonicalName: String, val signatures: List<String>)
