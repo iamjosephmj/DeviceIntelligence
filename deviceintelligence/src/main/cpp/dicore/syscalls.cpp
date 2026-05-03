@@ -1,5 +1,6 @@
 #include "syscalls.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -10,8 +11,11 @@ namespace dicore::sys {
 
 namespace {
 
-// Inline-asm syscall stubs. Both arches use 6-arg form; unused trailing
-// args are passed as 0.
+// Inline-asm syscall stubs. The 64-bit ABIs (aarch64, x86_64) issue
+// raw syscalls directly to bypass any libc-level hooks an attacker
+// might have installed. The 32-bit ARM (armeabi-v7a) branch
+// delegates to libc instead — see the lengthy comment near the
+// __arm__ block below for why.
 
 #if defined(__aarch64__)
 
@@ -65,9 +69,42 @@ static inline long do_syscall6(long nr,
     return ret;
 }
 
+#elif defined(__arm__)
+
+// 32-bit ARM (armeabi-v7a) — delegate to libc rather than issue raw
+// syscalls. NO `do_syscall6` / NR_* declarations on this branch:
+// the public wrappers below `#if defined(__arm__)` straight into
+// libc, and `-Werror -Wunused-*` would reject any unused stubs.
+//
+// The 32-bit Linux ARM ABI diverges from the 64-bit ABIs in three
+// places that are easy to get subtly wrong:
+//
+//   1. `lseek` takes a 32-bit offset. For 64-bit `off_t` (which
+//      Android sets via `_FILE_OFFSET_BITS=64` for our minSdk 28+
+//      targets), userspace must call `_llseek` (NR=140) which has
+//      a totally different argument layout: `(fd, offset_high,
+//      offset_low, *result, whence)`.
+//   2. `mmap` legacy form vs `mmap2` (NR=192) which takes offset
+//      in 4 KB pages, not bytes — easy to get pgoff/byteoff
+//      conversion subtly wrong.
+//   3. `fstat` requires `fstat64` (NR=197) on 32-bit — bionic's
+//      `struct stat` is internally `stat64`-shaped, so the
+//      legacy `fstat` uses an incompatible kernel struct.
+//
+// Each of these is fixable, but every fix introduces a way for a
+// subtle bug to silently corrupt the read. armeabi-v7a is a
+// secondary ABI in this library (low-end devices in EM markets,
+// already reduced to INCONCLUSIVE for `integrity.art` due to the
+// 32-bit ART struct-offset gap) so the security tradeoff is to
+// route through libc here. A libc hooker can intercept these
+// reads on 32-bit ARM that they cannot on 64-bit; documented in
+// docs/DETECTORS.md as part of the armeabi-v7a coverage notes.
+
 #else
 #  error "Unsupported architecture for dicore raw syscalls"
 #endif
+
+#if !defined(__arm__)
 
 // Translate a kernel return value into (return, errno).
 // Kernel returns -errno for errors in the range [-4095, -1]; any other
@@ -77,9 +114,16 @@ static inline bool is_kernel_error(long ret) {
     return static_cast<unsigned long>(ret) >= static_cast<unsigned long>(-4096L);
 }
 
+#endif  // !defined(__arm__)
+
 } // namespace
 
 int raw_openat(int dirfd, const char* path, int flags, int mode, int* errno_out) {
+#if defined(__arm__)
+    int r = ::openat(dirfd, path, flags, mode);
+    if (r < 0 && errno_out) *errno_out = errno;
+    return r;
+#else
     long r = do_syscall6(NR_openat,
                          (long)dirfd, (long)path, (long)flags, (long)mode, 0, 0);
     if (is_kernel_error(r)) {
@@ -87,17 +131,31 @@ int raw_openat(int dirfd, const char* path, int flags, int mode, int* errno_out)
         return -1;
     }
     return (int)r;
+#endif
 }
 
 int raw_close(int fd) {
+#if defined(__arm__)
+    return ::close(fd);
+#else
     long r = do_syscall6(NR_close, (long)fd, 0, 0, 0, 0, 0);
     return is_kernel_error(r) ? -1 : 0;
+#endif
 }
 
 ssize_t raw_read_full(int fd, void* buf, size_t count, int* errno_out) {
     auto* p = static_cast<uint8_t*>(buf);
     size_t total = 0;
     while (total < count) {
+#if defined(__arm__)
+        ssize_t r = ::read(fd, p + total, count - total);
+        if (r < 0) {
+            if (errno_out) *errno_out = errno;
+            return -1;
+        }
+        if (r == 0) break; // EOF
+        total += (size_t)r;
+#else
         long r = do_syscall6(NR_read,
                              (long)fd, (long)(p + total), (long)(count - total),
                              0, 0, 0);
@@ -107,11 +165,17 @@ ssize_t raw_read_full(int fd, void* buf, size_t count, int* errno_out) {
         }
         if (r == 0) break; // EOF
         total += (size_t)r;
+#endif
     }
     return (ssize_t)total;
 }
 
 off_t raw_lseek(int fd, off_t offset, int whence, int* errno_out) {
+#if defined(__arm__)
+    off_t r = ::lseek(fd, offset, whence);
+    if (r == (off_t)-1 && errno_out) *errno_out = errno;
+    return r;
+#else
     long r = do_syscall6(NR_lseek,
                          (long)fd, (long)offset, (long)whence, 0, 0, 0);
     if (is_kernel_error(r)) {
@@ -119,20 +183,33 @@ off_t raw_lseek(int fd, off_t offset, int whence, int* errno_out) {
         return (off_t)-1;
     }
     return (off_t)r;
+#endif
 }
 
 int raw_fstat_size(int fd, off_t* out_size, int* errno_out) {
     struct stat st {};
+#if defined(__arm__)
+    if (::fstat(fd, &st) < 0) {
+        if (errno_out) *errno_out = errno;
+        return -1;
+    }
+#else
     long r = do_syscall6(NR_fstat, (long)fd, (long)&st, 0, 0, 0, 0);
     if (is_kernel_error(r)) {
         if (errno_out) *errno_out = (int)(-r);
         return -1;
     }
+#endif
     if (out_size) *out_size = (off_t)st.st_size;
     return 0;
 }
 
 void* raw_mmap_readonly(size_t length, int fd, off_t offset, int* errno_out) {
+#if defined(__arm__)
+    void* p = ::mmap(nullptr, length, PROT_READ, MAP_PRIVATE, fd, offset);
+    if (p == MAP_FAILED && errno_out) *errno_out = errno;
+    return p;
+#else
     long r = do_syscall6(NR_mmap,
                          0,                         // addr = NULL (kernel chooses)
                          (long)length,
@@ -145,11 +222,16 @@ void* raw_mmap_readonly(size_t length, int fd, off_t offset, int* errno_out) {
         return MAP_FAILED;
     }
     return reinterpret_cast<void*>(r);
+#endif
 }
 
 int raw_munmap(void* addr, size_t length) {
+#if defined(__arm__)
+    return ::munmap(addr, length);
+#else
     long r = do_syscall6(NR_munmap, (long)addr, (long)length, 0, 0, 0, 0);
     return is_kernel_error(r) ? -1 : 0;
+#endif
 }
 
 } // namespace dicore::sys

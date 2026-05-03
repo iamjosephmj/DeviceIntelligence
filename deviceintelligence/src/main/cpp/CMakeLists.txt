@@ -51,11 +51,15 @@ add_library(dicore SHARED
 # F12 emulator probe: per-ABI implementation. Each ABI build pulls
 # in exactly one of these — emu_probe_arm64.cpp uses MRS asm that
 # only the AArch64 toolchain accepts, emu_probe_x86_64.cpp uses
-# __get_cpuid which is x86-only.
+# __get_cpuid which is x86-only, emu_probe_armeabi_v7a.cpp is a
+# graceful-degrade stub that reports "unsupported" on 32-bit ARM
+# (where the AArch64 system-register reads simply don't exist).
 if (ANDROID_ABI STREQUAL "arm64-v8a")
     target_sources(dicore PRIVATE dicore/emu_probe_arm64.cpp)
 elseif (ANDROID_ABI STREQUAL "x86_64")
     target_sources(dicore PRIVATE dicore/emu_probe_x86_64.cpp)
+elseif (ANDROID_ABI STREQUAL "armeabi-v7a")
+    target_sources(dicore PRIVATE dicore/emu_probe_armeabi_v7a.cpp)
 endif()
 
 find_library(log-lib log)

@@ -28,7 +28,17 @@ android {
         minSdk = 28
         consumerProguardFiles("consumer-rules.pro")
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            // armeabi-v7a (32-bit ARM) is included for compatibility with
+            // low-end devices common in EM markets. ART-internals
+            // tampering vectors (`integrity.art`) report INCONCLUSIVE on
+            // 32-bit because the ArtMethod field-offset table in
+            // dicore/art_integrity/offsets.cpp is 64-bit-specific —
+            // wiring up 32-bit offsets is a research task per Android
+            // version and not yet done. All other detectors
+            // (apk / bootloader / attestation / runtime.environment /
+            // root / emulator / cloner / runtime DEX-injection) work
+            // identically on the third ABI.
+            abiFilters += listOf("arm64-v8a", "x86_64", "armeabi-v7a")
         }
         externalNativeBuild {
             cmake {

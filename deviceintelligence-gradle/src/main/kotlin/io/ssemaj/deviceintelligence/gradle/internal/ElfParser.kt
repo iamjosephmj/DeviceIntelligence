@@ -33,8 +33,11 @@ import java.security.MessageDigest
  * patching of executable code.
  *
  * Scope is intentionally narrow:
- *   - 64-bit ELF only (we ship arm64-v8a and x86_64; both 64-bit).
- *   - Little-endian only (both supported ABIs are LE).
+ *   - ELF32 (armeabi-v7a) and ELF64 (arm64-v8a, x86_64) supported
+ *     for the segment hash; the historical section-level
+ *     [findSection] entry point remains ELF64-only (it's a
+ *     diagnostic, never on the runtime path).
+ *   - Little-endian only (every Android ABI we support is LE).
  *   - Only the program-header table (for the segment hash) and the
  *     section-header table (for the historical [findSection] entry
  *     point) are walked. We do not parse symbols, relocations,
@@ -50,6 +53,7 @@ internal object ElfParser {
     private const val EI_NIDENT: Int = 16
     private const val EI_CLASS: Int = 4
     private const val EI_DATA: Int = 5
+    private const val ELF_CLASS_32: Byte = 1
     private const val ELF_CLASS_64: Byte = 2
     private const val ELF_DATA_LE: Byte = 1
     private val ELF_MAGIC: ByteArray = byteArrayOf(0x7f, 0x45, 0x4c, 0x46) // "\x7fELF"
@@ -101,15 +105,29 @@ internal object ElfParser {
      * with PF_X set. There's exactly one in every Android `.so`
      * shipped through the NDK toolchain — code lives in a single
      * RX segment, .data / .bss in a separate RW segment.
+     *
+     * Dispatches on `EI_CLASS` to handle ELF32 (armeabi-v7a) and
+     * ELF64 (arm64-v8a, x86_64). The two classes have different
+     * header / phdr layouts — not just smaller fields, but a
+     * **different field order in the program header**: 32-bit
+     * places `p_flags` AFTER the size fields, 64-bit places it
+     * second after `p_type`. Each class therefore has its own
+     * helper to keep the parsing code unambiguous.
      */
     private fun findExecutableSegment(elfBytes: ByteArray): SegmentRef? {
         if (elfBytes.size < EI_NIDENT) return null
         for (i in ELF_MAGIC.indices) {
             if (elfBytes[i] != ELF_MAGIC[i]) return null
         }
-        if (elfBytes[EI_CLASS] != ELF_CLASS_64) return null
         if (elfBytes[EI_DATA] != ELF_DATA_LE) return null
+        return when (elfBytes[EI_CLASS]) {
+            ELF_CLASS_64 -> findExecutableSegment64(elfBytes)
+            ELF_CLASS_32 -> findExecutableSegment32(elfBytes)
+            else -> null
+        }
+    }
 
+    private fun findExecutableSegment64(elfBytes: ByteArray): SegmentRef? {
         // 64-bit ELF header layout (after e_ident[16]):
         //   uint16 e_type
         //   uint16 e_machine
@@ -151,6 +169,57 @@ internal object ElfParser {
             val pOffset = pdi.readLongLE()
             pdi.skipBytes(8 + 8) // p_vaddr, p_paddr
             val pFilesz = pdi.readLongLE()
+            return SegmentRef(offset = pOffset, size = pFilesz)
+        }
+        return null
+    }
+
+    private fun findExecutableSegment32(elfBytes: ByteArray): SegmentRef? {
+        // 32-bit ELF header layout (after e_ident[16]):
+        //   uint16 e_type
+        //   uint16 e_machine
+        //   uint32 e_version
+        //   uint32 e_entry
+        //   uint32 e_phoff       <-- offset of program header table (32-bit!)
+        //   uint32 e_shoff
+        //   uint32 e_flags
+        //   uint16 e_ehsize
+        //   uint16 e_phentsize   <-- size of one program header
+        //   uint16 e_phnum
+        val di = DataInputStream(ByteArrayInputStream(elfBytes, EI_NIDENT, elfBytes.size - EI_NIDENT))
+        di.skipBytes(2 + 2 + 4 + 4) // e_type..e_entry (e_entry is 32-bit on ELF32)
+        val ePhoff = (di.readIntLE().toLong() and 0xFFFFFFFFL)
+        di.skipBytes(4 + 4 + 2)     // e_shoff, e_flags, e_ehsize
+        val ePhentsize = di.readShortLE().toInt() and 0xFFFF
+        val ePhnum = di.readShortLE().toInt() and 0xFFFF
+        if (ePhoff <= 0 || ePhentsize < 32 || ePhnum <= 0) return null
+
+        val phtableEnd = ePhoff + ePhnum.toLong() * ePhentsize.toLong()
+        if (phtableEnd > elfBytes.size) return null
+
+        // Each 32-bit program header is 32 bytes — note the DIFFERENT
+        // FIELD ORDER vs the 64-bit phdr: p_flags moves to AFTER the
+        // size fields, not adjacent to p_type.
+        //   uint32 p_type        <-- PT_LOAD = 1
+        //   uint32 p_offset      <-- file offset
+        //   uint32 p_vaddr
+        //   uint32 p_paddr
+        //   uint32 p_filesz      <-- bytes in the file
+        //   uint32 p_memsz
+        //   uint32 p_flags       <-- PF_X = 0x1 (different position from 64-bit!)
+        //   uint32 p_align
+        for (i in 0 until ePhnum) {
+            val pos = ePhoff + i.toLong() * ePhentsize.toLong()
+            if (pos < 0 || pos + 32 > elfBytes.size) continue
+            val pdi = DataInputStream(ByteArrayInputStream(elfBytes, pos.toInt(), ePhentsize))
+            val pType = pdi.readIntLE()
+            if (pType != PT_LOAD) continue
+            val pOffset = (pdi.readIntLE().toLong() and 0xFFFFFFFFL)
+            pdi.skipBytes(4 + 4)        // p_vaddr, p_paddr
+            val pFilesz = (pdi.readIntLE().toLong() and 0xFFFFFFFFL)
+            pdi.skipBytes(4)            // p_memsz
+            val pFlags = pdi.readIntLE()
+            if ((pFlags and PF_X) == 0) continue
             return SegmentRef(offset = pOffset, size = pFilesz)
         }
         return null

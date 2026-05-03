@@ -76,9 +76,11 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "0.7.1"
+    id("io.ssemaj.deviceintelligence") version "0.8.0"
 }
 ```
+
+Ships native binaries for **`arm64-v8a`**, **`x86_64`**, and **`armeabi-v7a`** (32-bit ARM). On 32-bit devices, all detectors run except `integrity.art`, which reports `INCONCLUSIVE` because the underlying `ArtMethod` field-offset table is currently 64-bit-only.
 
 ## Quick start
 
@@ -256,7 +258,7 @@ the unmodified real value. For tripped-detector examples, see
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.7.1",
+  "library_version": "0.8.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -322,7 +324,7 @@ the unmodified real value. For tripped-detector examples, see
     "installer_package": null,
     "signer_cert_sha256": ["a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"],
     "build_variant": "debug",
-    "library_plugin_version": "0.7.1",
+    "library_plugin_version": "0.8.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
