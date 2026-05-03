@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "0.8.1"
+    id("io.ssemaj.deviceintelligence") version "0.9.0"
 }
 ```
 
@@ -266,7 +266,7 @@ the unmodified real value. For tripped-detector examples, see
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.8.1",
+  "library_version": "0.9.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -332,7 +332,7 @@ the unmodified real value. For tripped-detector examples, see
     "installer_package": null,
     "signer_cert_sha256": ["a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"],
     "build_variant": "debug",
-    "library_plugin_version": "0.8.1",
+    "library_plugin_version": "0.9.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
