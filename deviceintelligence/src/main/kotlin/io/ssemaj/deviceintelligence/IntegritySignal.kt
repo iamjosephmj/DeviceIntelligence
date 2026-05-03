@@ -190,6 +190,56 @@ public enum class IntegritySignal {
      * `ro_debuggable_mismatch`.
      */
     DEBUG_FLAG_MISMATCH,
+
+    // ---- correlation signals --------------------------------------------
+
+    /**
+     * The strongest single tamper signal the SDK can produce.
+     *
+     * Fires when **both** of these are simultaneously true:
+     *  1. Hardware key attestation reports `verifiedBootState =
+     *     Verified` — the TEE asserts that the device booted from
+     *     a locked bootloader running an OS image that matches the
+     *     factory-signed verified-boot root of trust.
+     *  2. Any active userspace tamper finding from
+     *     [HOOKING_FRAMEWORK_DETECTED] is also present in the same
+     *     report (Frida agent / Xposed / LSPosed / runtime DEX
+     *     injection / RWX trampoline / GOT drift / `.text` drift /
+     *     ART-internals tampering).
+     *
+     * Either signal alone is interesting. The combination is
+     * extraordinary: the hardware says "this is a clean,
+     * locked-bootloader device running a real signed OS," and the
+     * userspace simultaneously says "this process is being actively
+     * hooked." Two explanations are possible:
+     *
+     *  - **TEE compromise** — rare but known on certain
+     *    Exynos/Qualcomm/MediaTek silicon with published vulnerabilities,
+     *    Pixel firmwares with developer-side TEE bypasses, or devices
+     *    with custom firmware that maintains a verified-boot signature
+     *    while subverting userspace.
+     *  - **Sophisticated post-attestation injection** — an attacker
+     *    who passed verified boot (legitimate-looking OS) and then
+     *    injected userspace tooling against the running process.
+     *    Common with Magisk on devices that pass attestation via
+     *    Shamiko / Magisk hide.
+     *
+     * Either way, this is the highest-confidence "this session is
+     * compromised" signal a backend can receive. Backends should
+     * weight it equivalently to a hard block / step-up
+     * authentication / kill-switch decision; weighting it the same
+     * as a generic [HOOKING_FRAMEWORK_DETECTED] would understate
+     * how anomalous the combination is.
+     *
+     * Backed by `attestation.key` finding kind:
+     * `hardware_attested_but_userspace_tampered`. The derived finding
+     * is computed by [io.ssemaj.deviceintelligence.internal.TelemetryCollector]
+     * after every detector has run and is appended to the
+     * `attestation.key` detector report's findings list (the
+     * attestation half is the load-bearing precondition, so the
+     * derived finding belongs there semantically).
+     */
+    HARDWARE_ATTESTED_USERSPACE_TAMPERED,
 }
 
 /**
@@ -429,6 +479,15 @@ private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     // ---- runtime.environment debugger surface ----
     put("debugger_attached", IntegritySignal.DEBUGGER_ATTACHED)
     put("ro_debuggable_mismatch", IntegritySignal.DEBUG_FLAG_MISMATCH)
+
+    // ---- attestation × runtime correlation (CTF Flag 5) ----
+    // Derived finding emitted by TelemetryCollector after all
+    // detectors run, when verifiedBootState=Verified AND any
+    // hook-finding kind is also present. CRITICAL severity.
+    put(
+        "hardware_attested_but_userspace_tampered",
+        IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED,
+    )
 
     // ---- runtime.root ----
     put("su_binary_present", IntegritySignal.ROOT_INDICATORS_PRESENT)
