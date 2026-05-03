@@ -72,7 +72,27 @@ lifecycleScope.launch {
 }
 ```
 
-`kotlinx-coroutines-android` is the only runtime dependency. For Java callers use `collectBlocking()`; for long-running observation use `observe()`.
+**Observe**
+
+```kotlin
+// Per-collect snapshots — each emission replaces the previous.
+DeviceIntelligence.observe(context, interval = 2.seconds)
+    .onEach { report -> render(report) }
+    .launchIn(lifecycleScope)
+
+// Cumulative session view — accumulates findings across collects with
+// first-seen / last-seen / observation_count / still_active flags so a
+// transient hook that fires once and detaches stays visible.
+DeviceIntelligence.observeSession(context, interval = 2.seconds)
+    .onEach { session ->
+        // session.findings: List<TrackedFinding>
+        // session.toJson(): canonical wire format for backends
+        render(session.findings)
+    }
+    .launchIn(lifecycleScope)
+```
+
+`kotlinx-coroutines-android` is the only runtime dependency. For Java callers use `collectBlocking()`; for long-running observation use `observe()` (per-collect) or `observeSession()` (cumulative).
 
 ## What it collects
 
@@ -82,7 +102,7 @@ lifecycleScope.launch {
 | Bootloader integrity | `integrity.bootloader`   | TEE-spoofing / cached-chain detection on `attestation.key`                    |
 | ART integrity        | `integrity.art`          | In-process ART tampering across 5 vectors (Frida, Xposed, LSPosed, Pine, …)   |
 | Key attestation      | `attestation.key`        | TEE / StrongBox attestation: Verified Boot, bootloader lock, OS patch level   |
-| Runtime environment  | `runtime.environment`    | Debugger / ptrace / native integrity stack (text hash, GOT, injected libs, …) |
+| Runtime environment  | `runtime.environment`    | Debugger / ptrace / native integrity stack (text hash, GOT, injected libs) + runtime DEX-injection (InMemoryDexClassLoader / DexClassLoader payloads) |
 | Root indicators      | `runtime.root`           | `su` binary, Magisk artifacts, `test-keys`, root-manager apps                 |
 | Emulator probe       | `runtime.emulator`       | CPU-instruction-level signals (arm64 MRS / x86_64 CPUID hypervisor bit)       |
 | App cloner           | `runtime.cloner`         | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches         |

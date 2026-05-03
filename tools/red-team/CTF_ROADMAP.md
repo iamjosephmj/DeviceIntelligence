@@ -49,12 +49,19 @@ gaps.
 
 **Status: shipped, awaiting on-device capture.** Implementation
 references:
-- Detector: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/DexInjectionDetector.kt`
+- Helper: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/DexInjection.kt`
+  (called from `RuntimeEnvironmentDetector.doLiveEvaluate`; **not** a
+  separate detector — the findings ride on the `runtime.environment`
+  wire-format ID alongside `hook_framework_present`,
+  `rwx_memory_mapping`, etc.)
 - Maps helper: `MapsParser.scanDalvikAnonRegions(...)` in the same package
-- Wired into `TelemetryCollector.defaultDetectors`; finding kinds
-  mapped to `IntegritySignal.HOOKING_FRAMEWORK_DETECTED` in
-  `IntegritySignalMapper.KIND_TO_SIGNAL`
-- Pure-JVM tests: `DexInjectionDetectorTest`, plus 6 new cases in
+- Five new finding kinds mapped to
+  `IntegritySignal.HOOKING_FRAMEWORK_DETECTED` in
+  `IntegritySignalMapper.KIND_TO_SIGNAL`:
+  `dex_classloader_added`, `dex_path_outside_apk`,
+  `dex_in_memory_loader_injected`, `dex_in_anonymous_mapping`,
+  `unattributable_dex_at_baseline`
+- Pure-JVM tests: `DexInjectionTest`, plus 6 new cases in
   `MapsParserTest` for the dalvik-anon scanner
 - Red-team harnesses:
   `tools/red-team/dex-injection-inmemory.js` (channel b, Frida),
@@ -77,16 +84,18 @@ baseline. The harness avoids that by:
 1. Posting a 2.5 s delayed task on the main thread (so
    Application.onCreate has finished installing ContentProviders).
 2. Calling `DeviceIntelligence.collectBlocking(ctx)` once on a
-   worker thread to lock in a known-clean baseline (this triggers
-   `DexInjectionDetector.evaluate()` whether the prewarm has run
+   worker thread to lock in a known-clean baseline (this drives
+   the `DexInjection` helper inside `runtime.environment` — it
+   captures its first-call snapshot whether the prewarm has run
    or not).
 3. Loading the baked DEX via `InMemoryDexClassLoader` (channel b)
    and, if `/data/local/tmp/flag1-payload.dex` is present, also
    via `DexClassLoader` (channel a).
-4. Calling `collectBlocking` again and diffing the `runtime.dex`
-   findings list. `FLAG CAPTURED` lands in `logcat -s
-   DI-LSPDexHook` (or LSPosed's own log) when the post-tamper
-   delta contains `dex_in_memory_loader_injected`,
+4. Calling `collectBlocking` again and diffing the
+   `runtime.environment` findings (filtered to the five
+   `DexInjection`-emitted kinds). `FLAG CAPTURED` lands in
+   `logcat -s DI-LSPDexHook` (or LSPosed's own log) when the
+   post-tamper delta contains `dex_in_memory_loader_injected`,
    `dex_in_anonymous_mapping`, or `dex_path_outside_apk`.
 
 **Three timing scenarios to validate on-device** (all using the
@@ -108,19 +117,22 @@ a Magisk module flash + reboot cycle. If the Early scenario
 captures the same gap a real Zygisk module would, we can fix the
 detector first and only then verify against real Zygisk.
 
-**Predicted detector gap (the thing the Early scenario tests).**
-`DexInjectionDetector` snapshots the loader chain on first
-`evaluate()` — which is whenever the prewarm coroutine first
-runs the detector. If a foreign DEX is in the chain BEFORE that
-snapshot, channel (a)'s diff sees it as part of the clean
-baseline and never flags it. Channel (b) has the same problem
-for the `[anon:dalvik-...]` baseline. The fix: emit a derived
+**Predicted detector gap (the thing the Early scenario tests —
+captured and resolved as of 0.6.0).** The `DexInjection` helper
+snapshots the loader chain on first scan — which is whenever the
+prewarm coroutine first runs `runtime.environment`. If a foreign
+DEX is in the chain BEFORE that snapshot, channel (a)'s diff
+sees it as part of the clean baseline and never flags it.
+Channel (b) has the same problem for the `[anon:dalvik-...]`
+baseline. The fix shipped in 0.6.0: emit a derived
 `unattributable_dex_at_baseline` finding (severity MEDIUM,
 informational) whenever the FIRST observed snapshot already
 contains a DEX element whose path is null or outside the APK
 split set. Won't reach the Frida-style "clean baseline + dirty
 post-tamper" deterministic capture, but gives backends a strong
-signal to correlate on across many devices.
+signal to correlate on across many devices. Validated on Pixel
+6 Pro / Android 16: the Early hook reliably trips
+`unattributable_dex_at_baseline` on prewarm.
 
 
 **Attacker behaviour**
@@ -191,15 +203,22 @@ on supported API levels.
 | `dex_cache_count_grew`          | MEDIUM   | (c)            | ART `dex_caches_` grew vs `JNI_OnLoad` snapshot; no attributable source. |
 | `dex_inspection_unsupported`    | INFO     | (c)            | API level / ART layout outside the supported range; (c) skipped on this device. |
 
-Wire-name proposal: `runtime.dex_injection` (sits next to
-`integrity.art`, parallel structure).
+Wire-name (as shipped in 0.6.0+): findings ride on
+`runtime.environment` alongside the other process-wide
+hook-detection signals (`hook_framework_present`,
+`rwx_memory_mapping`, etc.). DEX injection is bytecode-level
+hooking and conceptually belongs in the same bucket. Earlier
+drafts of this document proposed a separate `runtime.dex`
+detector ID; that was merged into `runtime.environment` for
+taxonomy alignment.
 
 **Red-team harness (planned)**
 
 - `tools/red-team/dex-injection-inmemory.js` — Frida script that
-  pre-warms the bridge, takes a clean `runtime.dex_injection`
-  baseline, then uses `Java.use("dalvik.system.InMemoryDexClassLoader")`
-  to `$new(...)` a tiny payload DEX (~50 bytes, one empty class)
+  pre-warms the bridge, takes a clean `runtime.environment`
+  baseline (filtered to DEX-injection-specific kinds), then uses
+  `Java.use("dalvik.system.InMemoryDexClassLoader")` to
+  `$new(...)` a tiny payload DEX (~50 bytes, one empty class)
   from a `ByteBuffer.wrap(bytes)`. Re-runs `collect()` and asserts
   `dex_in_anonymous_mapping` + `dex_classloader_added` fire.
 - `tools/red-team/dex-injection-disk.js` — pushes a
@@ -215,12 +234,13 @@ Wire-name proposal: `runtime.dex_injection` (sits next to
 
 A run captures Flag 1 when:
 
-1. Clean dry-run shows `runtime.dex_injection.status = OK`,
-   `findings = 0`.
+1. Clean dry-run shows zero DEX-injection-related findings in
+   the `runtime.environment` detector report (filter the report's
+   findings to the five `DexInjection`-emitted kinds).
 2. Harness loads a foreign DEX.
 3. Post-tamper `collect()` reports at least one of
    `dex_classloader_added`, `dex_path_outside_apk`, or
-   `dex_in_anonymous_mapping`.
+   `dex_in_anonymous_mapping` under `runtime.environment`.
 4. Restoring/clearing the loader on a fresh process boot returns
    the dry-run to clean.
 

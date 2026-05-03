@@ -60,14 +60,23 @@ frida -D <device> -p $PID -q -l tools/red-team/dex-injection-inmemory.js
 
 Expected:
 ```
-[flag1-inmemory baseline] runtime.dex status=OK findings=0
+[flag1-inmemory baseline] runtime.environment status=OK dex-injection-findings=0 (of N total)
 [flag1-inmemory] DEX payload size = 772 bytes
 [flag1-inmemory] InMemoryDexClassLoader installed: ...
-[flag1-inmemory post-tamper] runtime.dex status=OK findings=N
+[flag1-inmemory post-tamper] runtime.environment status=OK dex-injection-findings=M (of N total)
   #1 kind=dex_in_memory_loader_injected severity=HIGH ...
   #2 kind=dex_in_anonymous_mapping severity=HIGH ...
 [flag1-inmemory] FLAG CAPTURED — clean baseline + injection-attributable finding(s)
 ```
+
+> The Frida script filters the `runtime.environment` finding
+> stream to just the five `DexInjection`-emitted kinds
+> (`dex_classloader_added`, `dex_path_outside_apk`,
+> `dex_in_memory_loader_injected`, `dex_in_anonymous_mapping`,
+> `unattributable_dex_at_baseline`) so unrelated
+> `runtime.environment` findings (`hook_framework_present`,
+> `rwx_memory_mapping`, native G2-G7 layers, …) don't muddle
+> the FLAG verdict.
 
 ## Scenario 1 — LSPosed late hook (`DexInjectionHook`)
 
@@ -87,13 +96,13 @@ adb logcat -s DI-LSPDexHook
 Expected:
 ```
 DI-LSPDexHook: scheduled DEX-injection harness for io.ssemaj.sample
-DI-LSPDexHook: step 1: baseline collect (locks DexInjectionDetector snapshot)
-DI-LSPDexHook: [DI-LSPDexHook baseline] runtime.dex findings=0
+DI-LSPDexHook: step 1: baseline collect (locks DexInjection helper snapshot)
+DI-LSPDexHook: [DI-LSPDexHook baseline] runtime.environment dex-injection findings=0
 DI-LSPDexHook: step 2a: InMemoryDexClassLoader injection (channel b)
 DI-LSPDexHook: in-memory loader=... resolved=Payload
 DI-LSPDexHook: step 3: post-tamper collect
 DI-LSPDexHook: [DI-LSPDexHook post-tamper]   finding kind=dex_in_anonymous_mapping ...
-DI-LSPDexHook: [DI-LSPDexHook post-tamper]   finding kind=dex_in_memory_loader_injected ...
+DI-LSPDexHook: [DI-LSPDexHook post-tamper] runtime.environment dex-injection findings=N
 DI-LSPDexHook: FLAG CAPTURED — post-tamper delta: [...]
 ```
 
@@ -147,21 +156,32 @@ scenarios 1+2 are validated and the detector is updated.
 To inspect the actual JSON the detector produced (for forensic
 analysis or when the brief log lines aren't enough), the sample
 app's debug build dumps each `collectJson()` to logcat under tag
-`DI-Sample`. Search for `"id":"runtime.dex"` to find the
-detector block:
+`DI-Sample`. The DEX-injection findings live inside the
+`runtime.environment` detector block (no separate `runtime.dex`
+ID — the helper feeds findings through the existing process-wide
+hook detector):
 ```bash
-adb logcat -s DI-Sample | grep -A 100 'runtime.dex'
+adb logcat -s DI-Sample | grep -A 100 '"id": "runtime.environment"'
 ```
+
+For the cumulative session view (the new shape introduced in
+0.7.0), `SessionFindings.toJson()` produces a parallel wire
+format with per-finding `first_seen_at_epoch_ms` /
+`last_seen_at_epoch_ms` / `observation_count` / `still_active`
+fields. The sample app doesn't dump that directly to logcat
+today; if you want to inspect it, add a `Log.i(TAG,
+session.toJson())` line in `MainActivity.applyReport()`.
 
 ## What to report back
 
 After scenarios 1 + 2:
 - For each: pasted last 30 lines of `adb logcat -s <TAG>`.
 - Whether `FLAG CAPTURED` or `FLAG NOT CAPTURED` appeared.
-- The `runtime.dex` finding kinds list from the post-tamper
-  collect.
+- The DEX-injection finding kinds list from the post-tamper
+  `runtime.environment` slice.
 
-That tells us whether to (a) ship as-is, (b) add the
-`unattributable_dex_at_baseline` derived finding, or (c) build
+That tells us whether to (a) ship as-is, (b) tune the
+detection further (e.g. consolidate the noisy
+`unattributable_dex_at_baseline` emit shape), or (c) build
 and run the actual Zygisk module to confirm the production-
 realistic behaviour matches scenario 2.
