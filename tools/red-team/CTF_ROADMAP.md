@@ -246,24 +246,52 @@ A run captures Flag 1 when:
 
 ---
 
-## Flag 2 — Newer hooking framework signatures
+## Flag 2 — Newer hooking framework signatures (partially captured)
 
-**Attacker behaviour:** load Dobby / Whale / ShadowHook / Pine /
-FastHook / SandHook / YAHFA / `zygisk-il2cpp-dumper`. Several are
-already partially caught via Vector A drift, but
-`MapsParser.kt:53` only knows the historical Frida/Xposed names
-so attribution is weak.
+**Status: 5 of 8 frameworks shipped in 0.9.0; 3 deferred for
+false-positive risk.** `MapsParser.HOOK_FRAMEWORK_SIGNATURES`
+extended with the canonical names below.
 
-**Detection plan:** extend `MapsParser` with `libdobby`,
-`dobby_bridge`, `libwhale`, `libshadowhook`, `libpine`,
-`libfasthook`, `libsandhook`, `libyahfa`, `libil2cpp_dumper`.
-Trivial change; main work is keeping the regex set under
-unit-test pressure so adding a name doesn't break existing
-matches.
+| Framework        | Status        | Notes |
+| ---------------- | ------------- | ----- |
+| **Dobby**        | shipped 0.9.0 | `libdobby`, `dobby_bridge` — both signatures match. |
+| **Whale**        | shipped 0.9.0 | `libwhale` — minimal legitimate-embed risk. |
+| **YAHFA**        | shipped 0.9.0 | `libyahfa` — EdXposed/LSPosed ART-side backend. |
+| **FastHook**     | shipped 0.9.0 | `libfasthook` — niche, mostly seen in game-modding kits. |
+| **il2cpp-dumper** | shipped 0.9.0 | `libil2cppdumper`, `zygisk-il2cpp` — Zygisk module that dumps Unity IL2CPP game logic. |
+| **ShadowHook**   | DEFERRED      | Bytedance ships `libshadowhook.so` IN their own apps (TikTok, Douyin, CapCut, Lemon8). Name-only detection would FP on every Bytedance install. Needs the embedded-vs-injected distinction (cross-reference against the consumer's build-time native-lib inventory) before this can ship. |
+| **SandHook**     | DEFERRED      | Same problem — used as a backend by EdXposed but also by some legitimate game-cheat-prevention frameworks. |
+| **Pine**         | DEFERRED      | Same problem — used as ART-hook backend by both attack tooling AND some legitimate frameworks. |
 
-**Harness:** `tools/red-team/maps-newer-frameworks.js` —
-`Memory.alloc` a page, `setName` it to each candidate string in
-turn, run `collect()`, assert the framework-attribution finding.
+**Embedded-vs-injected distinction (the prerequisite for the
+deferred three):** the build-time `Fingerprint` plugin already
+captures the consumer app's full native-lib inventory under
+`Fingerprint.expectedSoList`. The runtime side could be taught
+to suppress `hook_framework_present` for any framework whose
+library path is INSIDE the consumer's own APK split set. That
+would make name-based detection safe to ship for ShadowHook /
+SandHook / Pine — with the trade-off that an attacker who drops
+their payload INSIDE the consumer's APK directory tree would
+evade. For most consumer apps the trade-off is correct; for
+SDK-distributed code it's harder. Tracked as a separate roadmap
+item.
+
+**Harness:** `tools/red-team/maps-newer-frameworks.js` — uses
+Frida's `Memory.allocAndName` (or a `prctl(PR_SET_VMA_ANON_NAME)`
+fallback) to label anonymous pages with each candidate signature,
+runs `collect()`, asserts that the post-tamper
+`runtime.environment` findings include `hook_framework_present`
+with the expected `details.framework` value for all 5 shipped
+frameworks. `FLAG CAPTURED` lands when every signature trips.
+
+**Capture criteria** — Flag 2 is captured when:
+1. Clean dry-run shows zero `hook_framework_present` findings for
+   the 5 newly-added frameworks.
+2. Harness allocates and names a page per candidate framework.
+3. Post-tamper `collect()` reports `hook_framework_present` with
+   `details.framework == <canonical name>` for ALL FIVE shipped
+   frameworks (`dobby`, `whale`, `yahfa`, `fasthook`,
+   `il2cpp_dumper`).
 
 ---
 

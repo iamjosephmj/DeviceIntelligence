@@ -81,6 +81,93 @@ class MapsParserTest {
         assertEquals(listOf("frida"), result.hookFrameworks)
     }
 
+    // ---- newer hook framework signatures (CTF Flag 2) ------------------
+
+    @Test
+    fun `dobby library name is detected`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/local/tmp/libdobby.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("dobby"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `dobby_bridge symbol-derived map name is detected`() {
+        // Some Dobby builds expose the bridge as a separate small
+        // mapping name. Either signature should trip.
+        val maps = """
+            720000000-720001000 r-xp 00000000 00:00 0  [anon:dobby_bridge]
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("dobby"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `whale library is detected`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/local/tmp/libwhale.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("whale"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `yahfa library is detected`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /apex/com.android.runtime/libyahfa.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("yahfa"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `fasthook library is detected`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/local/tmp/libfasthook.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("fasthook"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `il2cppdumper library is detected`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/adb/modules/zygisk-il2cppdumper/lib/arm64-v8a/libil2cppdumper.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("il2cpp_dumper"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `zygisk-il2cpp module path is detected even without library suffix`() {
+        // Some Zygisk packagings expose the module via the directory
+        // name in a maps line that doesn't include the .so basename.
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/adb/modules/zygisk-il2cppdumper/companion
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(listOf("il2cpp_dumper"), result.hookFrameworks)
+    }
+
+    @Test
+    fun `intentionally-skipped frameworks (shadowhook, pine, sandhook) do not trip`() {
+        // These are deliberately NOT in the signature list because
+        // legitimate apps embed them. Flagging them on name alone
+        // would FP on every Bytedance app (ShadowHook), every
+        // ART-instrumentation framework (Pine), every EdXposed-
+        // backend-using consumer (SandHook). Until we have the
+        // embedded-vs-injected distinction, name-only detection
+        // for these is harmful.
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /data/app/com.example.app-AbC/lib/arm64-v8a/libshadowhook.so
+            720001000-720002000 r-xp 00000000 fd:00 12345 /data/app/com.example.app-AbC/lib/arm64-v8a/libpine.so
+            720002000-720003000 r-xp 00000000 fd:00 12345 /data/app/com.example.app-AbC/lib/arm64-v8a/libsandhook.so
+        """.trimIndent()
+        val result = MapsParser.parse(maps)
+        assertEquals(emptyList<String>(), result.hookFrameworks)
+    }
+
     @Test
     fun `multiple distinct frameworks are reported separately`() {
         val maps = """
