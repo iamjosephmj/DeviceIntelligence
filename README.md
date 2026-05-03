@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Open-source Android telemetry SDK for understanding the device ecosystem of your userbase.</strong><br/>
-  APK integrity · key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · cloner detection · 8-layer native anti-hooking stack.<br/>
+  APK integrity · key attestation · bootloader integrity · runtime tampering · root indicators · emulator probe · cloner detection · runtime DEX-injection · 8-layer native anti-hooking stack.<br/>
   <em>Not a RASP. Not a kill-switch. Just structured, deterministic JSON your backend can analyze.</em>
 </p>
 
@@ -25,6 +25,26 @@
 </p>
 
 ---
+
+## Why DeviceIntelligence
+
+Most Android apps shipping device-tampering checks reach for one of:
+
+- **Google Play Integrity API** — black-box, requires Google Play Services, can't run on AOSP/FOSS devices, doesn't tell you *why* a device is suspect.
+- **A commercial RASP** (Promon SHIELD, Guardsquare DexGuard, Zimperium zIAP, Talsec freeRASP) — expensive, partly closed-source, opaque detection logic, vendor lock-in.
+- **A simple root checker** (RootBeer, SafetyNetHelper) — covers maybe 20% of the threat surface a real attacker uses.
+
+DeviceIntelligence sits in the gap. It's:
+
+- **Fully open-source** (Kotlin + native C++) — every detection rule is auditable. No closed binary blobs.
+- **Free-of-Google** — no Play Services dependency; works on AOSP, OpenGApps, GrapheneOS, CalyxOS, etc. Hardware key attestation still works on those builds because it's a Keymaster API call, not a Google API call.
+- **Detection-rich** — covers the techniques real attackers actually use: Frida agents, Xposed/LSPosed/EdXposed, Pine, SandHook, YAHFA, Cydia Substrate, Magisk, Zygisk, Riru, Taichi, app cloners, and runtime DEX injection (`InMemoryDexClassLoader`/`DexClassLoader` payloads). 8 layers of in-process anti-hooking with circular-bypass design.
+- **Privacy-first** — anonymous-by-construction analytics. SHA-256 of `ro.build.fingerprint` for `client_id`, no PII, no package names, no memory addresses on the wire.
+- **Backend-agnostic** — emits one deterministic JSON. Send it to your own backend, Datadog, BigQuery, anywhere. No SDK tries to talk to a vendor cloud.
+
+**Use it when** you need device-tampering evidence richer than Play Integrity's pass/fail bit, want server-side control of the policy decision, can't or won't take the Play Services dependency, or want to audit the detection logic rather than trust a vendor's claims.
+
+**Don't use it when** you want a turnkey "block this user" decision baked into the SDK — that's not what this is. DeviceIntelligence reports facts; *your backend* decides what to do about them.
 
 ## Install
 
@@ -56,43 +76,57 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "0.5.2"
+    id("io.ssemaj.deviceintelligence") version "0.7.1"
 }
 ```
 
-**Collect**
+## Quick start
+
+Four entry points, pick the one that matches your use case.
+
+**One-shot collect** — your app starts, you want one structured snapshot, you ship it to your backend.
 
 ```kotlin
 lifecycleScope.launch {
-    val report = DeviceIntelligence.collect(context)
-    val json   = DeviceIntelligence.collectJson(context)
+    val report = DeviceIntelligence.collect(context)             // TelemetryReport
+    val json   = DeviceIntelligence.collectJson(context)         // canonical JSON
 
     val signals = report.toIntegritySignals()
-    if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) { /* … */ }
+    if (IntegritySignal.HOOKING_FRAMEWORK_DETECTED in signals) {
+        // Send to your backend, gate the action, raise a flag — your call.
+    }
 }
 ```
 
-**Observe**
+**Periodic observe** — long-running session, you want a fresh snapshot every N seconds (e.g. catch a Frida agent that attaches mid-flow).
 
 ```kotlin
-// Per-collect snapshots — each emission replaces the previous.
 DeviceIntelligence.observe(context, interval = 2.seconds)
     .onEach { report -> render(report) }
     .launchIn(lifecycleScope)
+```
 
-// Cumulative session view — accumulates findings across collects with
-// first-seen / last-seen / observation_count / still_active flags so a
-// transient hook that fires once and detaches stays visible.
+**Cumulative session observe** — same as `observe()` but accumulates findings across emissions. A transient hook that fires once and detaches stays visible with `stillActive=false`. Use this when your UI / backend correlation should never lose sight of a signal the moment it stops appearing.
+
+```kotlin
 DeviceIntelligence.observeSession(context, interval = 2.seconds)
-    .onEach { session ->
-        // session.findings: List<TrackedFinding>
-        // session.toJson(): canonical wire format for backends
-        render(session.findings)
+    .onEach { session: SessionFindings ->
+        render(session.findings)             // List<TrackedFinding>
+        ship(session.toJson())               // canonical wire format
     }
     .launchIn(lifecycleScope)
 ```
 
-`kotlinx-coroutines-android` is the only runtime dependency. For Java callers use `collectBlocking()`; for long-running observation use `observe()` (per-collect) or `observeSession()` (cumulative).
+Each `TrackedFinding` carries `firstSeenAtEpochMs`, `lastSeenAtEpochMs`, `observationCount`, and `stillActive` on top of the underlying `Finding`.
+
+**Java / synchronous boundary** — for Java consumers, worker threads, JNI bridges.
+
+```java
+TelemetryReport report = DeviceIntelligence.collectBlocking(context);
+String json = DeviceIntelligence.collectJsonBlocking(context);
+```
+
+`kotlinx-coroutines-android` is the only runtime dependency.
 
 ## What it collects
 
@@ -107,9 +141,51 @@ DeviceIntelligence.observeSession(context, interval = 2.seconds)
 | Emulator probe       | `runtime.emulator`       | CPU-instruction-level signals (arm64 MRS / x86_64 CPUID hypervisor bit)       |
 | App cloner           | `runtime.cloner`         | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches         |
 
-Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses ~40 finding kinds into 11 product-shaped verdicts (`HOOKING_FRAMEWORK_DETECTED`, `ROOT_INDICATORS_PRESENT`, …) for UI / feature-flag code.
+Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses ~40 finding kinds into 11 product-shaped verdicts for UI / feature-flag code:
+
+| `IntegritySignal`               | Meaning                                                                                                                |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `APK_TAMPERED`                  | APK on disk modified, repackaged, signer mismatch, or installer not allowlisted.                                       |
+| `APK_FINGERPRINT_UNAVAILABLE`   | The build-time fingerprint asset is missing/corrupt — couldn't make a verdict either way.                              |
+| `BOOTLOADER_INTEGRITY_FAILED`   | Hardware key-attestation chain has anomalies, or device claims StrongBox but attests at a lower level.                 |
+| `TEE_ATTESTATION_DEGRADED`      | Local advisory verdict on the attestation chain came back below `MEETS_STRONG_INTEGRITY`.                              |
+| `HOOKING_FRAMEWORK_DETECTED`    | Active code-level hooking — Frida, Xposed/LSPosed/EdXposed, Pine, SandHook, Substrate, ART-internals tampering, runtime DEX injection, RWX trampolines, `.text` drift, GOT rewrites. |
+| `INJECTED_NATIVE_CODE`          | Unknown post-baseline `.so` or anonymous executable mapping; precondition for hooking but not yet proof of one.        |
+| `ROOT_INDICATORS_PRESENT`       | `su` binary, Magisk artifact, `test-keys` build, `which su` succeeds, root-manager app installed.                      |
+| `EMULATOR_DETECTED`             | CPU-instruction-level signals — arm64 MRS or x86_64 CPUID hypervisor bit.                                              |
+| `APP_CLONED`                    | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches.                                                 |
+| `DEBUGGER_ATTACHED`             | JVM debugger or ptrace tracer attached.                                                                                |
+| `DEBUG_FLAG_MISMATCH`           | App's `FLAG_DEBUGGABLE` disagrees with `ro.debuggable`.                                                                |
+
+```kotlin
+val report = DeviceIntelligence.collect(context).toIntegritySignalReport()
+when {
+    IntegritySignal.HOOKING_FRAMEWORK_DETECTED in report.signals -> denyPayment()
+    IntegritySignal.ROOT_INDICATORS_PRESENT in report.signals    -> warnUser()
+    IntegritySignal.EMULATOR_DETECTED in report.signals          -> requireExtra2FA()
+    else                                                          -> allow()
+}
+report.evidence[IntegritySignal.HOOKING_FRAMEWORK_DETECTED]?.forEach { finding ->
+    log.info("hook detected — kind=${finding.kind} subject=${finding.subject}")
+}
+```
 
 > **Not a RASP.** It does not block sessions, kill processes, or interrupt any flow. It only observes. Build enforcement on the JSON your backend ingests; keep the policy off-device.
+
+## Validated against
+
+DeviceIntelligence ships its own offensive verification harnesses — Frida scripts and a real LSPosed module that intentionally trip each detector. Detection isn't claimed; it's *verified* against the same tools an attacker would use, on real hardware (Pixel 6 Pro running KernelSU + LSPosed; secondary Pixel 9 Pro for clean baseline).
+
+| Surface                          | Validated with                                                                                       | Status |
+|----------------------------------|------------------------------------------------------------------------------------------------------|--------|
+| ART method-hook vectors A–F      | `tools/red-team/frida-vector-{a,c,d,e,f}.js` — 5 independent JNI-level Frida scripts                 | shipped |
+| Frida-Java's `cls.method.implementation` | `tools/red-team/frida-vector-frida-java.js`                                                  | shipped |
+| LSPosed Java-side method hooks   | `samples/lsposed-tester` — real LSPosed module installs hooks; StackGuard + StackWatchdog catch them | shipped |
+| Runtime DEX injection (CTF Flag 1) | LSPosed-driven `InMemoryDexClassLoader` + disk-backed `DexClassLoader` from `/data/local/tmp/`     | shipped (0.6.0) |
+| Pre-baseline DEX injection (Zygisk timing) | `samples/lsposed-tester` `EarlyDexInjectionHook` — synchronous inject in `handleLoadPackage`  | shipped via `unattributable_dex_at_baseline` (0.6.0) |
+| Real Zygisk module               | TBD — see [`tools/red-team/CTF_ROADMAP.md`](tools/red-team/CTF_ROADMAP.md)                            | planned |
+
+Full step-by-step validation runbook for the Pixel 6 Pro: [`tools/red-team/FLAG1_RUNBOOK.md`](tools/red-team/FLAG1_RUNBOOK.md).
 
 ## Analytics
 
@@ -156,6 +232,15 @@ server-side.
 `status: "ok"` plus a non-empty `findings[]`. Drive your "device looks
 tampered" decision off `summary.detectors_with_findings`, not `status`.
 
+**Per-collect vs cumulative session.** `collectJson()` and
+`TelemetryReport.toJson()` emit one snapshot of the moment the
+collect ran. `SessionFindings.toJson()` (from `observeSession`) emits
+a cumulative session view — same wire shape per finding plus
+`first_seen_at_epoch_ms` / `last_seen_at_epoch_ms` /
+`observation_count` / `still_active`, with a `latest_report_summary`
+correlation block. Both share `schema_version`; pick whichever
+matches your backend's correlation model.
+
 <details>
 <summary><b>Full clean-device report (click to expand)</b></summary>
 
@@ -169,7 +254,7 @@ the unmodified real value. For tripped-detector examples, see
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.5.2",
+  "library_version": "0.7.1",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -235,7 +320,7 @@ the unmodified real value. For tripped-detector examples, see
     "installer_package": null,
     "signer_cert_sha256": ["a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"],
     "build_variant": "debug",
-    "library_plugin_version": "0.5.2",
+    "library_plugin_version": "0.7.1",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
@@ -317,7 +402,10 @@ reports `null` (not `false`).
 
 - [**`docs/DETECTORS.md`**](docs/DETECTORS.md) — full per-detector reference (threat model, finding kinds, sample tripped JSON, costs, caveats)
 - [**`NATIVE_INTEGRITY_DESIGN.md`**](NATIVE_INTEGRITY_DESIGN.md) — design of the 8-layer (G0–G7) anti-hooking stack
-- [**`tools/red-team/`**](tools/red-team/README.md) — Frida scripts that intentionally trip each `integrity.art` finding
+- [**`tools/red-team/`**](tools/red-team/README.md) — Frida scripts that intentionally trip each `integrity.art` finding (Vectors A/C/D/E/F + Frida-Java)
+- [**`tools/red-team/CTF_ROADMAP.md`**](tools/red-team/CTF_ROADMAP.md) — capture-the-flag roadmap of every detection technique on the backlog (Flag 1 — DEX injection — captured in 0.6.0)
+- [**`tools/red-team/FLAG1_RUNBOOK.md`**](tools/red-team/FLAG1_RUNBOOK.md) — Pixel 6 Pro on-device validation runbook for the Flag 1 DEX-injection detector
+- [**`samples/lsposed-tester/`**](samples/lsposed-tester/) — real LSPosed module that drives runtime DEX injection against the sample app, used to verify the detector against production attacker tooling rather than just Frida
 
 ## License
 
