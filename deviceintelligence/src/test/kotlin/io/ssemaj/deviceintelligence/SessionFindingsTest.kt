@@ -324,6 +324,84 @@ class SessionFindingsTest {
         assertTrue(k2Entry.stillActive)
     }
 
+    // ---- toJson wire format --------------------------------------------
+
+    @Test
+    fun `toJson on empty session emits zero counts and empty findings`() {
+        val agg = SessionFindingsAggregator(sessionStartedAtEpochMs = 1000L)
+        val session = agg.ingest(stubReport(2000L, emptyList()))
+
+        val json = session.toJson()
+
+        assertTrue("schema_version present", json.contains("\"schema_version\":"))
+        assertTrue("active count is zero", json.contains("\"active_finding_count\": 0"))
+        assertTrue("total count is zero", json.contains("\"total_finding_count\": 0"))
+        assertTrue("findings array is empty", json.contains("\"findings\": []"))
+        assertTrue("latest_report_summary present",
+            json.contains("\"latest_report_summary\":"))
+        assertTrue("library_version embedded in summary",
+            json.contains("\"library_version\": \"test\""))
+    }
+
+    @Test
+    fun `toJson serializes per-finding session metadata`() {
+        val agg = SessionFindingsAggregator(sessionStartedAtEpochMs = 1000L)
+        agg.ingest(stubReport(2000L, listOf(
+            stubDetector("runtime.environment", listOf(
+                stubFinding(
+                    kind = "dex_in_anonymous_mapping",
+                    subject = "io.ssemaj.sample",
+                    message = "test message",
+                    severity = Severity.HIGH,
+                    details = mapOf("address_range" to "0x1000-0x2000"),
+                ),
+            )),
+        )))
+        val session = agg.ingest(stubReport(3000L, listOf(stubDetector("runtime.environment", emptyList()))))
+
+        val json = session.toJson()
+
+        // Per-finding session metadata
+        assertTrue("first_seen present", json.contains("\"first_seen_at_epoch_ms\": 2000"))
+        assertTrue("last_seen present", json.contains("\"last_seen_at_epoch_ms\": 2000"))
+        assertTrue("observation_count present", json.contains("\"observation_count\": 1"))
+        assertTrue("still_active=false (finding disappeared at T2)",
+            json.contains("\"still_active\": false"))
+
+        // Embedded Finding fields (same shape as TelemetryReport.findings[])
+        assertTrue("detector_id present",
+            json.contains("\"detector_id\": \"runtime.environment\""))
+        assertTrue("kind present", json.contains("\"kind\": \"dex_in_anonymous_mapping\""))
+        assertTrue("severity wire form is lowercase",
+            json.contains("\"severity\": \"high\""))
+        assertTrue("subject present",
+            json.contains("\"subject\": \"io.ssemaj.sample\""))
+        assertTrue("message present", json.contains("\"message\": \"test message\""))
+        assertTrue("details key embedded",
+            json.contains("\"address_range\": \"0x1000-0x2000\""))
+
+        // Counts reflect the disappear: 0 active, 1 total
+        assertTrue("active_finding_count = 0", json.contains("\"active_finding_count\": 0"))
+        assertTrue("total_finding_count = 1", json.contains("\"total_finding_count\": 1"))
+        assertTrue("collections_observed = 2",
+            json.contains("\"collections_observed\": 2"))
+    }
+
+    @Test
+    fun `toJson active finding emits still_active true`() {
+        val agg = SessionFindingsAggregator(sessionStartedAtEpochMs = 1000L)
+        val session = agg.ingest(stubReport(2000L, listOf(
+            stubDetector("d", listOf(stubFinding(kind = "k", subject = "s"))),
+        )))
+
+        val json = session.toJson()
+
+        assertTrue(json.contains("\"still_active\": true"))
+        assertTrue(json.contains("\"active_finding_count\": 1"))
+    }
+
+    // ---- flow wrapper (cont.) -------------------------------------------
+
     @Test
     fun `each collector of observeSessionFlow gets independent session state`() = runTest {
         val r1 = stubReport(2000L, listOf(stubDetector("d", listOf(stubFinding("k", "s")))))

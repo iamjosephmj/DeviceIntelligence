@@ -9,8 +9,10 @@ import io.ssemaj.deviceintelligence.DeviceContext
 import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.InstallSource
 import io.ssemaj.deviceintelligence.ReportSummary
+import io.ssemaj.deviceintelligence.SessionFindings
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TelemetryReport
+import io.ssemaj.deviceintelligence.TrackedFinding
 
 /**
  * Hand-rolled JSON writer for [TelemetryReport].
@@ -50,6 +52,80 @@ internal object TelemetryJson {
         kvObject("summary", indent = "  ") { encodeSummary(r.summary, it) }
         append('\n')
         append("}\n")
+    }
+
+    /**
+     * Wire-format encoder for [SessionFindings] — the cumulative
+     * session view emitted by [io.ssemaj.deviceintelligence.DeviceIntelligence.observeSession].
+     *
+     * Schema (top-level keys):
+     *  - `schema_version` — same vocabulary as the underlying
+     *    [TelemetryReport]'s schema; lifted from `latest_report` so
+     *    this object is self-describing without requiring the caller
+     *    to also peek at the report's schema_version.
+     *  - `session_started_at_epoch_ms` / `last_updated_at_epoch_ms`
+     *    / `collections_observed` — session bookkeeping.
+     *  - `active_finding_count` / `total_finding_count` — derived
+     *    counts so backends can render a "N active · M total" pill
+     *    without iterating the full `findings` array.
+     *  - `latest_report_summary` — small object with the three
+     *    fields a backend typically wants for correlation
+     *    (`library_version`, `collected_at_epoch_ms`,
+     *    `collection_duration_ms`). Deliberately does NOT embed the
+     *    full latest [TelemetryReport]; that's its own
+     *    [encode] call when needed and would otherwise duplicate
+     *    payload size for backends polling both shapes.
+     *  - `findings[]` — array of [TrackedFinding]s in first-seen
+     *    order. Each entry merges the embedded [Finding] fields
+     *    (kind / severity / subject / message / details) with the
+     *    session metadata (first_seen / last_seen / observation_count
+     *    / still_active / detector_id) so consumers don't need to
+     *    flatten on their side.
+     */
+    fun encode(s: SessionFindings): String = buildString {
+        append("{\n")
+        kvInt("schema_version", s.latestReport.schemaVersion); append(",\n")
+        kvLong("session_started_at_epoch_ms", s.sessionStartedAtEpochMs); append(",\n")
+        kvLong("last_updated_at_epoch_ms", s.lastUpdatedAtEpochMs); append(",\n")
+        kvInt("collections_observed", s.collectionsObserved); append(",\n")
+        kvInt("active_finding_count", s.findings.count { it.stillActive }); append(",\n")
+        kvInt("total_finding_count", s.findings.size); append(",\n")
+        kvObject("latest_report_summary", indent = "  ") {
+            encodeLatestReportSummary(s.latestReport, it)
+        }
+        append(",\n")
+        kvArray("findings", indent = "  ", items = s.findings) { item, indent ->
+            encodeTrackedFinding(item, indent)
+        }
+        append('\n')
+        append("}\n")
+    }
+
+    private fun StringBuilder.encodeLatestReportSummary(
+        r: TelemetryReport,
+        indent: String,
+    ) {
+        kvStr("library_version", r.libraryVersion, indent); append(",\n")
+        kvLong("collected_at_epoch_ms", r.collectedAtEpochMs, indent); append(",\n")
+        kvLong("collection_duration_ms", r.collectionDurationMs, indent); append('\n')
+    }
+
+    private fun StringBuilder.encodeTrackedFinding(t: TrackedFinding, indent: String) {
+        kvStr("detector_id", t.detectorId, indent); append(",\n")
+        // Embedded Finding fields — same schema as inside
+        // detectors[].findings[] of TelemetryReport, so backends
+        // already speaking that wire shape don't need a second
+        // parser.
+        kvStr("kind", t.finding.kind, indent); append(",\n")
+        kvStr("severity", severityToWire(t.finding.severity), indent); append(",\n")
+        kvStrOrNull("subject", t.finding.subject, indent); append(",\n")
+        kvStr("message", t.finding.message, indent); append(",\n")
+        kvSortedStringMap("details", t.finding.details, indent); append(",\n")
+        // Session metadata.
+        kvLong("first_seen_at_epoch_ms", t.firstSeenAtEpochMs, indent); append(",\n")
+        kvLong("last_seen_at_epoch_ms", t.lastSeenAtEpochMs, indent); append(",\n")
+        kvInt("observation_count", t.observationCount, indent); append(",\n")
+        kvBool("still_active", t.stillActive, indent); append('\n')
     }
 
     // ---- device / app ------------------------------------------------------

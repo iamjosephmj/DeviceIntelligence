@@ -89,6 +89,29 @@ public data class SessionFindings(
     public val sessionStartedAtEpochMs: Long,
     public val lastUpdatedAtEpochMs: Long,
 ) {
+
+    /**
+     * Canonical JSON wire format — parallel to [TelemetryReport.toJson],
+     * for backends that consume the cumulative session view rather
+     * than per-collect snapshots.
+     *
+     * Top-level keys: `schema_version`, `session_started_at_epoch_ms`,
+     * `last_updated_at_epoch_ms`, `collections_observed`,
+     * `active_finding_count`, `total_finding_count`,
+     * `latest_report_summary` (small correlation block —
+     * `library_version` / `collected_at_epoch_ms` /
+     * `collection_duration_ms` only; not the full report), and
+     * `findings[]` where each entry merges the embedded [Finding]
+     * fields with the [TrackedFinding] session metadata.
+     *
+     * Stable across additive schema changes: new fields may be
+     * appended; existing fields keep their names and types. Bumps
+     * to `schema_version` (lifted from [latestReport]) signal
+     * breaking changes if they ever happen.
+     */
+    public fun toJson(): String =
+        io.ssemaj.deviceintelligence.internal.TelemetryJson.encode(this)
+
     public companion object {
         /** Empty session — used when no reports have been ingested yet. */
         @JvmField
