@@ -16,6 +16,8 @@ namespace {
 //
 // If a row is missing for a future API, we fall back to the
 // highest-known entry and log a WARN.
+#if defined(__aarch64__) || defined(__x86_64__)
+
 struct OffsetEntry {
     int api;
     size_t offset;
@@ -54,9 +56,26 @@ constexpr OffsetEntry kTable[] = {
 
 constexpr size_t kTableLen = sizeof(kTable) / sizeof(kTable[0]);
 
+#endif  // 64-bit only
+
 }  // namespace
 
 size_t entry_point_offset(int sdk_int) {
+#if !defined(__aarch64__) && !defined(__x86_64__)
+    // 32-bit ARM (armeabi-v7a) and 32-bit x86 use a different
+    // ArtMethod struct layout — pointer width, member alignment,
+    // and field-overlay flags all differ from the 64-bit ABIs the
+    // [kTable] entries were measured on. Returning kUnknownOffset
+    // routes every Vector A / E / F call site into its "skip" path,
+    // which the Kotlin-side ArtIntegrityDetector surfaces as
+    // INCONCLUSIVE (vector unavailable on this ABI). 32-bit ART
+    // characterisation is tracked as a future research task; for
+    // now armeabi-v7a gets the rest of the detector fleet
+    // (apk / bootloader / attestation / runtime.environment +
+    // DEX-injection / root / cloner / emulator) but no integrity.art.
+    (void)sdk_int;
+    return kUnknownOffset;
+#else
     if (sdk_int < kTable[0].api) {
         // Below our minimum-known API. Floor is 28 (matches the
         // library's minSdk); anything lower means the AAR was
@@ -76,6 +95,7 @@ size_t entry_point_offset(int sdk_int) {
     RLOGW("F18 offsets: API %d not in table, falling back to API %d (offset 0x%zx)",
           sdk_int, latest.api, latest.offset);
     return latest.offset;
+#endif
 }
 
 void* read_entry_point(const void* jmethod_id, size_t offset) {
