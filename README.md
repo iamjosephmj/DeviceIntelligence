@@ -176,6 +176,8 @@ report.evidence[IntegritySignal.HOOKING_FRAMEWORK_DETECTED]?.forEach { finding -
 
 DeviceIntelligence ships its own offensive verification harnesses — Frida scripts and a real LSPosed module that intentionally trip each detector. Detection isn't claimed; it's *verified* against the same tools an attacker would use, on real hardware (Pixel 6 Pro running KernelSU + LSPosed; secondary Pixel 9 Pro for clean baseline).
 
+**Cross-OEM stability.** Beyond the per-detector verification on Pixels, `collect()` / `observe()` / `observeSession()` have been validated for runtime stability across [Sauce Labs](https://saucelabs.com/)' real-device farm — every Android 11+ (API 30–36) device in the farm, spanning the major OEM forks (Samsung One UI, Xiaomi HyperOS / MIUI, Vivo OriginOS, Honor MagicOS, OPPO ColorOS, OnePlus OxygenOS, Motorola, plus AOSP-equivalent Pixels). "Stability" here means: the native lib loads, every detector runs to completion, the JSON parses, no crashes on any tested device. Attack-scenario coverage (LSPosed / Frida actually firing detections) is verified on the Pixel 6 Pro reference rig.
+
 | Surface                          | Validated with                                                                                       | Status |
 |----------------------------------|------------------------------------------------------------------------------------------------------|--------|
 | ART method-hook vectors A–F      | `tools/red-team/frida-vector-{a,c,d,e,f}.js` — 5 independent JNI-level Frida scripts                 | shipped |
