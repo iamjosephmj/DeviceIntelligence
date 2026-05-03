@@ -92,6 +92,16 @@ internal object DexInjection {
     internal const val KIND_UNATTRIBUTABLE_AT_BASELINE = "unattributable_dex_at_baseline"
 
     /**
+     * Maximum number of address ranges or source strings to enumerate
+     * inside the consolidated `unattributable_dex_at_baseline`
+     * finding's details map. Past this, a `+N more` marker lets
+     * backends detect truncation. Sized for the realistic worst case
+     * (~15 regions per pre-baseline injection on Android 14+) plus a
+     * safety margin.
+     */
+    private const val REGION_LIST_CAP = 16
+
+    /**
      * Identity tuple captured per dex element. `cookieIdentity` is
      * `System.identityHashCode(mCookie)` — stable for the lifetime
      * of the cookie object inside ART, but cheap to compute and not
@@ -345,29 +355,73 @@ internal object DexInjection {
         }
 
         if (freshlySnapshotted) {
-            val baselineFindings = ArrayList<Finding>(0)
-            for (region in regions) {
-                val verdict = classifyDalvikRegion(region, ai)
-                if (verdict.kind == DalvikRegionKind.IN_MEMORY ||
-                    verdict.kind == DalvikRegionKind.IN_MEMORY_UNATTRIBUTED ||
-                    verdict.kind == DalvikRegionKind.FOREIGN_PATH) {
-                    baselineFindings += Finding(
-                        kind = KIND_UNATTRIBUTABLE_AT_BASELINE,
-                        severity = Severity.MEDIUM,
-                        subject = ai.packageName.orEmpty(),
-                        message = "First-observed snapshot already contained an in-memory DEX " +
-                            "region (pre-baseline injection or legitimate framework preload — " +
-                            "backend should correlate)",
-                        details = mapOf(
-                            "address_range" to region.addressRange,
-                            "label" to region.label,
-                            "verdict" to verdict.kind.name,
-                            "source" to (verdict.source ?: "<unattributed>"),
-                        ),
-                    )
+            // Consolidate every suspicious region in the first-observed
+            // snapshot into ONE summary finding rather than emit per-region.
+            //
+            // Why: a single early DEX injection mints multiple anon
+            // regions inside ART (one per DEX section — header, methods,
+            // strings, types, etc.). Validated on Pixel 6 Pro, ~4
+            // injected DEXes minted 15 regions. The previous emit shape
+            // produced 15 separate `unattributable_dex_at_baseline`
+            // findings for what is conceptually one event ("this process
+            // was already tampered when we first looked"). 15 findings is
+            // noise to a backend; 1 summary finding with a region_count
+            // and the per-verdict breakdown is the right shape to commit
+            // to for 1.0's wire-stability promise.
+            val suspicious = regions
+                .map { it to classifyDalvikRegion(it, ai) }
+                .filter { (_, v) ->
+                    v.kind == DalvikRegionKind.IN_MEMORY ||
+                        v.kind == DalvikRegionKind.IN_MEMORY_UNATTRIBUTED ||
+                        v.kind == DalvikRegionKind.FOREIGN_PATH
                 }
-            }
-            return baselineFindings
+            if (suspicious.isEmpty()) return emptyList()
+
+            // Per-verdict counts for the details map. Rendered as
+            // `IN_MEMORY=2,IN_MEMORY_UNATTRIBUTED=12,FOREIGN_PATH=1` so
+            // backends can pivot on each.
+            val countsByVerdict = suspicious
+                .groupingBy { it.second.kind.name }
+                .eachCount()
+                .toSortedMap()
+            val verdictBreakdown = countsByVerdict.entries
+                .joinToString(",") { "${it.key}=${it.value}" }
+
+            // Cap the address-range and source lists at REGION_LIST_CAP
+            // entries each so the details map stays bounded on heavily-
+            // tampered devices. Past the cap, append a `+N more` marker
+            // so backends can detect truncation rather than silently
+            // missing the tail.
+            val addressRanges = suspicious.take(REGION_LIST_CAP)
+                .joinToString(",") { it.first.addressRange }
+                .let {
+                    if (suspicious.size > REGION_LIST_CAP) {
+                        "$it,+${suspicious.size - REGION_LIST_CAP} more"
+                    } else it
+                }
+            val sources = suspicious.asSequence()
+                .map { it.second.source ?: "<unattributed>" }
+                .distinct()
+                .take(REGION_LIST_CAP)
+                .joinToString(",")
+
+            return listOf(
+                Finding(
+                    kind = KIND_UNATTRIBUTABLE_AT_BASELINE,
+                    severity = Severity.MEDIUM,
+                    subject = ai.packageName.orEmpty(),
+                    message =
+                        "First-observed snapshot already contained ${suspicious.size} " +
+                            "in-memory DEX region(s) (pre-baseline injection or legitimate " +
+                            "framework preload — backend should correlate across devices)",
+                    details = mapOf(
+                        "region_count" to suspicious.size.toString(),
+                        "verdict_breakdown" to verdictBreakdown,
+                        "address_ranges" to addressRanges,
+                        "sources" to sources,
+                    ),
+                ),
+            )
         }
 
         val out = ArrayList<Finding>(2)

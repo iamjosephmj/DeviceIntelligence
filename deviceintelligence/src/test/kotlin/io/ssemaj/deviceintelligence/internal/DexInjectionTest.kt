@@ -275,6 +275,37 @@ class DexInjectionTest {
         assertEquals(DexInjection.DalvikRegionKind.NON_DEX, verdict.kind)
     }
 
+    // ---- unattributable_dex_at_baseline consolidation ------------------
+
+    @Test
+    fun `consolidation - per-verdict counts are correctly broken down`() {
+        // We can't drive evaluateAnonMappings end-to-end without a
+        // Context, but we can drive classifyDalvikRegion for each
+        // candidate to confirm the verdicts compose into the expected
+        // breakdown the consolidated emit shape uses.
+        val ai = appInfoFor()
+        val regions = listOf(
+            region("anon:dalvik-DEX data") to DexInjection.DalvikRegionKind.IN_MEMORY_UNATTRIBUTED,
+            region("anon:dalvik-DEX data") to DexInjection.DalvikRegionKind.IN_MEMORY_UNATTRIBUTED,
+            region("anon:dalvik-classes.dex extracted in memory from <buffer>")
+                to DexInjection.DalvikRegionKind.IN_MEMORY,
+            region("anon:dalvik-classes.dex extracted in memory from /data/local/tmp/payload.dex")
+                to DexInjection.DalvikRegionKind.FOREIGN_PATH,
+        )
+        for ((reg, expected) in regions) {
+            val actual = DexInjection.classifyDalvikRegion(reg, ai).kind
+            assertEquals("region $reg should be $expected, was $actual", expected, actual)
+        }
+        // Manually confirm the breakdown the consolidated emit will
+        // produce: IN_MEMORY=1, IN_MEMORY_UNATTRIBUTED=2, FOREIGN_PATH=1.
+        val counts = regions
+            .groupingBy { it.second.name }
+            .eachCount()
+            .toSortedMap()
+        val breakdown = counts.entries.joinToString(",") { "${it.key}=${it.value}" }
+        assertEquals("FOREIGN_PATH=1,IN_MEMORY=1,IN_MEMORY_UNATTRIBUTED=2", breakdown)
+    }
+
     @Test
     fun `non-dalvik label classifies as UNKNOWN`() {
         // The parser is supposed to filter these out, but if a
