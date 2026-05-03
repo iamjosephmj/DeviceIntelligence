@@ -180,6 +180,14 @@ DeviceIntelligence ships its own offensive verification harnesses — Frida scri
 
 **Cross-OEM stability.** Beyond the per-detector verification on Pixels, `collect()` / `observe()` / `observeSession()` have been validated for runtime stability across [Sauce Labs](https://saucelabs.com/)' real-device farm — every Android 11+ (API 30–36) device in the farm, spanning the major OEM forks (Samsung One UI, Xiaomi HyperOS / MIUI, Vivo OriginOS, Honor MagicOS, OPPO ColorOS, OnePlus OxygenOS, Motorola, plus AOSP-equivalent Pixels). "Stability" here means: the native lib loads, every detector runs to completion, the JSON parses, no crashes on any tested device. Attack-scenario coverage (LSPosed / Frida actually firing detections) is verified on the Pixel 6 Pro reference rig.
 
+**Cross-ABI stability.** All three native ABIs the AAR ships have been runtime-validated in the same Sauce Labs sweep:
+
+| ABI            | Status                                                        |
+| -------------- | --------------------------------------------------------------|
+| `arm64-v8a`    | full coverage — every detector works                          |
+| `x86_64`       | full coverage — every detector works                          |
+| `armeabi-v7a`  | runtime-stable since 0.8.0 (validated on Sauce Labs 32-bit ARM devices). Every detector works EXCEPT `integrity.art`, which reports `INCONCLUSIVE` because the underlying `ArtMethod` field-offset table is 64-bit-only. Characterising 32-bit ART struct layouts is tracked as a future minor-version research task. |
+
 | Surface                          | Validated with                                                                                       | Status |
 |----------------------------------|------------------------------------------------------------------------------------------------------|--------|
 | ART method-hook vectors A–F      | `tools/red-team/frida-vector-{a,c,d,e,f}.js` — 5 independent JNI-level Frida scripts                 | shipped |
