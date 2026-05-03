@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "0.9.0"
+    id("io.ssemaj.deviceintelligence") version "1.0.0"
 }
 ```
 
@@ -158,14 +158,18 @@ Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses 
 | `APP_CLONED`                    | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches.                                                 |
 | `DEBUGGER_ATTACHED`             | JVM debugger or ptrace tracer attached.                                                                                |
 | `DEBUG_FLAG_MISMATCH`           | App's `FLAG_DEBUGGABLE` disagrees with `ro.debuggable`.                                                                |
+| `HARDWARE_ATTESTED_USERSPACE_TAMPERED` | **Strongest single signal.** Hardware attestation reports `verifiedBootState=Verified` AND a userspace hook finding fires in the same report. Either TEE compromise or post-attestation injection (Magisk + Shamiko, etc.). Backends should treat as highest-confidence compromise signal. |
 
 ```kotlin
 val report = DeviceIntelligence.collect(context).toIntegritySignalReport()
 when {
-    IntegritySignal.HOOKING_FRAMEWORK_DETECTED in report.signals -> denyPayment()
-    IntegritySignal.ROOT_INDICATORS_PRESENT in report.signals    -> warnUser()
-    IntegritySignal.EMULATOR_DETECTED in report.signals          -> requireExtra2FA()
-    else                                                          -> allow()
+    // Hardware-attested AND userspace-tampered = the highest-confidence
+    // signal the SDK can produce. Treat as a hard block.
+    IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED in report.signals -> hardBlock()
+    IntegritySignal.HOOKING_FRAMEWORK_DETECTED in report.signals           -> denyPayment()
+    IntegritySignal.ROOT_INDICATORS_PRESENT in report.signals              -> warnUser()
+    IntegritySignal.EMULATOR_DETECTED in report.signals                    -> requireExtra2FA()
+    else                                                                    -> allow()
 }
 report.evidence[IntegritySignal.HOOKING_FRAMEWORK_DETECTED]?.forEach { finding ->
     log.info("hook detected — kind=${finding.kind} subject=${finding.subject}")
@@ -195,6 +199,8 @@ DeviceIntelligence ships its own offensive verification harnesses — Frida scri
 | LSPosed Java-side method hooks   | `samples/lsposed-tester` — real LSPosed module installs hooks; StackGuard + StackWatchdog catch them | shipped |
 | Runtime DEX injection (CTF Flag 1) | LSPosed-driven `InMemoryDexClassLoader` + disk-backed `DexClassLoader` from `/data/local/tmp/`     | shipped (0.6.0) |
 | Pre-baseline DEX injection (Zygisk timing) | `samples/lsposed-tester` `EarlyDexInjectionHook` — synchronous inject in `handleLoadPackage`  | shipped via `unattributable_dex_at_baseline` (0.6.0) |
+| Newer hook frameworks (Dobby/Whale/YAHFA/FastHook/il2cpp-dumper) | `tools/red-team/maps-newer-frameworks.js` — Frida `prctl(PR_SET_VMA_ANON_NAME)` page renaming | shipped (0.9.0) |
+| Hardware attestation × userspace tampering correlation | composes existing detector findings — JVM unit tests + Pixel 6 Pro live data | shipped (1.0.0) |
 | Real Zygisk module               | TBD — see [`tools/red-team/CTF_ROADMAP.md`](tools/red-team/CTF_ROADMAP.md)                            | planned |
 
 Full step-by-step validation runbook for the Pixel 6 Pro: [`tools/red-team/FLAG1_RUNBOOK.md`](tools/red-team/FLAG1_RUNBOOK.md).
@@ -266,7 +272,7 @@ the unmodified real value. For tripped-detector examples, see
 ```json
 {
   "schema_version": 2,
-  "library_version": "0.9.0",
+  "library_version": "1.0.0",
   "collected_at_epoch_ms": 1777400000000,
   "collection_duration_ms": 8325,
   "device": {
@@ -332,7 +338,7 @@ the unmodified real value. For tripped-detector examples, see
     "installer_package": null,
     "signer_cert_sha256": ["a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4"],
     "build_variant": "debug",
-    "library_plugin_version": "0.9.0",
+    "library_plugin_version": "1.0.0",
     "first_install_epoch_ms": 1775000000000,
     "last_update_epoch_ms": 1777300000000,
     "target_sdk_version": 36,
@@ -414,8 +420,10 @@ reports `null` (not `false`).
 
 - [**`docs/DETECTORS.md`**](docs/DETECTORS.md) — full per-detector reference (threat model, finding kinds, sample tripped JSON, costs, caveats)
 - [**`NATIVE_INTEGRITY_DESIGN.md`**](NATIVE_INTEGRITY_DESIGN.md) — design of the 8-layer (G0–G7) anti-hooking stack
+- [**`CHANGELOG.md`**](CHANGELOG.md) — version history from 0.5.2 → 1.0.0 with wire-format impact notes per release
+- [**`SECURITY.md`**](SECURITY.md) — vulnerability disclosure process, response SLOs, supported-versions policy
 - [**`tools/red-team/`**](tools/red-team/README.md) — Frida scripts that intentionally trip each `integrity.art` finding (Vectors A/C/D/E/F + Frida-Java)
-- [**`tools/red-team/CTF_ROADMAP.md`**](tools/red-team/CTF_ROADMAP.md) — capture-the-flag roadmap of every detection technique on the backlog (Flag 1 — DEX injection — captured in 0.6.0)
+- [**`tools/red-team/CTF_ROADMAP.md`**](tools/red-team/CTF_ROADMAP.md) — capture-the-flag roadmap of every detection technique on the backlog (Flag 1 — DEX injection — captured 0.6.0; Flag 2 — newer hook frameworks — captured 0.9.0; Flag 5 — attestation × runtime correlation — captured 1.0.0)
 - [**`tools/red-team/FLAG1_RUNBOOK.md`**](tools/red-team/FLAG1_RUNBOOK.md) — Pixel 6 Pro on-device validation runbook for the Flag 1 DEX-injection detector
 - [**`samples/lsposed-tester/`**](samples/lsposed-tester/) — real LSPosed module that drives runtime DEX injection against the sample app, used to verify the detector against production attacker tooling rather than just Frida
 

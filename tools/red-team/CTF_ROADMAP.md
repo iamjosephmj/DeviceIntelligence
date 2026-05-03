@@ -354,28 +354,43 @@ the seccomp transition finding fires.
 
 ---
 
-## Flag 5 — Attestation × runtime correlation
+## Flag 5 — Attestation × runtime correlation (captured 1.0.0)
 
-**Attacker behaviour:** sophisticated attacker on a TEE-compromised
-device (or a Pixel-denylisted hardware) where attestation reports
-clean but ART is patched.
+**Status: shipped.** Implementation references:
 
-**Detection plan:** purely a correlation/severity-uplift change,
-no new probes. When `attestation.key.verified_boot = Verified`
-**and** any `integrity.art` finding fires → emit a derived
-`hardware_attested_but_userspace_tampered` finding at CRITICAL.
-This is the single strongest signal the SDK can produce — it
-means the device passed hardware attestation but is still running
-patched userspace.
+- Helper: `TelemetryCollector.applyAttestationRuntimeCorrelation()`
+  runs after every detector evaluates and before `summary` is
+  computed. Composes the existing per-detector findings.
+- New IntegritySignal: `HARDWARE_ATTESTED_USERSPACE_TAMPERED`
+  (HIGH-tone, "strongest single signal" framing).
+- New finding kind: `hardware_attested_but_userspace_tampered`,
+  appended to the `attestation.key` detector report's findings
+  list (the attestation half is the load-bearing precondition,
+  so the derived signal belongs there semantically).
+- 11 unit tests covering positive trip, multi-kind aggregation,
+  attestation.key targeting (NOT runtime.environment), 4 negative
+  cases (no hooks; unverified boot; null attestation; SelfSigned
+  verified-boot — only "Verified" counts), idempotency, end-to-end
+  IntegritySignal mapping, and graceful behaviour when
+  `attestation.key` was filtered out via `CollectOptions.skip`.
 
-**Finding kinds:** `hardware_attested_but_userspace_tampered`,
-`attestation_strongbox_downgrade`.
+**Attacker behaviour caught:** sophisticated attacker on a
+TEE-compromised device (or a hardware-attested device running
+Magisk + Shamiko hide) where attestation reports clean but ART
+is patched. Either signal alone is interesting; the combination
+is extraordinary — the hardware says "clean device" and userspace
+simultaneously says "active hook injection." Two explanations,
+both bad: TEE compromise (rare but exists) or post-attestation
+injection (Magisk + Shamiko, etc.).
 
-**Harness:** existing Vector-A run on a hardware-attested device
-already produces both halves of the signal; the change is to
-emit the joined finding. Capture criteria: existing harness still
-fires its vector finding **and** the new correlation finding
-appears.
+**Capture criteria** (all met as of 1.0.0):
+1. `verifiedBootState == "Verified"` AND any
+   `IntegritySignal.HOOKING_FRAMEWORK_DETECTED`-mapped kind in
+   the same report → derived finding emitted at CRITICAL severity.
+2. The derived finding's `details.tamper_finding_kinds` enumerates
+   every distinct hook-related kind that contributed (sorted,
+   comma-separated for backend parsing stability).
+3. Wire-format additive only — no schema bump, no breaking change.
 
 ---
 
@@ -452,17 +467,22 @@ SIGTRAP.
 
 ## Priority order & rough effort
 
-| Flag | Priority | Effort | Notes                                                                |
-| ---- | -------- | ------ | -------------------------------------------------------------------- |
-| 1    | Critical | M      | In-memory DEX is in active fraud tooling today. Active development. |
-| 2    | High     | XS     | 10-line MapsParser change + harness.                                |
-| 3    | High     | M      | Shamiko ships in production fraud cases.                            |
-| 5    | High     | XS     | Free severity uplift, no new probes.                                |
-| 4    | Medium   | L      | Syscall timing requires jitter calibration.                         |
-| 6    | Low      | M      | Marginal additional signal vs Vector A.                             |
-| 7    | Low      | S      | Cheap; closes a known race-window bypass.                           |
-| 8    | Low      | S      | Cloner detector already covers the common case.                     |
-| 9    | Low      | S      | Niche; depends on SIGTRAP being a probe vector at all.              |
+| Flag | Status     | Priority | Effort | Notes                                                                |
+| ---- | ---------- | -------- | ------ | -------------------------------------------------------------------- |
+| 1    | shipped 0.6.0 | —     | —      | Runtime DEX injection (in-memory + disk + pre-baseline). Captured.   |
+| 2    | shipped 0.9.0 | —     | —      | 5 of 8 frameworks (Dobby/Whale/YAHFA/FastHook/il2cpp-dumper). 3 deferred behind embedded-vs-injected. |
+| 5    | shipped 1.0.0 | —     | —      | Attestation × runtime correlation. Strongest single signal.          |
+| 3    | open       | High     | M      | Shamiko / Magisk-hide property interception. Most-deployed evasion in the wild. |
+| 4    | open       | Medium   | L      | Kernel-level hooks (seccomp / eBPF / kprobes). Syscall timing requires jitter calibration. |
+| 6    | open       | Low      | M      | Java-side reflection tampering. Marginal additional signal vs Vector A. |
+| 7    | open       | Low      | S      | TracerPid race + multi-attach. Cheap; closes a known race-window bypass. |
+| 8    | open       | Low      | S      | App-cloning frameworks beyond ClonerDetector. Cloner detector already covers the common case. |
+| 9    | open       | Low      | S      | SIGTRAP / signal-handler integrity. Niche; depends on SIGTRAP being a probe vector at all. |
+
+Embedded-vs-injected (the prerequisite for the deferred ShadowHook /
+SandHook / Pine signatures from Flag 2) is its own roadmap item —
+not currently numbered, but tracked under Flag 2's "deferred"
+section above.
 
 This document is updated as flags are captured (a captured flag
 moves into the "Coverage today" table and out of the roadmap).
