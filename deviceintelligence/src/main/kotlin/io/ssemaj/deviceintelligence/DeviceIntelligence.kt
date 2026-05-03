@@ -211,6 +211,86 @@ public object DeviceIntelligence {
         }
     }
 
+    /**
+     * Cumulative session-level view of [observe]'s emissions.
+     *
+     * Where [observe] hands you a fresh [TelemetryReport] on every
+     * tick (each emission is a snapshot — findings that were
+     * present last tick but aren't present this tick simply
+     * disappear), [observeSession] aggregates findings ACROSS
+     * ticks and tags each one with first/last-seen times,
+     * observation count, and a [TrackedFinding.stillActive] flag.
+     *
+     * Use this when:
+     *  - You want a UI that never loses sight of a finding the
+     *    moment it stops appearing in the latest collect (e.g. a
+     *    Frida hook that fires once during onboarding and then
+     *    detaches — your UI should still show it for the rest of
+     *    the session).
+     *  - You need to know how long ago a signal first appeared
+     *    (`firstSeenAtEpochMs`), how many collects it survived
+     *    (`observationCount`), or whether it's currently active
+     *    (`stillActive`).
+     *
+     * The session begins on first collection of the returned
+     * Flow. Cancelling the collector and re-subscribing starts a
+     * NEW session — that's how a "Reset" button is implemented:
+     * cancel the current scope, re-launch.
+     *
+     * Two findings are considered the same session entry iff
+     * `(detectorId, kind, subject)` matches. See [TrackedFinding]
+     * for the full identity contract. Message and details refresh
+     * on every re-observation; identity does not.
+     *
+     * Identical [interval] / [options] semantics to [observe].
+     *
+     * Example:
+     * ```kotlin
+     * lifecycleScope.launch {
+     *     DeviceIntelligence.observeSession(this@MainActivity, 2.seconds)
+     *         .collect { session ->
+     *             render(session.findings)  // a List<TrackedFinding>
+     *             updateBadge(session.collectionsObserved)
+     *         }
+     * }
+     * ```
+     */
+    @Critical
+    public fun observeSession(
+        context: Context,
+        interval: Duration = 2.seconds,
+        options: CollectOptions = CollectOptions.DEFAULT,
+    ): Flow<SessionFindings> {
+        // The `observe` we layer on top of already runs
+        // StackGuard.verify per emission AND switches to
+        // Dispatchers.IO. We don't need to redo either — the
+        // upstream's onEach + flowOn carry through `.map`-style
+        // transformations.
+        return observeSessionFlow(observe(context, interval, options))
+    }
+
+    /**
+     * Pure aggregator wrapper, decoupled from `observe()` so JVM
+     * unit tests can drive the aggregator with a synthetic
+     * [Flow] of [TelemetryReport] without spinning up a Context
+     * or a polling timer.
+     *
+     * A fresh [SessionFindingsAggregator] is constructed inside
+     * the [flow] builder, which means every `collect()` of the
+     * returned Flow gets its own session state. Two collectors
+     * of the same returned Flow do NOT share aggregation — each
+     * sees its own first-seen / last-seen / observation counts.
+     */
+    @JvmSynthetic
+    internal fun observeSessionFlow(
+        upstream: Flow<TelemetryReport>,
+    ): Flow<SessionFindings> = flow {
+        val aggregator = SessionFindingsAggregator(System.currentTimeMillis())
+        upstream.collect { report ->
+            emit(aggregator.ingest(report))
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Blocking entry points (Java consumers, synchronous boundaries)
     // ---------------------------------------------------------------------
