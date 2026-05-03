@@ -1248,6 +1248,11 @@ class MainActivity : Activity() {
      *  - INFO: cohorting / non-tamper signals (emulator).
      */
     private fun signalTone(s: IntegritySignal): Ui.Tone = when (s) {
+        // The strongest single signal the SDK can produce — always BAD,
+        // even though the underlying constituent signals get more nuanced
+        // tones below.
+        IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED -> Ui.Tone.BAD
+
         IntegritySignal.HOOKING_FRAMEWORK_DETECTED,
         IntegritySignal.INJECTED_NATIVE_CODE,
         IntegritySignal.APK_TAMPERED,
@@ -1292,6 +1297,8 @@ class MainActivity : Activity() {
             "JVM debugger or kernel ptrace attached to the process"
         IntegritySignal.DEBUG_FLAG_MISMATCH ->
             "ApplicationInfo debuggable flag disagrees with ro.debuggable"
+        IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED ->
+            "Hardware-attested verified boot AND active userspace tampering — strongest compromise signal"
     }
 
     /**

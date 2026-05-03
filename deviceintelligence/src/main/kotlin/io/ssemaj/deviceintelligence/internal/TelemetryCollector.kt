@@ -28,7 +28,10 @@ import io.ssemaj.deviceintelligence.DetectorReport
 import io.ssemaj.deviceintelligence.DetectorStatus
 import io.ssemaj.deviceintelligence.DeviceContext
 import io.ssemaj.deviceintelligence.DeviceIntelligence
+import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.InstallSource
+import io.ssemaj.deviceintelligence.IntegritySignal
+import io.ssemaj.deviceintelligence.IntegritySignalMapper
 import io.ssemaj.deviceintelligence.ReportSummary
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TELEMETRY_SCHEMA_VERSION
@@ -127,6 +130,17 @@ internal object TelemetryCollector {
 
         val device = buildDeviceContext(appCtx)
         val app = buildAppContext(appCtx, nativeReady, detectorReports)
+
+        // CTF Flag 5 — attestation × runtime correlation.
+        // Composes existing per-detector findings into a derived
+        // CRITICAL finding when the hardware says "verified clean
+        // device" AND userspace says "active hook injection". See
+        // IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED kdoc
+        // for the threat model. Mutates `detectorReports` in place
+        // so the derived finding flows into both the summary count
+        // and the wire JSON.
+        applyAttestationRuntimeCorrelation(detectorReports, app)
+
         val summary = computeSummary(detectorReports)
 
         val report = TelemetryReport(
@@ -153,6 +167,92 @@ internal object TelemetryCollector {
 
         return report
     }
+
+    /**
+     * CTF Flag 5 — attestation × runtime correlation.
+     *
+     * Scans the collected detector reports for the combination of:
+     *   1. Hardware attestation reporting `verifiedBootState=Verified`
+     *      (the TEE asserts a clean, locked-bootloader, signed-OS boot).
+     *   2. Any active userspace tamper finding (= any kind that maps to
+     *      [IntegritySignal.HOOKING_FRAMEWORK_DETECTED]).
+     *
+     * If both hold, append a derived CRITICAL finding
+     * `hardware_attested_but_userspace_tampered` to the
+     * `attestation.key` detector report — semantically the
+     * attestation half is the load-bearing precondition, so the
+     * derived signal belongs there rather than on whichever
+     * runtime detector happened to also fire.
+     *
+     * The function is idempotent: calling it twice on the same
+     * `reports` list with the same `app` only emits one derived
+     * finding (existing finding kinds aren't duplicated). Internal
+     * because the public surface is just [collect] producing a
+     * derived-correlation-aware report — consumers shouldn't have
+     * to know this step ran.
+     *
+     * Internal visibility for unit testing without spinning up a
+     * real Context.
+     */
+    @JvmSynthetic
+    internal fun applyAttestationRuntimeCorrelation(
+        reports: MutableList<DetectorReport>,
+        app: AppContext,
+    ) {
+        val verifiedBoot = app.attestation?.verifiedBootState == "Verified"
+        if (!verifiedBoot) return
+
+        val hookingKindToSignal = IntegritySignalMapper.kindToSignal
+        val tamperKinds = reports
+            .asSequence()
+            .flatMap { it.findings.asSequence() }
+            .map { it.kind }
+            .filter { hookingKindToSignal[it] == IntegritySignal.HOOKING_FRAMEWORK_DETECTED }
+            .toSortedSet()
+        if (tamperKinds.isEmpty()) return
+
+        val attestationIdx = reports.indexOfFirst { it.id == KeyAttestationDetector.id }
+        if (attestationIdx < 0) return
+        val attestationReport = reports[attestationIdx]
+
+        // Idempotency guard — don't double-emit if the caller invokes
+        // us more than once on the same list.
+        val alreadyEmitted = attestationReport.findings.any { f ->
+            f.kind == KIND_HARDWARE_ATTESTED_USERSPACE_TAMPERED
+        }
+        if (alreadyEmitted) return
+
+        val derivedFinding = Finding(
+            kind = KIND_HARDWARE_ATTESTED_USERSPACE_TAMPERED,
+            severity = Severity.CRITICAL,
+            subject = app.packageName,
+            message =
+                "Hardware key attestation reports verifiedBootState=Verified, " +
+                    "but ${tamperKinds.size} userspace tamper finding kind(s) are also " +
+                    "present. The TEE asserts this is a locked-bootloader device " +
+                    "running a verified-boot OS image; the userspace simultaneously " +
+                    "shows active hook injection. This is the strongest single tamper " +
+                    "signal the SDK can produce — possible TEE compromise or " +
+                    "post-attestation injection (e.g., Magisk + Shamiko).",
+            details = mapOf(
+                "verified_boot_state" to "Verified",
+                "tamper_finding_kinds" to tamperKinds.joinToString(","),
+                "tamper_finding_count" to tamperKinds.size.toString(),
+            ),
+        )
+
+        reports[attestationIdx] = attestationReport.copy(
+            findings = attestationReport.findings + derivedFinding,
+        )
+    }
+
+    /**
+     * Stable wire identifier for the [applyAttestationRuntimeCorrelation]
+     * derived finding. Mirrors the `KIND_*` constant pattern the
+     * detectors use for their own kinds.
+     */
+    internal const val KIND_HARDWARE_ATTESTED_USERSPACE_TAMPERED: String =
+        "hardware_attested_but_userspace_tampered"
 
     /**
      * Applies [CollectOptions] to the registered detector list. The

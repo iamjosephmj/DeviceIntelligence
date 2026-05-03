@@ -243,6 +243,8 @@ class IntegritySignalMapperTest {
             "apk_path_mismatch",
             "data_dir_mount_invalid",
             "uid_mismatch",
+            // CTF Flag 5 — attestation × runtime correlation
+            "hardware_attested_but_userspace_tampered",
         )
         val mappedKinds = IntegritySignalMapper.kindToSignal.keys
         val missing = expectedKinds - mappedKinds
@@ -274,6 +276,8 @@ class IntegritySignalMapperTest {
             IntegritySignal.APP_CLONED to "data_dir_mount_invalid",
             IntegritySignal.DEBUGGER_ATTACHED to "debugger_attached",
             IntegritySignal.DEBUG_FLAG_MISMATCH to "ro_debuggable_mismatch",
+            IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED to
+                "hardware_attested_but_userspace_tampered",
         )
         // Sanity-check we covered every enum value.
         assertEquals(
