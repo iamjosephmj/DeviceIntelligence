@@ -178,6 +178,91 @@ class MapsParserTest {
         assertEquals(emptyList<String>(), result.rwxRegions)
     }
 
+    // ---- scanDalvikAnonRegions ------------------------------------------
+
+    @Test
+    fun `scanDalvikAnonRegions returns empty when no dalvik-named regions are present`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /system/lib64/libc.so
+            720001000-720002000 rw-p 00000000 00:00 0  [anon:libc_globals]
+            720002000-720003000 rw-p 00000000 00:00 0  [anon:scudo:primary]
+        """.trimIndent()
+
+        val result = MapsParser.scanDalvikAnonRegions(maps)
+
+        assertEquals(emptyList<MapsParser.DalvikAnonRegion>(), result)
+    }
+
+    @Test
+    fun `scanDalvikAnonRegions captures InMemoryDexClassLoader-style label`() {
+        val maps = """
+            7090000000-7090001000 rw-p 00000000 00:00 0  [anon:dalvik-classes.dex extracted in memory from <buffer>]
+        """.trimIndent()
+
+        val result = MapsParser.scanDalvikAnonRegions(maps)
+
+        assertEquals(1, result.size)
+        val region = result[0]
+        assertEquals("7090000000-7090001000", region.addressRange)
+        assertEquals("rw-p", region.perms)
+        assertEquals(
+            "anon:dalvik-classes.dex extracted in memory from <buffer>",
+            region.label,
+        )
+    }
+
+    @Test
+    fun `scanDalvikAnonRegions captures path-backed extraction labels`() {
+        val maps = """
+            7090000000-7090001000 rw-p 00000000 00:00 0  [anon:dalvik-classes.dex extracted in memory from /data/local/tmp/payload.dex]
+            7090001000-7090002000 rw-p 00000000 00:00 0  [anon:dalvik-classes.dex extracted in memory from /data/app/com.example.app-AbC/base.apk]
+        """.trimIndent()
+
+        val result = MapsParser.scanDalvikAnonRegions(maps)
+
+        assertEquals(2, result.size)
+        assertTrue(result[0].label.endsWith("/data/local/tmp/payload.dex"))
+        assertTrue(result[1].label.contains("com.example.app"))
+    }
+
+    @Test
+    fun `scanDalvikAnonRegions captures jit-cache and other dalvik internals`() {
+        // These are NOT DEX content; the parser should still surface
+        // them — the detector classifies the kind, not the parser.
+        val maps = """
+            7090000000-7090001000 rwxp 00000000 00:00 0  [anon:dalvik-jit-code-cache]
+            7090001000-7090002000 rw-p 00000000 00:00 0  [anon:dalvik-zygote-claimed]
+            7090002000-7090003000 rw-p 00000000 00:00 0  [anon:dalvik-LinearAlloc]
+        """.trimIndent()
+
+        val result = MapsParser.scanDalvikAnonRegions(maps)
+
+        assertEquals(3, result.size)
+        assertEquals("anon:dalvik-jit-code-cache", result[0].label)
+        assertEquals("anon:dalvik-zygote-claimed", result[1].label)
+        assertEquals("anon:dalvik-LinearAlloc", result[2].label)
+    }
+
+    @Test
+    fun `scanDalvikAnonRegions ignores non-dalvik named anon regions`() {
+        val maps = """
+            7090000000-7090001000 rw-p 00000000 00:00 0  [anon:libc_malloc]
+            7090001000-7090002000 rw-p 00000000 00:00 0  [anon:scudo:primary]
+            7090002000-7090003000 rw-p 00000000 00:00 0  [anon:dalvik-classes.dex extracted in memory from <buffer>]
+        """.trimIndent()
+
+        val result = MapsParser.scanDalvikAnonRegions(maps)
+
+        assertEquals(1, result.size)
+        assertTrue(result[0].label.startsWith("anon:dalvik-"))
+    }
+
+    @Test
+    fun `scanDalvikAnonRegions empty input yields empty list`() {
+        val result = MapsParser.scanDalvikAnonRegions("")
+        assertEquals(emptyList<MapsParser.DalvikAnonRegion>(), result)
+    }
+
     @Test
     fun `anonymous mapping never matches a hook signature`() {
         // Anonymous maps have no pathname; even if the signature

@@ -224,6 +224,13 @@ class IntegritySignalMapperTest {
             "got_entry_out_of_range",
             "injected_library",
             "injected_anonymous_executable",
+            // CTF Flag 1 — DEX injection (emitted by DexInjection
+            // helper inside runtime.environment, NOT a separate detector)
+            "dex_classloader_added",
+            "dex_path_outside_apk",
+            "dex_in_memory_loader_injected",
+            "dex_in_anonymous_mapping",
+            "unattributable_dex_at_baseline",
             // runtime.root
             "su_binary_present",
             "magisk_artifact_present",

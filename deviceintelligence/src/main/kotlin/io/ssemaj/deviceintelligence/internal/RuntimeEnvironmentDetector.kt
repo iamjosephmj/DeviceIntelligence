@@ -178,6 +178,22 @@ internal object RuntimeEnvironmentDetector : Detector {
             }
         }
 
+        // CTF Flag 1 — runtime DEX injection. Bytecode-level
+        // tampering of the running process (InMemoryDexClassLoader
+        // and DexClassLoader) which the existing G2-G7 native scans
+        // and the integrity.art ART-internals vectors cannot see.
+        // The helper owns its own first-call baseline + diff
+        // semantics; we just pass through every finding it emits.
+        // See [DexInjection] kdoc for channel a/b details.
+        val dexFindings = runCatching { DexInjection.scan(ctx) }
+            .onFailure { Log.w(TAG, "DexInjection scan threw", it) }
+            .getOrNull()
+            .orEmpty()
+        if (dexFindings.isNotEmpty()) {
+            Log.i(TAG, "DEX injection scan emitted ${dexFindings.size} finding(s)")
+            out += dexFindings
+        }
+
         return out
     }
 

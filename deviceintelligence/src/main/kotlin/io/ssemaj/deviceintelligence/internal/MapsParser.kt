@@ -62,6 +62,26 @@ internal object MapsParser {
     internal data class HookFramework(val canonicalName: String, val signatures: List<String>)
 
     /**
+     * One `[anon:dalvik-...]` mapping line. Surfaced separately
+     * from [parse]'s [ScanResult] because [DexInjection]
+     * is the only consumer and it cares about a different shape
+     * of the same maps content (label string + address range,
+     * not perms/path).
+     *
+     * `label` is the substring INSIDE the brackets — e.g.
+     * `"anon:dalvik-classes.dex extracted in memory from <path>"` —
+     * stripped of the surrounding `[` `]`. The leading
+     * `anon:dalvik-` prefix is preserved so callers can filter
+     * other named-anon families (`[anon:libc_malloc]` etc) by
+     * looking at the same string.
+     */
+    internal data class DalvikAnonRegion(
+        val addressRange: String,
+        val perms: String,
+        val label: String,
+    )
+
+    /**
      * Result of one [parse] call. Empty lists mean no hits — the
      * detector emits zero findings in that case.
      */
@@ -139,6 +159,45 @@ internal object MapsParser {
             hookFrameworks = foundFrameworks.toList(),
             rwxRegions = rwxRegions,
         )
+    }
+
+    /**
+     * Walks [content] and returns one [DalvikAnonRegion] per line
+     * whose pathname is a `[anon:dalvik-...]` named-anon mapping.
+     * The Linux kernel exposes `prctl(PR_SET_VMA_ANON_NAME, ...)`
+     * names in the pathname column verbatim, surrounded by `[ ]`,
+     * so a substring scan is sufficient.
+     *
+     * Used by [DexInjection]'s channel (b) to identify
+     * regions ART has minted to hold extracted DEX bytes —
+     * [InMemoryDexClassLoader] payloads in particular surface as
+     * `[anon:dalvik-classes.dex extracted in memory from <buffer>]`.
+     *
+     * Returns regions in first-seen order. Caller is expected to
+     * classify each label and decide whether it represents a
+     * legitimate ART internals region (jit-cache, zygote-claimed,
+     * GC heap) or an injected-DEX region.
+     */
+    internal fun scanDalvikAnonRegions(content: String): List<DalvikAnonRegion> {
+        val out = ArrayList<DalvikAnonRegion>()
+        for (line in content.lineSequence()) {
+            if (line.isEmpty()) continue
+            val open = line.indexOf("[anon:dalvik-")
+            if (open < 0) continue
+            val close = line.indexOf(']', open)
+            if (close < 0) continue
+            val firstSpace = line.indexOf(' ')
+            if (firstSpace <= 0 || firstSpace + 5 > line.length) continue
+            val perms = line.substring(firstSpace + 1, firstSpace + 5)
+            val addressRange = line.substring(0, firstSpace)
+            val label = line.substring(open + 1, close)
+            out += DalvikAnonRegion(
+                addressRange = addressRange,
+                perms = perms,
+                label = label,
+            )
+        }
+        return out
     }
 
     /**

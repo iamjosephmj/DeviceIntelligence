@@ -109,7 +109,11 @@ public enum class IntegritySignal {
      * `stack_foreign_frame`, `native_caller_out_of_range`,
      * `native_text_hash_mismatch`, `native_text_drifted`,
      * `got_entry_drifted`, `got_entry_out_of_range`, all `art_*` and
-     * `jni_env_*` kinds.
+     * `jni_env_*` kinds. Plus the bytecode-level DEX-injection kinds
+     * `dex_classloader_added`, `dex_path_outside_apk`,
+     * `dex_in_memory_loader_injected`, `dex_in_anonymous_mapping`,
+     * `unattributable_dex_at_baseline` — all emitted by the
+     * `DexInjection` helper inside `runtime.environment`.
      */
     HOOKING_FRAMEWORK_DETECTED,
 
@@ -342,6 +346,11 @@ public fun TelemetryReport.toIntegritySignalReport(): IntegritySignalReport =
  *  - `runtime.root`          → RootIndicatorsDetector
  *  - `runtime.emulator`      → EmulatorProbe
  *  - `runtime.cloner`        → ClonerDetector
+ *
+ * The CTF Flag 1 DEX-injection finding kinds (`dex_*`,
+ * `unattributable_dex_at_baseline`) are emitted by `runtime.environment`
+ * via the [DexInjection] internal helper — there is no separate
+ * `runtime.dex` detector.
  */
 private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     // ---- integrity.apk ----
@@ -393,6 +402,19 @@ private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     // ---- runtime.environment injected native code (G3) ----
     put("injected_library", IntegritySignal.INJECTED_NATIVE_CODE)
     put("injected_anonymous_executable", IntegritySignal.INJECTED_NATIVE_CODE)
+
+    // ---- runtime.environment / DexInjection helper (CTF Flag 1) ----
+    // Bytecode-level hook injection — InMemoryDexClassLoader and
+    // DexClassLoader payloads. Emitted by the DexInjection helper
+    // inside RuntimeEnvironmentDetector (no separate detector ID).
+    // Mapped to HOOKING_FRAMEWORK_DETECTED for the same reason as
+    // hook_framework_present and rwx_memory_mapping: it's
+    // process-wide active tampering of the runtime.
+    put("dex_classloader_added", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
+    put("dex_path_outside_apk", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
+    put("dex_in_memory_loader_injected", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
+    put("dex_in_anonymous_mapping", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
+    put("unattributable_dex_at_baseline", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
     // `system_library_late_loaded` is intentionally NOT mapped here.
     // It's a MEDIUM-severity, forensics-only finding emitted when a
     // library missed the JNI_OnLoad baseline but lives under a
