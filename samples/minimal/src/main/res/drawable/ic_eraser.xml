@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Eraser glyph for the "Clear session" action button. Material-style
+    20×20 path; tinted at runtime via ImageView.imageTintList so it
+    can pick up the button's tone-foreground colour.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.24,3.56l4.95,4.94c0.78,0.79 0.78,2.05 0,2.84L12,20.53a4.008,4.008 0 0 1 -5.66,0L2.81,17a4.008,4.008 0 0 1 0,-5.66l10.6,-10.6c0.79,-0.78 2.05,-0.78 2.83,0M4.22,13.41a2.002,2.002 0 0 0 0,2.83l3.54,3.53c0.78,0.79 2.04,0.79 2.82,0l3.535,-3.53l-6.36,-6.36L4.22,13.41z" />
+</vector>

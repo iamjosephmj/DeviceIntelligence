@@ -37,6 +37,9 @@ import io.ssemaj.deviceintelligence.DeviceIntelligence
 import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.IntegritySignal
 import io.ssemaj.deviceintelligence.IntegritySignalReport
+import io.ssemaj.deviceintelligence.SessionFindings
+import io.ssemaj.deviceintelligence.SessionFindingsAggregator
+import io.ssemaj.deviceintelligence.TrackedFinding
 import io.ssemaj.deviceintelligence.Severity
 import io.ssemaj.deviceintelligence.TelemetryReport
 import io.ssemaj.deviceintelligence.toIntegritySignalReport
@@ -135,6 +138,22 @@ class MainActivity : Activity() {
     @Volatile private var lastJson: String = ""
     @Volatile private var collectInFlight: Boolean = false
     private var autoCollectOn: Boolean = false
+
+    /**
+     * Session-level cumulative aggregator owned by the activity.
+     * Both the Re-collect button (one-shot) AND the auto-collect
+     * loop feed reports through this single aggregator so the
+     * Findings card reflects the union of every collect since the
+     * session started. The "Clear session" button replaces the
+     * instance to start over.
+     *
+     * Not thread-safe; serialised by [activityScope] which only
+     * touches it from one coroutine at a time.
+     */
+    private var sessionAggregator: SessionFindingsAggregator =
+        SessionFindingsAggregator(System.currentTimeMillis())
+    @Volatile private var lastSession: SessionFindings? = null
+    private lateinit var clearBtn: View
 
     private val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
@@ -280,6 +299,19 @@ class MainActivity : Activity() {
         recollectIcon = recollect.second
         actionsRow.addView(recollectBtn)
         actionsRow.addView(buildAutoButton())
+        // Clear session: drops the cumulative findings cache so the
+        // Findings card starts over. Re-creates the SessionFindingsAggregator
+        // and re-renders. NEUTRAL tone keeps it visually subordinate to
+        // Re-collect / Auto, since Clear is a destructive-ish action
+        // that's only useful occasionally.
+        val clear = buildIconButton(
+            label = "Clear",
+            tone = Ui.Tone.NEUTRAL,
+            iconRes = R.drawable.ic_eraser,
+            onClick = { clearSession() },
+        )
+        clearBtn = clear.first
+        actionsRow.addView(clearBtn)
         // Copy: icon-button so we can hot-swap ic_copy → ic_check_circle
         // for a brief "copied!" affordance after a successful copy.
         val copy = buildIconButton(
@@ -581,13 +613,20 @@ class MainActivity : Activity() {
             return
         }
         lastReport = report
+        // Fold the new report into the session aggregator so the
+        // Findings card can render cumulative session state. Per-collect
+        // cards (Hero / Device / App / Signals / Detectors) keep using
+        // the raw report — those represent the LATEST snapshot, not the
+        // session union.
+        val session = sessionAggregator.ingest(report)
+        lastSession = session
         val previousJson = lastJson
         lastJson = report.toJson()
         renderHero(report)
         renderDevice(report.device)
         renderApp(report.app)
         renderSignals(report)
-        renderFindings(report)
+        renderFindings(session)
         renderDetectors(report.detectors)
         jsonView.text = lastJson
         // Brief alpha flash on the JSON body whenever the bytes change,
@@ -618,6 +657,38 @@ class MainActivity : Activity() {
     private fun stopAutoCollect() {
         autoCollectJob?.cancel()
         autoCollectJob = null
+    }
+
+    /**
+     * Drops the cumulative session aggregator and re-renders.
+     *
+     * Re-creating the [SessionFindingsAggregator] resets every
+     * tracked finding's first/last-seen timestamps and observation
+     * counts. The next [applyReport] call will treat every finding
+     * in the latest report as freshly-observed.
+     *
+     * If a report is currently in [lastReport] (almost always true
+     * outside of the very first onCreate frame) we re-ingest it
+     * immediately so the Findings card stays populated rather than
+     * blanking out and waiting for the next collect to refill it.
+     */
+    private fun clearSession() {
+        sessionAggregator = SessionFindingsAggregator(System.currentTimeMillis())
+        // Reset the per-row "newly arrived" tracker too, so the
+        // re-ingested findings flash-ripple as if they were fresh.
+        findingsLastSeen = emptySet()
+        findingsFirstRender = true
+        val current = lastReport
+        if (current != null) {
+            val session = sessionAggregator.ingest(current)
+            lastSession = session
+            renderFindings(session)
+        } else {
+            // No report yet — render the empty state.
+            findingsBody.removeAllViews()
+            renderFindingsEmptyState()
+        }
+        toast("Session cleared")
     }
 
     private fun toggleAutoCollect() {
@@ -1263,53 +1334,66 @@ class MainActivity : Activity() {
         Ui.Tone.ACCENT -> 0
     }
 
-    private fun renderFindings(report: TelemetryReport) {
+    private fun renderFindings(session: SessionFindings) {
         findingsBody.removeAllViews()
-        // Sort worst-first so the most-severe finding gets the eye.
-        // Stable secondary keys (detector id, kind) keep the ordering
-        // deterministic so rows don't shuffle between collects when
-        // the same set of findings is present.
-        val findings = report.detectors
-            .flatMap { d -> d.findings.map { d.id to it } }
-            .sortedWith(
-                compareByDescending<Pair<String, Finding>> { severityWeight(it.second.severity) }
-                    .thenBy { it.first }
-                    .thenBy { it.second.kind }
-                    .thenBy { it.second.subject ?: "" },
-            )
 
-        // Title-row count badge: tone reflects the worst severity in
-        // the list (mirrors the Signals card's badge tone logic).
+        // Sort: active first (so live tampering is at the top), then
+        // worst-severity-first within each group, then stable
+        // secondary keys so rows don't shuffle between collects when
+        // nothing changed.
+        val tracked = session.findings.sortedWith(
+            compareByDescending<TrackedFinding> { it.stillActive }
+                .thenByDescending { severityWeight(it.finding.severity) }
+                .thenBy { it.detectorId }
+                .thenBy { it.finding.kind }
+                .thenBy { it.finding.subject ?: "" },
+        )
+        val activeCount = tracked.count { it.stillActive }
+
+        // Title-row count badge: text shows "active · total" so the
+        // user can see at a glance how many findings are currently
+        // live vs how many have ever been seen this session. Tone
+        // reflects the worst severity *among active findings* — stale
+        // ones don't escalate the badge tone (they're historical).
         val badgeTone = when {
-            findings.any { it.second.severity == Severity.CRITICAL } -> Ui.Tone.BAD
-            findings.any { it.second.severity == Severity.HIGH } -> Ui.Tone.WARN
-            findings.isNotEmpty() -> Ui.Tone.INFO
+            tracked.any { it.stillActive && it.finding.severity == Severity.CRITICAL } -> Ui.Tone.BAD
+            tracked.any { it.stillActive && it.finding.severity == Severity.HIGH } -> Ui.Tone.WARN
+            tracked.any { it.stillActive } -> Ui.Tone.INFO
+            tracked.isNotEmpty() -> Ui.Tone.NEUTRAL // session has stale-only findings
             else -> Ui.Tone.OK
         }
-        val newBadge = ui.badge(this, findings.size.toString(), badgeTone)
+        val badgeText = if (activeCount == tracked.size) {
+            tracked.size.toString()
+        } else {
+            "$activeCount · ${tracked.size}"
+        }
+        val newBadge = ui.badge(this, badgeText, badgeTone)
         replaceTitleAccessory(findingsTitleRow, newBadge)
-        if (findingsLastCount >= 0 && findingsLastCount != findings.size) {
+        if (findingsLastCount >= 0 && findingsLastCount != tracked.size) {
             ui.pulseBadge(newBadge)
         }
-        findingsLastCount = findings.size
+        findingsLastCount = tracked.size
 
-        if (findings.isEmpty()) {
+        if (tracked.isEmpty()) {
             renderFindingsEmptyState()
             findingsLastSeen = emptySet()
             findingsFirstRender = false
             return
         }
 
-        // Build a stable key per finding so we can flag rows that
-        // weren't present in the previous render and ripple them.
-        val seenNow = HashSet<String>(findings.size)
-        for ((detectorId, finding) in findings) {
-            val key = findingKey(detectorId, finding)
+        // Stable key per tracked finding so we can ripple newly-added
+        // entries (= new since last RENDER, not new since baseline —
+        // the session aggregator already drops "new since baseline"
+        // into TrackedFinding.firstSeenAtEpochMs for backend correlation).
+        val seenNow = HashSet<String>(tracked.size)
+        val nowMs = session.lastUpdatedAtEpochMs
+        for (entry in tracked) {
+            val key = SessionFindingsAggregator.identityKey(entry.detectorId, entry.finding)
             seenNow += key
-            val row = buildRichFindingRow(detectorId, finding)
+            val row = buildRichFindingRow(entry, nowMs)
             findingsBody.addView(row)
             if (!findingsFirstRender && key !in findingsLastSeen) {
-                row.post { ui.flashRipple(row, severityTone(finding.severity)) }
+                row.post { ui.flashRipple(row, severityTone(entry.finding.severity)) }
             }
         }
         findingsLastSeen = seenNow
@@ -1382,9 +1466,11 @@ class MainActivity : Activity() {
      * and repeating the name on every finding row was visual noise.
      */
     private fun buildRichFindingRow(
-        detectorId: String,
-        finding: Finding,
+        tracked: TrackedFinding,
+        nowMs: Long,
     ): View {
+        val finding = tracked.finding
+        val detectorId = tracked.detectorId
         val tone = severityTone(finding.severity)
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1392,6 +1478,11 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = Ui.dp(this@MainActivity, 14) }
+            // Dim stale findings so the eye flows naturally to the
+            // active ones up top. Stale findings are still readable —
+            // the alpha is 0.55, not 0.2 — so the user can still
+            // inspect historical evidence.
+            if (!tracked.stillActive) alpha = 0.55f
         }
 
         // 3dp tone-tinted left bar, full row height. The bar is the
@@ -1456,7 +1547,7 @@ class MainActivity : Activity() {
         // no details to expand), so the top-row reference is needed.
         col.addView(topRow)
 
-        // ---- second row: [detectorId chip] ----
+        // ---- second row: [detectorId chip] [active/stale chip] ----
         // We deliberately do NOT show the mapped IntegritySignal here;
         // the Signals card above already names every signal, and the
         // chip-on-every-row form repeated those names to the point of
@@ -1464,6 +1555,23 @@ class MainActivity : Activity() {
         // exclusively: signals up there, kinds + detectors down here.
         val chipRow = ui.badgeRow(this, topMargin = 6)
         ui.addToBadgeRow(chipRow, ui.badge(this, detectorId, Ui.Tone.NEUTRAL))
+        // Session-state chip:
+        //  - active findings get a subtle "active" pill (INFO tone) so
+        //    the eye treats them as the current state.
+        //  - stale findings get a "last seen Xs ago" pill that tells
+        //    the user when this finding was last observed, so they
+        //    can correlate it with their own actions (e.g. "Frida
+        //    detached 12s ago").
+        val sessionChipText: String
+        val sessionChipTone: Ui.Tone
+        if (tracked.stillActive) {
+            sessionChipText = "active · ×${tracked.observationCount}"
+            sessionChipTone = Ui.Tone.INFO
+        } else {
+            sessionChipText = "last seen ${formatRelativeTime(tracked.lastSeenAtEpochMs, nowMs)}"
+            sessionChipTone = Ui.Tone.NEUTRAL
+        }
+        ui.addToBadgeRow(chipRow, ui.badge(this, sessionChipText, sessionChipTone))
         col.addView(chipRow)
 
         // ---- subject (only when non-blank, since not every finding
@@ -1563,6 +1671,27 @@ class MainActivity : Activity() {
         Severity.HIGH -> 3
         Severity.MEDIUM -> 2
         Severity.LOW -> 1
+    }
+
+    /**
+     * Compact relative-time formatter for the "last seen Xs ago"
+     * pill. Returns short, bracket-friendly strings:
+     *   - <60s    → "Ns ago"
+     *   - <60min  → "Nm ago"
+     *   - else    → "Nh ago"
+     *
+     * Negative deltas (clock skew, [thenMs] in the future) are
+     * clamped to 0 and rendered as "just now".
+     */
+    private fun formatRelativeTime(thenMs: Long, nowMs: Long): String {
+        val deltaMs = (nowMs - thenMs).coerceAtLeast(0)
+        if (deltaMs < 1_000L) return "just now"
+        val seconds = deltaMs / 1_000L
+        if (seconds < 60L) return "${seconds}s ago"
+        val minutes = seconds / 60L
+        if (minutes < 60L) return "${minutes}m ago"
+        val hours = minutes / 60L
+        return "${hours}h ago"
     }
 
     private fun renderDetectors(detectors: List<DetectorReport>) {
