@@ -31,7 +31,7 @@
 Most Android apps shipping device-tampering checks reach for one of:
 
 - **Google Play Integrity API** — black-box, requires Google Play Services, can't run on AOSP/FOSS devices, doesn't tell you *why* a device is suspect.
-- **A commercial RASP** (Promon SHIELD, Guardsquare DexGuard, Zimperium zIAP, Talsec freeRASP) — expensive, partly closed-source, opaque detection logic, vendor lock-in.
+- **A commercial RASP** — expensive, partly closed-source, opaque detection logic, vendor lock-in.
 - **A simple root checker** (RootBeer, SafetyNetHelper) — covers maybe 20% of the threat surface a real attacker uses.
 
 DeviceIntelligence sits in the gap. It's:
