@@ -142,6 +142,11 @@ internal object KeyDescriptionParser {
      * [java.security.cert.X509Certificate.getExtensionValue]. That value is
      * itself a DER-encoded OCTET STRING wrapping the actual KeyDescription
      * SEQUENCE — we unwrap one layer here.
+     *
+     * Returns null when the inner content is **not** a legacy ASN.1
+     * `KeyDescription` SEQUENCE. The most common reason for that on
+     * Android 14+ devices is CBOR-EAT format — call [isCborEatFormat]
+     * to disambiguate.
      */
     fun parse(extensionValue: ByteArray): ParsedKeyDescription? = try {
         val outer = Reader(extensionValue)
@@ -149,6 +154,42 @@ internal object KeyDescriptionParser {
         parseTopLevel(unwrapped)
     } catch (_: Throwable) {
         null
+    }
+
+    /**
+     * Heuristic: does this extension value look like CBOR-EAT rather
+     * than the legacy ASN.1 `KeyDescription`? After unwrapping the
+     * outer DER OCTET STRING, a legacy KeyDescription's inner content
+     * starts with `0x30` (ASN.1 SEQUENCE tag); a CBOR-EAT inner
+     * content starts with a CBOR map header byte in the range
+     * `0xA0`–`0xBF` (major type 5).
+     *
+     * KeyMint 200+ on newer Android can emit attestation in CBOR
+     * EAT format; on those devices [parse] returns null because the
+     * DER walker can't make sense of CBOR bytes. This helper lets
+     * the caller distinguish "extension is malformed" from
+     * "extension is in a format we don't fully decode yet" so the
+     * wire can carry the right `Finding` kind.
+     *
+     * Full CBOR-EAT field-level parsing (verified-boot state,
+     * device-locked, OS patch level, attested-application-id) is
+     * tracked for a follow-up minor — it requires a CBOR decoder
+     * dependency or a careful hand-roll, plus on-device validation
+     * against a Pixel 8/9 RKP-provisioned chain to confirm tag
+     * mappings.
+     */
+    fun isCborEatFormat(extensionValue: ByteArray): Boolean {
+        return try {
+            val outer = Reader(extensionValue)
+            val unwrapped = outer.readUniversal(TAG_OCTET_STRING)
+                ?: return false
+            if (unwrapped.isEmpty()) return false
+            val first = unwrapped[0].toInt() and 0xFF
+            // CBOR major type 5 (map): high bits 101xxxxx → 0xA0..0xBF.
+            first in 0xA0..0xBF
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     private fun parseTopLevel(blob: ByteArray): ParsedKeyDescription? {

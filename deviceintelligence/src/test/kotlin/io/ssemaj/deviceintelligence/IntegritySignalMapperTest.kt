@@ -224,6 +224,10 @@ class IntegritySignalMapperTest {
             "got_entry_out_of_range",
             "injected_library",
             "injected_anonymous_executable",
+            // Frida 16+ memfd-JIT attribution (parallel to the
+            // generic hook_framework_present; both map to
+            // HOOKING_FRAMEWORK_DETECTED)
+            "frida_memfd_jit_present",
             // CTF Flag 1 — DEX injection (emitted by DexInjection
             // helper inside runtime.environment, NOT a separate detector)
             "dex_classloader_added",
@@ -237,6 +241,10 @@ class IntegritySignalMapperTest {
             "test_keys_build",
             "which_su_succeeded",
             "root_manager_app_installed",
+            // runtime.root — Shamiko-bypass channels (1.x additive)
+            "magisk_in_init_mountinfo",
+            "magisk_daemon_socket_present",
+            "tls_trust_store_tampered",
             // runtime.emulator
             "running_on_emulator",
             // runtime.cloner
@@ -245,6 +253,8 @@ class IntegritySignalMapperTest {
             "uid_mismatch",
             // CTF Flag 5 — attestation × runtime correlation
             "hardware_attested_but_userspace_tampered",
+            // attestation.key — CBOR/EAT format detection (KeyMint 200+ / 1.x additive)
+            "attestation_eat_format_detected",
         )
         val mappedKinds = IntegritySignalMapper.kindToSignal.keys
         val missing = expectedKinds - mappedKinds

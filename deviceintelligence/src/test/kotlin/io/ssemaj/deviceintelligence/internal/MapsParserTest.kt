@@ -350,6 +350,110 @@ class MapsParserTest {
         assertEquals(emptyList<MapsParser.DalvikAnonRegion>(), result)
     }
 
+    // ---- Frida 16+ memfd-backed Gum JIT signature ------------------------
+
+    @Test
+    fun `legitimate ART memfd jit-cache with r-xp perms is NOT flagged as frida memfd`() {
+        // ART (Samsung/Android 16) legitimately maps /memfd:jit-cache
+        // with r-xp / r--p / rw-p perms. None of them are rwxp, so the
+        // detector must not flag any of these lines.
+        val maps = """
+            720000000-721000000 r-xp 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+            721000000-722000000 r--p 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+            722000000-723000000 rw-p 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        assertEquals(emptyList<String>(), result.fridaMemfdJitRegions)
+        // And no spurious RWX firing either.
+        assertEquals(emptyList<String>(), result.rwxRegions)
+    }
+
+    @Test
+    fun `frida memfd jit-cache with rwxp and large size IS flagged`() {
+        // Frida 16+ Gum JIT: rwxp + /memfd:jit-cache + region size > 8 MB.
+        // 0x720000000 → 0x721000000 = 0x01000000 = 16 MB, well above
+        // the 8 MB threshold.
+        val maps = """
+            720000000-721000000 rwxp 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        assertEquals(
+            listOf("720000000-721000000 /memfd:jit-cache (deleted)"),
+            result.fridaMemfdJitRegions,
+        )
+        // The region also still appears in the generic rwxRegions
+        // list — the more specific signal does NOT remove it.
+        assertEquals(
+            listOf("720000000-721000000 /memfd:jit-cache (deleted)"),
+            result.rwxRegions,
+        )
+    }
+
+    @Test
+    fun `frida memfd jit-cache below 8MB threshold is NOT flagged as memfd jit`() {
+        // 0x720000000 → 0x720100000 = 0x100000 = 1 MB, below the 8 MB
+        // belt-and-suspenders threshold. Still appears in the generic
+        // RWX list (rwxp is suspicious regardless of size), but not
+        // in the more specific Frida-memfd-JIT attribution list.
+        val maps = """
+            720000000-720100000 rwxp 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        assertEquals(emptyList<String>(), result.fridaMemfdJitRegions)
+        assertEquals(1, result.rwxRegions.size)
+    }
+
+    @Test
+    fun `non-memfd rwxp regions don't appear in the memfd jit list`() {
+        val maps = """
+            720000000-721000000 rwxp 00000000 00:00 0
+            721000000-722000000 rwxp 00000000 fd:00 7777  /data/local/tmp/jit-region.bin
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        assertEquals(emptyList<String>(), result.fridaMemfdJitRegions)
+        // But both rwxp lines still hit the generic rwxRegions list.
+        assertEquals(2, result.rwxRegions.size)
+    }
+
+    @Test
+    fun `frida memfd jit detection handles malformed address ranges gracefully`() {
+        // Defensive: a garbage address column should not crash the
+        // parser, just skip the memfd-JIT classification for that
+        // line. We deliberately include a well-formed RWX line after
+        // the bad one to verify the parser keeps making progress.
+        val maps = """
+            nothex-still-nothex rwxp 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+            720000000-721000000 rwxp 00000000 00:0c 12345 /memfd:jit-cache (deleted)
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        // The malformed line should NOT appear in the memfd JIT list
+        // (size can't be parsed) but should still appear in the
+        // generic rwxRegions list since perms are explicit.
+        assertEquals(1, result.fridaMemfdJitRegions.size)
+        assertTrue(result.fridaMemfdJitRegions[0].startsWith("720000000-"))
+    }
+
+    @Test
+    fun `clean map has empty memfd jit list`() {
+        val maps = """
+            720000000-720001000 r-xp 00000000 fd:00 12345 /system/lib64/libc.so
+        """.trimIndent()
+
+        val result = MapsParser.parse(maps)
+
+        assertEquals(emptyList<String>(), result.fridaMemfdJitRegions)
+    }
+
     @Test
     fun `anonymous mapping never matches a hook signature`() {
         // Anonymous maps have no pathname; even if the signature

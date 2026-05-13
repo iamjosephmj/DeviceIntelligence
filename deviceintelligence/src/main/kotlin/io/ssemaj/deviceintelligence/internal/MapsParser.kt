@@ -131,11 +131,31 @@ internal object MapsParser {
          * entries to keep finding details bounded; if the limit is
          * hit, the last entry is `"... +N more"` so the caller knows
          * truncation happened.
+         *
+         * NOTE: this list includes memfd-backed regions that also
+         * match the [fridaMemfdJitRegions] pattern — the more
+         * specific Frida-attribution signal does NOT remove the
+         * region from this generic list, so a backend that only
+         * keys on `rwx_memory_mapping` still sees the hit.
          */
         val rwxRegions: List<String>,
+        /**
+         * Subset of [rwxRegions] that match the Frida 16+ memfd-backed
+         * Gum JIT signature: `/memfd:jit-cache` with `rwxp` perms AND
+         * region size > 8 MB. ART maps `/memfd:jit-cache` legitimately
+         * but only with `r-xp` / `r--p` perms; requiring `rwxp` plus
+         * the 8 MB lower bound eliminates ART false-positives observed
+         * on Samsung/Android 16 builds (technique credit: snitchtt
+         * project — implemented clean-room from the published
+         * description, no source borrowed since the library uses an
+         * Apache-2.0-incompatible Commons Clause restriction).
+         */
+        val fridaMemfdJitRegions: List<String>,
     )
 
     private const val RWX_REGION_LIMIT = 8
+    private const val FRIDA_MEMFD_JIT_MIN_SIZE = 8L * 1024 * 1024
+    private const val MEMFD_JIT_CACHE_SUBSTRING = "/memfd:jit-cache"
 
     /**
      * Single-pass scanner. Splits [content] on '\n' (procfs always
@@ -144,6 +164,7 @@ internal object MapsParser {
     internal fun parse(content: String): ScanResult {
         val foundFrameworks = LinkedHashSet<String>()
         val rwxRegions = ArrayList<String>(RWX_REGION_LIMIT + 1)
+        val fridaMemfdJitRegions = ArrayList<String>()
         var rwxOverflow = 0
 
         for (line in content.lineSequence()) {
@@ -160,7 +181,8 @@ internal object MapsParser {
             // for the finding details only. Catches both `rwxp`
             // (private, the common case) and `rwxs` (shared, rarer
             // but equally suspicious).
-            if (perms.length == 4 && perms[0] == 'r' && perms[1] == 'w' && perms[2] == 'x') {
+            val isRwx = perms.length == 4 && perms[0] == 'r' && perms[1] == 'w' && perms[2] == 'x'
+            if (isRwx) {
                 if (rwxRegions.size < RWX_REGION_LIMIT) {
                     val descriptor = if (pathname.isEmpty()) {
                         "$addressRange [anon]"
@@ -170,6 +192,18 @@ internal object MapsParser {
                     rwxRegions += descriptor
                 } else {
                     rwxOverflow++
+                }
+
+                // Frida 16+ Gum JIT signature: `/memfd:jit-cache`
+                // mapped `rwxp` AND >8 MB. ART legitimately maps the
+                // same path but only with `r-xp`/`r--p` perms — the
+                // outer `isRwx` already excludes the legitimate case
+                // by perms, the size threshold is belt-and-suspenders
+                // against transient hooker scratch pages.
+                if (pathname.contains(MEMFD_JIT_CACHE_SUBSTRING) &&
+                    regionSizeBytes(addressRange).let { it != null && it > FRIDA_MEMFD_JIT_MIN_SIZE }
+                ) {
+                    fridaMemfdJitRegions += "$addressRange $pathname"
                 }
             }
 
@@ -194,7 +228,29 @@ internal object MapsParser {
         return ScanResult(
             hookFrameworks = foundFrameworks.toList(),
             rwxRegions = rwxRegions,
+            fridaMemfdJitRegions = fridaMemfdJitRegions,
         )
+    }
+
+    /**
+     * Parse a maps `address` column ("START-END" hex) into the
+     * region size in bytes. Returns null when the column is
+     * malformed or the values can't be parsed as unsigned hex
+     * longs; callers treat null as "size unknown, do not flag".
+     *
+     * `Long.parseLong(...16)` would overflow on `0xFFFF_FFFF_FFFF_FFFF`-
+     * shaped values; we use [toULong] for the unsigned parse and
+     * cap the size at `Long.MAX_VALUE` since any region that
+     * approaches that limit is far past our 8 MB threshold anyway.
+     */
+    private fun regionSizeBytes(addressRange: String): Long? {
+        val dash = addressRange.indexOf('-')
+        if (dash <= 0 || dash + 1 >= addressRange.length) return null
+        val start = runCatching { addressRange.substring(0, dash).toULong(16) }.getOrNull()
+        val end = runCatching { addressRange.substring(dash + 1).toULong(16) }.getOrNull()
+        if (start == null || end == null || end <= start) return null
+        val size = end - start
+        return if (size > Long.MAX_VALUE.toULong()) Long.MAX_VALUE else size.toLong()
     }
 
     /**

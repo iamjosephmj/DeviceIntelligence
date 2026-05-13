@@ -305,6 +305,48 @@ class KeyDescriptionParserTest {
         assertNull(KeyDescriptionParser.parse(malformed))
     }
 
+    // ---- isCborEatFormat (KeyMint 200+ / Android 14+) --------------------
+
+    @Test
+    fun `isCborEatFormat returns false for legacy ASN_1 SEQUENCE content`() {
+        // OCTET STRING wrapping an ASN.1 SEQUENCE (0x30) — the legacy
+        // KeyDescription shape every Android < 14 device produces.
+        val inner = byteArrayOf(0x30, 0x00) // empty SEQUENCE
+        val wrapped = byteArrayOf(0x04, inner.size.toByte()) + inner
+        assertEquals(false, KeyDescriptionParser.isCborEatFormat(wrapped))
+    }
+
+    @Test
+    fun `isCborEatFormat trips on CBOR map header byte after OCTET STRING unwrap`() {
+        // CBOR major type 5 (map): the inner content's first byte is
+        // 0xA0..0xBF. 0xA3 = small-count CBOR map (3 entries).
+        val inner = byteArrayOf(0xA3.toByte(), 0x01, 0x02, 0x03, 0x04, 0x05, 0x06)
+        val wrapped = byteArrayOf(0x04, inner.size.toByte()) + inner
+        assertEquals(true, KeyDescriptionParser.isCborEatFormat(wrapped))
+    }
+
+    @Test
+    fun `isCborEatFormat trips on CBOR indefinite-length map header`() {
+        // 0xBF = CBOR indefinite-length map. Also major-type 5.
+        val inner = byteArrayOf(0xBF.toByte(), 0xFF.toByte())
+        val wrapped = byteArrayOf(0x04, inner.size.toByte()) + inner
+        assertEquals(true, KeyDescriptionParser.isCborEatFormat(wrapped))
+    }
+
+    @Test
+    fun `isCborEatFormat returns false for empty input`() {
+        assertEquals(false, KeyDescriptionParser.isCborEatFormat(ByteArray(0)))
+    }
+
+    @Test
+    fun `isCborEatFormat returns false for garbage bytes`() {
+        // Not a valid OCTET STRING — outer unwrap fails, returns false.
+        assertEquals(
+            false,
+            KeyDescriptionParser.isCborEatFormat(byteArrayOf(0xFF.toByte(), 0xFF.toByte())),
+        )
+    }
+
     // ---- fixture builders -------------------------------------------------
 
     /**

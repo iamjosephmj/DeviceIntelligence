@@ -53,6 +53,20 @@ internal object RuntimeEnvironmentDetector : Detector {
     private const val KIND_HOOK_FRAMEWORK = "hook_framework_present"
     private const val KIND_RWX_MAPPING = "rwx_memory_mapping"
 
+    /**
+     * Frida 16+ Gum JIT signature: `/memfd:jit-cache` mapped `rwxp` with
+     * region size >8 MB. ART legitimately maps the same path but only
+     * with `r-xp`/`r--p` perms, so the combination is unambiguous on
+     * Android.
+     *
+     * Reported as a distinct finding from the generic `rwx_memory_mapping`
+     * because it carries higher attribution confidence (specifically
+     * Frida, vs. "some hooking framework") — backends that want a
+     * Frida-only signal can pivot on this kind without inspecting
+     * details.
+     */
+    private const val KIND_FRIDA_MEMFD_JIT = "frida_memfd_jit_present"
+
     @Volatile
     private var cached: List<Finding>? = null
     private val lock = Any()
@@ -96,6 +110,7 @@ internal object RuntimeEnvironmentDetector : Detector {
                 val scan = MapsParser.parse(mapsContent)
                 hookFrameworkFindings(pkg, scan).forEach { out += it }
                 rwxMappingFinding(pkg, scan)?.let { out += it }
+                fridaMemfdJitFinding(pkg, scan)?.let { out += it }
             }
         }
 
@@ -348,6 +363,32 @@ internal object RuntimeEnvironmentDetector : Detector {
                     "agent/Substrate). The Android loader and ART JIT do not produce RWX " +
                     "pages on API 28+; this is the canonical fingerprint left behind when " +
                     "a hooker allocates an RWX page to host its method-redirect trampolines.",
+            details = details,
+        )
+    }
+
+    /**
+     * Frida 16+ Gum JIT attribution finding. Fires in addition to the
+     * generic [rwxMappingFinding] when the same maps line(s) match the
+     * `/memfd:jit-cache` + `rwxp` + `>8 MB` signature — the more
+     * specific finding lets backends pivot on Frida-only without
+     * inspecting `rwx_memory_mapping`'s `details` map.
+     */
+    private fun fridaMemfdJitFinding(pkg: String, scan: MapsParser.ScanResult): Finding? {
+        if (scan.fridaMemfdJitRegions.isEmpty()) return null
+        val details = LinkedHashMap<String, String>()
+        details["region_count"] = scan.fridaMemfdJitRegions.size.toString()
+        scan.fridaMemfdJitRegions.forEachIndexed { idx, region ->
+            details["region_$idx"] = region
+        }
+        return Finding(
+            kind = KIND_FRIDA_MEMFD_JIT,
+            severity = Severity.HIGH,
+            subject = pkg,
+            message =
+                "Frida 16+ Gum JIT signature: rwxp-mapped /memfd:jit-cache region(s) > 8 MB. " +
+                    "ART legitimately maps the same path but only with r-xp/r--p perms; " +
+                    "the rwxp combination is unambiguous on Android.",
             details = details,
         )
     }

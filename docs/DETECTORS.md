@@ -604,9 +604,10 @@ Its output lives in **two places**, on purpose:
 
 ### Finding kinds
 
-| Finding kind             | Severity | Triggered when                                                                                              |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `tee_integrity_verdict`  | varies   | The locally derived advisory verdict is degraded (severity > LOW). Severity tracks the verdict's own severity ladder, which combines hardware-backing, verified-boot state, bootloader-locked flag, OS patch age, and app-recognition cross-check. CRITICAL when the chain is software-backed OR app-recognition flagged a mismatch; HIGH when verified-boot is anything other than Verified; MEDIUM for patch-too-old / bootloader-unlocked; LOW (suppressed) otherwise. |
+| Finding kind                      | Severity | Triggered when                                                                                              |
+| --------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `tee_integrity_verdict`           | varies   | The locally derived advisory verdict is degraded (severity > LOW). Severity tracks the verdict's own severity ladder, which combines hardware-backing, verified-boot state, bootloader-locked flag, OS patch age, and app-recognition cross-check. CRITICAL when the chain is software-backed OR app-recognition flagged a mismatch; HIGH when verified-boot is anything other than Verified; MEDIUM for patch-too-old / bootloader-unlocked; LOW (suppressed) otherwise. |
+| `attestation_eat_format_detected` | low      | The leaf cert's KeyDescription extension (OID `1.3.6.1.4.1.11129.2.1.17`) carries **CBOR-EAT** bytes instead of the legacy ASN.1 `KeyDescription` SEQUENCE. KeyMint 200+ on Android 14+ (RKP-provisioned keys) can emit attestation in this format. Library-side parsed fields will be null on those leaves; backends must re-parse the raw chain bytes (`app.attestation.chain_b64`) server-side for full field-level data. Full on-device CBOR/EAT decoding is tracked as a follow-up minor. Heuristic detection only — checks for a CBOR major-type-5 (map) byte (`0xA0`–`0xBF`) at the start of the unwrapped extension content. |
 
 ### Sample tripped JSON
 
@@ -697,6 +698,14 @@ address space when an instrumentation framework is loaded:
   this is the canonical fingerprint of an in-process hooking
   framework allocating an RWX page to host its method-redirect
   trampolines.
+- **Frida 16+ Gum JIT attribution (refinement).** When the same
+  RWX scan sees a `/memfd:jit-cache` mapping with `rwxp` perms
+  AND region size >8 MB, the additional `frida_memfd_jit_present`
+  finding fires. ART legitimately maps the same memfd path but
+  only with `r-xp` / `r--p` perms — the `rwxp` combination is a
+  Frida-only signature on Android. Backends that want a
+  Frida-attribution signal can pivot on this kind directly
+  instead of inspecting `rwx_memory_mapping`'s `details`.
 
 ### Finding kinds
 
@@ -706,6 +715,7 @@ address space when an instrumentation framework is loaded:
 | `ro_debuggable_mismatch`     | high     | The app's own `FLAG_DEBUGGABLE` disagrees with the system's `ro.debuggable` property (classic repackaging tell, also a Zygisk fingerprint)  |
 | `hook_framework_present`     | high     | A library matching a known hooking-framework signature is mapped into the process (Frida, Substrate, Xposed, LSPosed, Riru, Zygisk, Taichi) |
 | `rwx_memory_mapping`         | high     | A read-write-executable page mapping exists in the process. The Android loader, ART JIT (dual-mapping on API 28+), and ordinary `.so` segments never produce `rwxp` / `rwxs` regions — this is the canonical fingerprint of an in-process hooking-framework trampoline page (LSPosed/YAHFA/SandHook/Pine/Whale/Frida agent/Substrate). The `details.likely_cause` field surfaces this attribution explicitly so backends don't have to know ART internals to interpret the finding. |
+| `frida_memfd_jit_present`    | high     | A `/memfd:jit-cache` mapping is present with `rwxp` perms AND region size >8 MB — the signature of Frida 16+'s Gum JIT heap. ART legitimately maps `/memfd:jit-cache` but only with `r-xp` / `r--p` perms, so the `rwxp` combination is unambiguous on Android. Fires in addition to `rwx_memory_mapping` when the same region matches — the more specific kind lets backends pivot on Frida-only without inspecting `details`. One finding per scan, with per-region descriptors in `details.region_<i>` |
 
 Hook-framework matches emit one finding per distinct framework
 (canonical name in `details.framework`), so backends can triage
@@ -788,22 +798,51 @@ lifetime.
 
 `runtime.root` covers the filesystem-, shell-, and installed-app-
 level root signals that pair with `attestation.key`'s TEE-attested
-`verified_boot_state`. None of these are individually authoritative
-— every one of them can be hidden by a sufficiently determined
-root tool (Magisk's DenyList, Zygisk modules, etc.) — so this
-detector is best thought of as the "low-hanging fruit" layer. A
-device that trips `runtime.root` is a device whose owner did not
-even bother to hide the root.
+`verified_boot_state`. The "cheap" channels (su binary, Magisk
+artefact files, `test-keys` build tag, `which su`, root-manager
+app) can be hidden by a sufficiently determined hide-module
+(Magisk's DenyList, Shamiko, etc.) — so this layer alone is best
+thought of as the "low-hanging fruit" layer. A device that trips
+*only* these signals is a device whose owner did not bother to hide
+the root.
+
+Three additional channels close the most common hide-module bypass
+paths. **Shamiko** — the LSPosed module that targeted-app-hides
+Magisk — operates by unsharing the *per-process* mount namespace
+of the target app. It cannot patch init (PID 1)'s namespace, and
+it cannot un-bind the daemon's actively-held abstract Unix socket.
+Hence:
+
+- `magisk_in_init_mountinfo` reads `/proc/1/mountinfo` and trips
+  on Magisk-named mounts. Shamiko-bypass.
+- `magisk_daemon_socket_present` reads `/proc/self/net/unix` and
+  trips on the `@magisk_daemon` abstract socket. Shamiko-bypass.
+- `tls_trust_store_tampered` reads `/proc/self/mountinfo` and
+  trips on a `tmpfs` over `/apex/com.android.conscrypt` — the
+  MagiskTrustUserCerts technique. This one is CRITICAL because
+  the signal is *active TLS interception enablement*, not just
+  "the device is rooted".
+
+Note that all three Shamiko-bypass channels read procfs paths
+through `File.readText()`; on a denied EACCES (e.g. `hidepid=2`
+locked-down ROMs that hide PID 1's namespace from non-root
+processes) the read fails and the channel silently degrades to
+"no signal" — we never escalate a read failure into a finding,
+mirroring the same discipline the rest of the detector uses for
+`File.exists()` returning `false` on EACCES.
 
 ### Finding kinds
 
-| Finding kind                 | Severity | Triggered when                                                                                                                              |
-| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `su_binary_present`          | high     | An `su` binary exists at one of the canonical hardcoded paths or in any directory on `$PATH` (one finding per matching path)                |
-| `magisk_artifact_present`    | high     | A Magisk-shipped file/dir exists OR `/proc/mounts` has a `magisk`-named entry (one finding per matching artifact, descriptor in `details.artifact`) |
-| `test_keys_build`            | medium   | `ro.build.tags` reports `test-keys` (custom ROM, eng build, or hand-edited build.prop)                                                      |
-| `which_su_succeeded`         | high     | `Runtime.exec("which su")` resolved to a binary not on the hardcoded path list (only run when no other `su` hits, ~30-80ms cost)            |
-| `root_manager_app_installed` | medium   | A known root-manager / Xposed-manager app is installed (one finding per matched package, name in `details.package_name`)                    |
+| Finding kind                    | Severity | Triggered when                                                                                                                              |
+| ------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `su_binary_present`             | high     | An `su` binary exists at one of the canonical hardcoded paths or in any directory on `$PATH` (one finding per matching path)                |
+| `magisk_artifact_present`       | high     | A Magisk-shipped file/dir exists OR `/proc/mounts` has a `magisk`-named entry (one finding per matching artifact, descriptor in `details.artifact`) |
+| `test_keys_build`               | medium   | `ro.build.tags` reports `test-keys` (custom ROM, eng build, or hand-edited build.prop)                                                      |
+| `which_su_succeeded`            | high     | `Runtime.exec("which su")` resolved to a binary not on the hardcoded path list (only run when no other `su` hits, ~30-80ms cost)            |
+| `root_manager_app_installed`    | medium   | A known root-manager / Xposed-manager app is installed (one finding per matched package, name in `details.package_name`)                    |
+| `magisk_in_init_mountinfo`      | high     | `/proc/1/mountinfo` (init's mount namespace) contains a `magisk`-named entry. Shamiko operates by unsharing the *per-process* mount namespace of the target app; it cannot patch init's namespace, so a hit here while `/proc/self/mountinfo` looks clean is a strong "Magisk + Shamiko is actively hiding from us" signal. One finding per matching line, mount-point in `details.artifact` |
+| `magisk_daemon_socket_present`  | high     | `/proc/self/net/unix` lists the `@magisk_daemon` abstract Unix socket. The socket is bound in init's network namespace and is visible to every process in the namespace; Shamiko hides filesystem artefacts but cannot un-bind the daemon's actively-held socket |
+| `tls_trust_store_tampered`      | critical | `/proc/self/mountinfo` shows a `tmpfs` bind-mount over `/apex/com.android.conscrypt`. This is the **MagiskTrustUserCerts** technique: the system TLS trust store has been swapped with one accepting user-installed roots, meaning any HTTPS the app makes is MITM-interceptable by whoever installed the cert (Burp / Charles / mitmproxy / etc.). The signal is *active TLS interception enablement*, not just "root tool present" — backends should treat as a hard block for sensitive flows |
 
 ### Sample tripped JSON
 

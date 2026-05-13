@@ -136,13 +136,21 @@ public enum class IntegritySignal {
     /**
      * One or more root indicators are present on the device:
      * `su` binary on the path, Magisk artifact, `test-keys` build,
-     * `which su` returns success, or a known root-manager app
-     * package is installed.
+     * `which su` returns success, a known root-manager app package
+     * is installed, OR a Magisk hide-module is actively hiding the
+     * cheap signals (caught via the Shamiko-bypass cross-checks).
      *
      * Backed by `runtime.root` finding kinds:
-     * `su_binary_present`, `magisk_artifact_present`,
-     * `test_keys_build`, `which_su_succeeded`,
-     * `root_manager_app_installed`.
+     *  - Cheap channels: `su_binary_present`,
+     *    `magisk_artifact_present`, `test_keys_build`,
+     *    `which_su_succeeded`, `root_manager_app_installed`.
+     *  - Shamiko-bypass channels: `magisk_in_init_mountinfo`
+     *    (init's mount namespace can't be hidden per-process),
+     *    `magisk_daemon_socket_present` (`@magisk_daemon` abstract
+     *    Unix socket binds in init's net namespace),
+     *    `tls_trust_store_tampered` (tmpfs over the Conscrypt APEX
+     *    — MagiskTrustUserCerts-family MITM enablement, CRITICAL
+     *    severity, treat as a hard block for sensitive flows).
      */
     ROOT_INDICATORS_PRESENT,
 
@@ -479,6 +487,17 @@ private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     // ---- runtime.environment debugger surface ----
     put("debugger_attached", IntegritySignal.DEBUGGER_ATTACHED)
     put("ro_debuggable_mismatch", IntegritySignal.DEBUG_FLAG_MISMATCH)
+    // Frida-attribution finding: more specific than the generic
+    // hook_framework_present, but maps to the same signal so backends
+    // already gating on HOOKING_FRAMEWORK_DETECTED pick it up.
+    put("frida_memfd_jit_present", IntegritySignal.HOOKING_FRAMEWORK_DETECTED)
+
+    // ---- attestation.key (1.x additive) ----
+    // EAT/CBOR format means the legacy parser couldn't read fields —
+    // backends should treat verdict as degraded until they re-parse
+    // the chain bytes server-side. Maps to TEE_ATTESTATION_DEGRADED
+    // because the *local advisory verdict* is necessarily incomplete.
+    put("attestation_eat_format_detected", IntegritySignal.TEE_ATTESTATION_DEGRADED)
 
     // ---- attestation × runtime correlation (CTF Flag 5) ----
     // Derived finding emitted by TelemetryCollector after all
@@ -495,6 +514,12 @@ private val KIND_TO_SIGNAL: Map<String, IntegritySignal> = buildMap {
     put("test_keys_build", IntegritySignal.ROOT_INDICATORS_PRESENT)
     put("which_su_succeeded", IntegritySignal.ROOT_INDICATORS_PRESENT)
     put("root_manager_app_installed", IntegritySignal.ROOT_INDICATORS_PRESENT)
+    // Shamiko-bypass channels (1.x additive — same signal bucket as the
+    // other Magisk artefact kinds; the wire-level kind string is what
+    // distinguishes the hide-bypass channels from the cheap ones).
+    put("magisk_in_init_mountinfo", IntegritySignal.ROOT_INDICATORS_PRESENT)
+    put("magisk_daemon_socket_present", IntegritySignal.ROOT_INDICATORS_PRESENT)
+    put("tls_trust_store_tampered", IntegritySignal.ROOT_INDICATORS_PRESENT)
 
     // ---- runtime.emulator ----
     put("running_on_emulator", IntegritySignal.EMULATOR_DETECTED)

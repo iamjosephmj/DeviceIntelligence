@@ -138,8 +138,8 @@ String json = DeviceIntelligence.collectJsonBlocking(context);
 | Bootloader integrity | `integrity.bootloader`   | TEE-spoofing / cached-chain detection on `attestation.key`                    |
 | ART integrity        | `integrity.art`          | In-process ART tampering across 5 vectors (Frida, Xposed, LSPosed, Pine, …)   |
 | Key attestation      | `attestation.key`        | TEE / StrongBox attestation: Verified Boot, bootloader lock, OS patch level   |
-| Runtime environment  | `runtime.environment`    | Debugger / ptrace / native integrity stack (text hash, GOT, injected libs) + runtime DEX-injection (InMemoryDexClassLoader / DexClassLoader payloads) |
-| Root indicators      | `runtime.root`           | `su` binary, Magisk artifacts, `test-keys`, root-manager apps                 |
+| Runtime environment  | `runtime.environment`    | Debugger / ptrace / native integrity stack (text hash, GOT, injected libs) + runtime DEX-injection (InMemoryDexClassLoader / DexClassLoader payloads) + Frida 16+ Gum memfd-JIT attribution |
+| Root indicators      | `runtime.root`           | `su` binary, Magisk artifacts, `test-keys`, root-manager apps, Shamiko-bypass cross-checks (init mount-namespace + `@magisk_daemon` socket), MagiskTrustUserCerts TLS-trust-store MITM |
 | Emulator probe       | `runtime.emulator`       | CPU-instruction-level signals (arm64 MRS / x86_64 CPUID hypervisor bit)       |
 | App cloner           | `runtime.cloner`         | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches         |
 
@@ -150,10 +150,10 @@ Each detector emits granular `Finding`s; the `IntegritySignal` mapper collapses 
 | `APK_TAMPERED`                  | APK on disk modified, repackaged, signer mismatch, or installer not allowlisted.                                       |
 | `APK_FINGERPRINT_UNAVAILABLE`   | The build-time fingerprint asset is missing/corrupt — couldn't make a verdict either way.                              |
 | `BOOTLOADER_INTEGRITY_FAILED`   | Hardware key-attestation chain has anomalies, or device claims StrongBox but attests at a lower level.                 |
-| `TEE_ATTESTATION_DEGRADED`      | Local advisory verdict on the attestation chain came back below `MEETS_STRONG_INTEGRITY`.                              |
-| `HOOKING_FRAMEWORK_DETECTED`    | Active code-level hooking — Frida, Xposed/LSPosed/EdXposed, Pine, SandHook, Substrate, ART-internals tampering, runtime DEX injection, RWX trampolines, `.text` drift, GOT rewrites. |
+| `TEE_ATTESTATION_DEGRADED`      | Local advisory verdict on the attestation chain came back below `MEETS_STRONG_INTEGRITY`, OR the leaf cert's KeyDescription extension is in CBOR/EAT format (KeyMint 200+) and field-level parsing is deferred to backend re-verification. |
+| `HOOKING_FRAMEWORK_DETECTED`    | Active code-level hooking — Frida (incl. Frida 16+ Gum memfd-JIT attribution), Xposed/LSPosed/EdXposed, Pine, SandHook, Substrate, ART-internals tampering, runtime DEX injection, RWX trampolines, `.text` drift, GOT rewrites. |
 | `INJECTED_NATIVE_CODE`          | Unknown post-baseline `.so` or anonymous executable mapping; precondition for hooking but not yet proof of one.        |
-| `ROOT_INDICATORS_PRESENT`       | `su` binary, Magisk artifact, `test-keys` build, `which su` succeeds, root-manager app installed.                      |
+| `ROOT_INDICATORS_PRESENT`       | `su` binary, Magisk artifact, `test-keys` build, `which su` succeeds, root-manager app installed, Magisk visible in PID 1's mount namespace (Shamiko bypass), `@magisk_daemon` abstract socket bound, or a `tmpfs` over `/apex/com.android.conscrypt` (MagiskTrustUserCerts TLS-MITM enablement — treat as hard block). |
 | `EMULATOR_DETECTED`             | CPU-instruction-level signals — arm64 MRS or x86_64 CPUID hypervisor bit.                                              |
 | `APP_CLONED`                    | Foreign APK mappings, mount-namespace inconsistencies, UID mismatches.                                                 |
 | `DEBUGGER_ATTACHED`             | JVM debugger or ptrace tracer attached.                                                                                |
@@ -201,7 +201,12 @@ DeviceIntelligence ships its own offensive verification harnesses — Frida scri
 | Pre-baseline DEX injection (Zygisk timing) | `samples/lsposed-tester` `EarlyDexInjectionHook` — synchronous inject in `handleLoadPackage`  | shipped via `unattributable_dex_at_baseline` (0.6.0) |
 | Newer hook frameworks (Dobby/Whale/YAHFA/FastHook/il2cpp-dumper) | `tools/red-team/maps-newer-frameworks.js` — Frida `prctl(PR_SET_VMA_ANON_NAME)` page renaming | shipped (0.9.0) |
 | Hardware attestation × userspace tampering correlation | composes existing detector findings — JVM unit tests + Pixel 6 Pro live data | shipped (1.0.0) |
+| Magisk + Shamiko hide-module bypass | `/proc/1/mountinfo` cross-check (init namespace can't be unshared per-process) + `@magisk_daemon` abstract Unix socket via `/proc/self/net/unix` — JVM unit tests with hand-crafted procfs fixtures. Finding kinds: `magisk_in_init_mountinfo`, `magisk_daemon_socket_present` | shipped (1.x) |
+| MagiskTrustUserCerts TLS-trust-store MITM | `tmpfs` bind-mount over `/apex/com.android.conscrypt` in `/proc/self/mountinfo` — JVM unit tests, CRITICAL severity (active TLS interception, not just root presence). Finding kind: `tls_trust_store_tampered` | shipped (1.x) |
+| Frida 16+ Gum memfd-backed JIT | `/memfd:jit-cache` + `rwxp` + region size >8 MB pattern in `/proc/self/maps` — JVM unit tests; fires alongside the generic `rwx_memory_mapping` for backend Frida-attribution pivot. Finding kind: `frida_memfd_jit_present` | shipped (1.x) |
+| EAT/CBOR attestation format detection | `KeyDescriptionParser` heuristic: when legacy ASN.1 parse fails AND the unwrapped extension starts with a CBOR map byte (`0xA0`–`0xBF`), emits `attestation_eat_format_detected` (LOW) so backends know parsed fields need server-side re-verification. Full CBOR-EAT field-level parsing tracked for a follow-up minor | shipped — format detection only (1.x) |
 | Real Zygisk module               | TBD — see [`tools/red-team/CTF_ROADMAP.md`](tools/red-team/CTF_ROADMAP.md)                            | planned |
+| Samsung Knox warranty-bit parsing | Samsung Knox attestation extension OID prefix is detected on the leaf, but warranty-bit byte parsing requires on-device Samsung validation tracked for a follow-up minor | planned |
 
 Full step-by-step validation runbook for the Pixel 6 Pro: [`tools/red-team/FLAG1_RUNBOOK.md`](tools/red-team/FLAG1_RUNBOOK.md).
 

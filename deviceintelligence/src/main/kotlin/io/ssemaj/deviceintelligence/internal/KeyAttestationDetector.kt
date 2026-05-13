@@ -97,6 +97,25 @@ internal sealed class AttestationResult {
         val keyStorePublicKeyEncoded: ByteArray?,
         /** Nonce we asked the TEE to embed; used by sibling detectors for challenge-echo checks. */
         val nonce: ByteArray,
+        /**
+         * True when the leaf cert's KeyDescription extension (OID
+         * `1.3.6.1.4.1.11129.2.1.17`) carries CBOR-EAT bytes instead
+         * of the legacy ASN.1 SEQUENCE. On those devices [parsed] is
+         * null because the DER walker can't decode CBOR; this flag
+         * lets `attestation.key` emit a dedicated wire signal so
+         * backends know full field-level data needs to come from
+         * the raw `chainB64`.
+         */
+        val eatFormatDetected: Boolean = false,
+        /**
+         * True when the leaf cert carries any extension under the
+         * Samsung Knox attestation OID prefix
+         * (`1.3.6.1.4.1.236.11.3.23.7.*`). Informational only —
+         * tells backends this is a Samsung device with Knox-attested
+         * keys. Full warranty-bit byte parsing requires on-device
+         * Samsung validation and is tracked as a follow-up minor.
+         */
+        val knoxExtensionPresent: Boolean = false,
     ) : AttestationResult() {
         // Suppress equals/hashCode — ByteArray fields would do identity comparison
         // anyway, and we don't actually use equality on this type.
@@ -304,11 +323,16 @@ internal object KeyAttestationDetector : Detector {
         val x509Chain: List<X509Certificate> = rawChain.mapNotNull { it as? X509Certificate }
 
         val leaf = x509Chain.firstOrNull()
-        val parsed = leaf?.let {
-            val ext = runCatching { it.getExtensionValue(KeyDescriptionParser.OID) }
-                .getOrNull()
-            if (ext != null) KeyDescriptionParser.parse(ext) else null
+        val leafExt: ByteArray? = leaf?.let {
+            runCatching { it.getExtensionValue(KeyDescriptionParser.OID) }.getOrNull()
         }
+        val parsed = leafExt?.let { KeyDescriptionParser.parse(it) }
+        // EAT format check: only meaningful when [parse] returned null
+        // — a successful legacy parse implicitly means the extension
+        // is ASN.1, not CBOR.
+        val eatDetected = parsed == null && leafExt != null &&
+            KeyDescriptionParser.isCborEatFormat(leafExt)
+        val knoxPresent = leaf?.let { hasKnoxAttestationExtension(it) } ?: false
 
         // Read the public key the AndroidKeyStore actually holds for
         // this alias; integrity.bootloader compares this against the
@@ -330,7 +354,27 @@ internal object KeyAttestationDetector : Detector {
             rawCerts = x509Chain,
             keyStorePublicKeyEncoded = keyStorePubKeyEncoded,
             nonce = nonce,
+            eatFormatDetected = eatDetected,
+            knoxExtensionPresent = knoxPresent,
         )
+    }
+
+    /**
+     * Samsung Knox attestation OID prefix. All Samsung Knox attestation
+     * extension variants (TIMA, KAP V2, KAP V3) live under this OID
+     * subtree; presence of any sub-OID indicates a Knox-attested
+     * Samsung device.
+     */
+    private const val KNOX_ATTESTATION_OID_PREFIX = "1.3.6.1.4.1.236.11.3.23.7"
+
+    private fun hasKnoxAttestationExtension(cert: X509Certificate): Boolean {
+        val oids = runCatching {
+            buildSet<String> {
+                cert.criticalExtensionOIDs?.let { addAll(it) }
+                cert.nonCriticalExtensionOIDs?.let { addAll(it) }
+            }
+        }.getOrNull() ?: return false
+        return oids.any { it.startsWith(KNOX_ATTESTATION_OID_PREFIX) }
     }
 
     @SuppressLint("NewApi")
@@ -380,13 +424,39 @@ internal object KeyAttestationDetector : Detector {
         ctx: DetectorContext,
         pkg: String,
     ): List<Finding> {
+        val out = ArrayList<Finding>(3)
         val verdict = computeVerdict(c, ctx, pkg)
-        return if (shouldEmitVerdictFinding(verdict)) {
-            listOf(buildVerdictFinding(c, verdict, pkg))
-        } else {
-            emptyList()
+        if (shouldEmitVerdictFinding(verdict)) {
+            out += buildVerdictFinding(c, verdict, pkg)
         }
+        // EAT format detected (KeyMint 200+ / Android 14+): legacy
+        // ASN.1 parser returned null, but the inner content is CBOR.
+        // Emit a wire signal so backends know parsed fields will be
+        // missing and the chain bytes must be re-parsed server-side.
+        if (c.eatFormatDetected) {
+            out += Finding(
+                kind = KIND_EAT_FORMAT_DETECTED,
+                severity = Severity.LOW,
+                subject = pkg,
+                message = "Leaf cert KeyDescription extension is in CBOR/EAT format (KeyMint 200+). Library-side parsed fields will be null; re-parse the raw chain bytes server-side for full field-level data.",
+                details = mapOf(
+                    "verdict_authoritative" to "false",
+                    "chain_length" to c.chainLength.toString(),
+                ),
+            )
+        }
+        // (Samsung Knox extension presence is detected and carried on
+        // [AttestationResult.Success.knoxExtensionPresent] for the
+        // follow-up minor that adds warranty-bit byte parsing.
+        // It is intentionally NOT emitted as a Finding today: presence
+        // alone is informational and `device.manufacturer == "Samsung"`
+        // already conveys the cohort signal; the warranty-bit is the
+        // semantically-meaningful signal that justifies a wire finding.)
+        return out
     }
+
+    /** New wire kind for 1.x — additive, LOW severity. */
+    private const val KIND_EAT_FORMAT_DETECTED = "attestation_eat_format_detected"
 
     private fun computeVerdict(
         c: AttestationResult.Success,
