@@ -4,6 +4,33 @@ All notable changes to **DeviceIntelligence** are recorded here. Format follows 
 
 The wire format (`TelemetryReport` JSON, `Finding.kind` identifiers, detector IDs) carries an independent `schema_version` integer that is **only** bumped on breaking changes. Adding new finding kinds or new detectors is additive and does NOT bump `schema_version`. Backends pin against `schema_version` for correctness; library version pinning is for build-time API stability.
 
+## [1.1.0] — 2026-05-13
+
+### Added
+
+- **Magisk + Shamiko hide-module bypass** (`runtime.root`). Two new finding kinds catch Magisk-hiding modules (Shamiko, etc.) that strip the cheap channels from the per-process view:
+  - `magisk_in_init_mountinfo` (HIGH) — reads `/proc/1/mountinfo`. Shamiko operates by unsharing the per-process mount namespace of the target app; it cannot patch init's namespace, so a hit here while `/proc/self/mountinfo` looks clean is a strong "Magisk is hiding from us specifically" signal.
+  - `magisk_daemon_socket_present` (HIGH) — scans `/proc/self/net/unix` for the `@magisk_daemon` abstract Unix socket. Bound in init's network namespace; visible to every process in the namespace, survives filesystem-artifact hides.
+- **MagiskTrustUserCerts TLS-trust-store MITM detection** (`runtime.root`). New finding kind `tls_trust_store_tampered` (**CRITICAL**) trips on a `tmpfs` bind-mount over `/apex/com.android.conscrypt` in `/proc/self/mountinfo`. The mechanism is Magisk's MagiskTrustUserCerts-family modules swapping the system TLS trust store with one that accepts user-installed roots — any HTTPS the app makes after this is interceptable. Severity reflects active TLS-interception enablement, not just "root tool present". Backends should treat as a hard block for sensitive flows.
+- **Frida 16+ Gum memfd-backed JIT attribution** (`runtime.environment`). New finding kind `frida_memfd_jit_present` (HIGH) fires when `/proc/self/maps` shows a `/memfd:jit-cache` mapping with `rwxp` perms AND region size > 8 MB. ART legitimately maps the same memfd path but only with `r-xp`/`r--p` perms, so the `rwxp` combination is unambiguous on Android. Fires in addition to the generic `rwx_memory_mapping` — the more specific kind lets backends pivot on Frida-only without inspecting details.
+- **EAT/CBOR attestation format detection** (`attestation.key`). New finding kind `attestation_eat_format_detected` (LOW) fires when the leaf cert's `KeyDescription` extension carries CBOR-EAT bytes instead of the legacy ASN.1 `KeyDescription` SEQUENCE — common on KeyMint 200+ (Android 14+) devices using RKP-provisioned keys. Library-side parsed fields are null on those leaves; backends must re-parse the raw chain bytes (`app.attestation.chain_b64`) server-side for full field-level data. Heuristic detection only (CBOR major-type-5 header byte); full on-device CBOR-EAT decoding is tracked for a follow-up minor.
+- Internal Knox extension-presence helper (`KeyAttestationDetector.hasKnoxAttestationExtension`) and `AttestationResult.Success.knoxExtensionPresent` flag carried for the follow-up minor that adds Samsung Knox warranty-bit byte parsing.
+
+### Validation
+
+- JVM unit tests for every new finding kind (+19 tests across `MapsParser`, `RootIndicators`, `KeyDescriptionParser`, `IntegritySignalMapper`). Pixel 6 Pro on-device validation tracked alongside the existing CTF roadmap rigs.
+
+### Wire-format impact
+
+Additive only. Four new `Finding.kind` strings; no detector ID renames, no `IntegritySignal` enum changes. `schema_version` stays at `2`. Backends with strict-mode kind allowlists need to add the four new strings; everything else continues working unchanged.
+
+### Technique credits
+
+All four channels are clean-room reimplementations from public Android security knowledge; no source borrowed:
+
+- Shamiko-bypass, MagiskTrustUserCerts MITM, and Frida memfd-JIT signature inspired by techniques documented in the `snitchtt` project (MIT + Commons Clause — license incompatible with our Apache 2.0 distribution, so no code reuse).
+- EAT format heuristic and Knox extension OID prefix referenced from `vvb2060/KeyAttestation` (Apache 2.0; cryptographic OIDs are non-copyrightable identifiers).
+
 ## [1.0.0] — 2026-05-03
 
 First stable release. Wire format and public Kotlin API are now committed-to: additive changes only without a major version bump; breaking changes require `schema_version` increment + major version bump.
@@ -125,6 +152,7 @@ Additive only — runtime-only types, nothing changes in the existing `Telemetry
 
 - GitHub Packages publication workflow (`.github/workflows/publish-github-packages.yml`).
 
+[1.1.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.1.0
 [1.0.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.0.0
 [0.9.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/0.9.0
 [0.8.1]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/0.8.1
