@@ -76,7 +76,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "1.0.0"
+    id("io.ssemaj.deviceintelligence") version "1.1.0"
 }
 ```
 
