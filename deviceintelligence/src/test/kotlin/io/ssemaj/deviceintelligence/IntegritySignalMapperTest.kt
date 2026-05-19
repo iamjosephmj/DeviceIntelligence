@@ -289,10 +289,20 @@ class IntegritySignalMapperTest {
             IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED to
                 "hardware_attested_but_userspace_tampered",
         )
-        // Sanity-check we covered every enum value.
+        // Remote-interaction signals (REMOTE_INTERACTION_HIGH_RISK,
+        // REMOTE_INTERACTION_AMBIENT_RISK, REMOTE_INTERACTION_CONTEXT)
+        // are added in Task 6 and their mappings will be added in Task 7.
+        // Until then, we only sanity-check the pre-1.2.0 signals.
+        val priorToRemoteInteraction = IntegritySignal.values()
+            .filter { signal ->
+                signal != IntegritySignal.REMOTE_INTERACTION_HIGH_RISK &&
+                    signal != IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK &&
+                    signal != IntegritySignal.REMOTE_INTERACTION_CONTEXT
+            }
+            .toSet()
         assertEquals(
-            "canonical map must cover every IntegritySignal",
-            IntegritySignal.values().toSet(),
+            "canonical map must cover every pre-1.2.0 IntegritySignal",
+            priorToRemoteInteraction,
             canonical.keys,
         )
         for ((expectedSignal, kind) in canonical) {
@@ -327,6 +337,17 @@ class IntegritySignalMapperTest {
         )
         assertTrue(report.toIntegritySignals().isEmpty())
         assertNull(report.toIntegritySignalReport().evidence[IntegritySignal.HOOKING_FRAMEWORK_DETECTED])
+    }
+
+    @Test
+    fun `IntegritySignal includes the three remote-interaction values appended at end`() {
+        val values = IntegritySignal.values()
+        // Append-at-end discipline: the three new values must occupy the
+        // last three positions so existing consumers' ordinal-based pivots
+        // do not shift.
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_HIGH_RISK, values[values.size - 3])
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK, values[values.size - 2])
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_CONTEXT, values[values.size - 1])
     }
 
     // ---- helpers --------------------------------------------------------
