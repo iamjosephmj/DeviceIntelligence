@@ -88,6 +88,18 @@ public data class SessionFindings(
     public val collectionsObserved: Int,
     public val sessionStartedAtEpochMs: Long,
     public val lastUpdatedAtEpochMs: Long,
+    /**
+     * Snapshot of remote-interaction state at the moment this
+     * `SessionFindings` was assembled. Defaults to
+     * [RemoteInteractionFindings.EMPTY] for backward compatibility
+     * with consumers that constructed `SessionFindings` directly
+     * before 1.2.0. Production callers (specifically
+     * `SessionFindingsAggregator`) populate this from
+     * `RemoteInteractionAggregator.snapshot()` (wired up in Task 9).
+     *
+     * @since 1.2.0
+     */
+    public val remoteInteraction: RemoteInteractionFindings = RemoteInteractionFindings.EMPTY,
 ) {
 
     /**
