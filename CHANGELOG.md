@@ -4,6 +4,39 @@ All notable changes to **DeviceIntelligence** are recorded here. Format follows 
 
 The wire format (`TelemetryReport` JSON, `Finding.kind` identifiers, detector IDs) carries an independent `schema_version` integer that is **only** bumped on breaking changes. Adding new finding kinds or new detectors is additive and does NOT bump `schema_version`. Backends pin against `schema_version` for correctness; library version pinning is for build-time API stability.
 
+## [1.2.0-alpha01] — 2026-05-19
+
+### Added — RemoteInteraction detector family (Phase 1: foundations)
+
+Foundational types, aggregator, public API, and `IntegritySignal`
+extension for the new RemoteInteraction detector family. See
+`docs/superpowers/specs/2026-05-19-remote-interaction-detector-design.md`
+for the complete design and `docs/superpowers/plans/2026-05-19-remote-interaction-phase-1.md`
+for the Phase 1 implementation plan.
+
+- `DeviceIntelligence.interactionEvents: SharedFlow<InteractionEvent>` —
+  hot stream of remote-interaction events. Phase 1 is a no-op channel;
+  Phase 2 detectors land in 1.3.0.
+- `SessionFindings.remoteInteraction: RemoteInteractionFindings` —
+  snapshot field defaulting to `RemoteInteractionFindings.EMPTY`.
+- `IntegritySignal.REMOTE_INTERACTION_HIGH_RISK` /
+  `REMOTE_INTERACTION_AMBIENT_RISK` / `REMOTE_INTERACTION_CONTEXT` —
+  three new high-level signals; mapper routes `remote_interaction.*`
+  finding kinds by severity tier (`Severity.CRITICAL` and
+  `Severity.HIGH` → HIGH_RISK; `Severity.MEDIUM` → AMBIENT_RISK;
+  `Severity.LOW` → CONTEXT).
+- `InteractionEvent` sealed hierarchy with 13 variants covering every
+  signal the design will surface in subsequent phases.
+- New `remote_interaction` block in the TelemetryJson wire output.
+
+### Unchanged
+
+- `IntegrityVerdict` (Play-Integrity-shaped `DeviceTier` ×
+  `AppRecognition`) is intentionally untouched — remote-interaction
+  signals are orthogonal and surface via `IntegritySignal` only.
+- Wire `schema_version` is unchanged. The new `remote_interaction.*`
+  finding kinds are additive and do NOT require a backend re-pin.
+
 ## [1.1.0] — 2026-05-13
 
 ### Added
