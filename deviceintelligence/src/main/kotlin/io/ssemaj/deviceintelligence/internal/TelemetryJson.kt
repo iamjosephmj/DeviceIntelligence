@@ -8,6 +8,8 @@ import io.ssemaj.deviceintelligence.DetectorStatus
 import io.ssemaj.deviceintelligence.DeviceContext
 import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.InstallSource
+import io.ssemaj.deviceintelligence.InteractionEventKind
+import io.ssemaj.deviceintelligence.RemoteInteractionFindings
 import io.ssemaj.deviceintelligence.ReportSummary
 import io.ssemaj.deviceintelligence.SessionFindings
 import io.ssemaj.deviceintelligence.Severity
@@ -99,6 +101,84 @@ internal object TelemetryJson {
         }
         append('\n')
         append("}\n")
+    }
+
+    /**
+     * Encodes a [RemoteInteractionFindings] snapshot as the
+     * `remote_interaction` JSON object embedded in
+     * [SessionFindings] wire output.
+     *
+     * Key ordering is deterministic (alphabetical) and keys use
+     * snake_case to match the existing wire format conventions in
+     * this codec. Phase 1: the populated fields are
+     * `event_counts` and `highest_severity_observed`; the rest are
+     * empty arrays / null / `false` defaults until later phases
+     * populate them.
+     */
+    fun encodeRemoteInteraction(findings: RemoteInteractionFindings): String = buildString {
+        append('{')
+        // active_device_admins
+        appendQuoted("active_device_admins").append(':')
+        appendStringArray(findings.activeDeviceAdmins)
+        append(',')
+        // active_vpn_owner_package
+        appendQuoted("active_vpn_owner_package").append(':')
+        val vpn = findings.activeVpnOwnerPackage
+        if (vpn == null) append("null") else appendQuoted(vpn)
+        append(',')
+        // capability_profile_matches — Phase 1: always empty array
+        appendQuoted("capability_profile_matches").append(':').append("[]")
+        append(',')
+        // enabled_a11y_services — Phase 1: always empty array
+        appendQuoted("enabled_a11y_services").append(':').append("[]")
+        append(',')
+        // event_counts — keys are InteractionEventKind.name, sorted alphabetically
+        appendQuoted("event_counts").append(':').append('{')
+        val sortedCounts = findings.eventCounts.entries
+            .sortedBy { it.key.name }
+        sortedCounts.forEachIndexed { i, (kind, count) ->
+            appendQuoted(kind.name).append(':').append(count)
+            if (i != sortedCounts.lastIndex) append(',')
+        }
+        append('}')
+        append(',')
+        // external_input_devices — Phase 1: always empty array
+        appendQuoted("external_input_devices").append(':').append("[]")
+        append(',')
+        // highest_severity_observed
+        appendQuoted("highest_severity_observed").append(':')
+        appendQuoted(findings.highestSeverityObserved.name)
+        append(',')
+        // notification_listener_packages
+        appendQuoted("notification_listener_packages").append(':')
+        appendStringArray(findings.notificationListenerPackages)
+        append(',')
+        // overlay_capable_packages
+        appendQuoted("overlay_capable_packages").append(':')
+        appendStringArray(findings.overlayCapablePackages)
+        append(',')
+        // remote_control_packages — Phase 1: always empty array
+        appendQuoted("remote_control_packages").append(':').append("[]")
+        append(',')
+        // screen_capture_active
+        appendQuoted("screen_capture_active").append(':')
+        append(if (findings.screenCaptureActive) "true" else "false")
+        append(',')
+        // screen_capture_active_since
+        appendQuoted("screen_capture_active_since").append(':')
+        val since = findings.screenCaptureActiveSince
+        if (since == null) append("null") else append(since)
+        append('}')
+    }
+
+    /** Appends a compact inline JSON string array: `["a","b"]` or `[]`. */
+    private fun StringBuilder.appendStringArray(items: List<String>) {
+        append('[')
+        items.forEachIndexed { i, s ->
+            appendQuoted(s)
+            if (i != items.lastIndex) append(',')
+        }
+        append(']')
     }
 
     private fun StringBuilder.encodeLatestReportSummary(
