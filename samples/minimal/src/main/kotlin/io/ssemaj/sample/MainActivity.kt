@@ -1257,15 +1257,18 @@ class MainActivity : Activity() {
         IntegritySignal.INJECTED_NATIVE_CODE,
         IntegritySignal.APK_TAMPERED,
         IntegritySignal.BOOTLOADER_INTEGRITY_FAILED,
-        IntegritySignal.APP_CLONED -> Ui.Tone.BAD
+        IntegritySignal.APP_CLONED,
+        IntegritySignal.REMOTE_INTERACTION_HIGH_RISK -> Ui.Tone.BAD
 
         IntegritySignal.ROOT_INDICATORS_PRESENT,
         IntegritySignal.TEE_ATTESTATION_DEGRADED,
         IntegritySignal.APK_FINGERPRINT_UNAVAILABLE,
         IntegritySignal.DEBUGGER_ATTACHED,
-        IntegritySignal.DEBUG_FLAG_MISMATCH -> Ui.Tone.WARN
+        IntegritySignal.DEBUG_FLAG_MISMATCH,
+        IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK -> Ui.Tone.WARN
 
-        IntegritySignal.EMULATOR_DETECTED -> Ui.Tone.INFO
+        IntegritySignal.EMULATOR_DETECTED,
+        IntegritySignal.REMOTE_INTERACTION_CONTEXT -> Ui.Tone.INFO
     }
 
     /**
@@ -1299,6 +1302,12 @@ class MainActivity : Activity() {
             "ApplicationInfo debuggable flag disagrees with ro.debuggable"
         IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED ->
             "Hardware-attested verified boot AND active userspace tampering — strongest compromise signal"
+        IntegritySignal.REMOTE_INTERACTION_HIGH_RISK ->
+            "Detected suspicious remote interaction patterns indicating potential compromise"
+        IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK ->
+            "Ambient remote interaction signals detected with some risk indicators"
+        IntegritySignal.REMOTE_INTERACTION_CONTEXT ->
+            "Remote interaction context detected — monitor for suspicious patterns"
     }
 
     /**
