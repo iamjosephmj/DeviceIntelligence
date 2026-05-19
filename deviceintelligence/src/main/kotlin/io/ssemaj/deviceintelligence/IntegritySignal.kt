@@ -337,21 +337,50 @@ public data class IntegritySignalReport(
  * The mapper is **stateless and pure** — call it from any thread,
  * cache the result yourself if you care. It does NOT inspect
  * [DetectorReport.status] (so a report whose detector errored is
- * still safely mappable; only the [Finding]s it managed to produce
- * are lifted), it does NOT consider [Finding.severity] (severity is
- * advisory; the mapping is purely on stable [Finding.kind]), and it
- * does NOT deduplicate the underlying findings (a single
- * [IntegritySignal] may be evidenced by many findings).
+ * still safely mappable), and it does NOT deduplicate the underlying
+ * findings (a single [IntegritySignal] may be evidenced by many findings).
+ *
+ * For most finding kinds, the mapping pivots only on stable
+ * [Finding.kind] (advisory; the mapping is purely on kind).
+ * Exception: `remote_interaction.*` findings are routed by both kind
+ * prefix AND [Finding.severity] — [Severity.CRITICAL] →
+ * [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK], [Severity.WARN] →
+ * [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK], and
+ * [Severity.INFO] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT].
  *
  * Backends that prefer to do this lifting server-side can replicate
- * the mapping table — every entry below pivots only on
- * [Finding.kind], which is a stable wire-format identifier per
+ * the mapping table — every entry below pivots on [Finding.kind],
+ * which is a stable wire-format identifier per
  * [TELEMETRY_SCHEMA_VERSION].
  *
  * @see IntegritySignal for the full vocabulary
  * @see IntegritySignalReport for the return shape
  */
 public object IntegritySignalMapper {
+
+    /**
+     * Maps a single [Finding] to its corresponding [IntegritySignal],
+     * or null if the finding kind is not recognised by this version
+     * of the mapper.
+     *
+     * For `remote_interaction.*` findings, the signal is determined by
+     * severity: [Severity.CRITICAL] → [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK],
+     * [Severity.MEDIUM] → [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK],
+     * [Severity.LOW] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT]. For all
+     * other findings, the signal depends only on [Finding.kind].
+     */
+    @JvmStatic
+    public fun signalFor(finding: Finding): IntegritySignal? {
+        if (finding.kind.startsWith("remote_interaction.")) {
+            return when (finding.severity) {
+                Severity.CRITICAL -> IntegritySignal.REMOTE_INTERACTION_HIGH_RISK
+                Severity.MEDIUM -> IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK
+                Severity.LOW -> IntegritySignal.REMOTE_INTERACTION_CONTEXT
+                else -> null
+            }
+        }
+        return KIND_TO_SIGNAL[finding.kind]
+    }
 
     /**
      * Returns just the deduplicated set of high-level signals. Use
@@ -365,7 +394,7 @@ public object IntegritySignalMapper {
         val out = HashSet<IntegritySignal>(KIND_TO_SIGNAL.values.distinct().size.coerceAtLeast(4))
         for (detector in input.detectors) {
             for (finding in detector.findings) {
-                val signal = KIND_TO_SIGNAL[finding.kind] ?: continue
+                val signal = signalFor(finding) ?: continue
                 out += signal
             }
         }
@@ -385,7 +414,7 @@ public object IntegritySignalMapper {
         val unmapped = ArrayList<Finding>()
         for (detector in input.detectors) {
             for (finding in detector.findings) {
-                val signal = KIND_TO_SIGNAL[finding.kind]
+                val signal = signalFor(finding)
                 if (signal == null) {
                     unmapped += finding
                 } else {
