@@ -248,6 +248,52 @@ public enum class IntegritySignal {
      * derived finding belongs there semantically).
      */
     HARDWARE_ATTESTED_USERSPACE_TAMPERED,
+
+    // ---- Remote interaction (1.2.0+) ------------------------------------
+
+    /**
+     * At least one HIGH-severity remote-interaction finding has been
+     * observed during the session. Examples: a non-allowlisted
+     * accessibility service with gesture-injection capability is
+     * enabled; a capability-profile match indicates a remote-control
+     * app is installed; a touch dispatch arrived from a virtual
+     * InputDevice; screen capture by an unknown app is active.
+     *
+     * Treat as advisory — same posture as
+     * [TEE_ATTESTATION_DEGRADED]. Backends correlating against
+     * payment risk should weight this similarly to
+     * [HOOKING_FRAMEWORK_DETECTED].
+     *
+     * Backed by every `remote_interaction.*` finding emitted at
+     * [Severity.CRITICAL].
+     */
+    REMOTE_INTERACTION_HIGH_RISK,
+
+    /**
+     * At least one MEDIUM-severity remote-interaction finding.
+     * Examples: a known remote-support tool (TeamViewer QuickSupport,
+     * AnyDesk) is installed; a notification listener service from a
+     * non-allowlisted package is enabled; a recently-installed
+     * accessibility service. Does NOT on its own indicate compromise —
+     * many enterprise / accessibility-using devices surface this.
+     * Use as one factor among several in risk scoring.
+     *
+     * Backed by every `remote_interaction.*` finding emitted at
+     * [Severity.WARN].
+     */
+    REMOTE_INTERACTION_AMBIENT_RISK,
+
+    /**
+     * Operational context only — never a compromise indicator.
+     * Examples: TalkBack is enabled; an external hardware keyboard
+     * is paired; a VPN is active; MDM is provisioned. Useful for
+     * explaining other signals but never blocks. Backends should
+     * NOT use this signal to gate user actions.
+     *
+     * Backed by every `remote_interaction.*` finding emitted at
+     * [Severity.INFO].
+     */
+    REMOTE_INTERACTION_CONTEXT,
 }
 
 /**
