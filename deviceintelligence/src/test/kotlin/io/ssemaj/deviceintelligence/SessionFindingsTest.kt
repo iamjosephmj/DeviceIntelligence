@@ -416,4 +416,16 @@ class SessionFindingsTest {
         assertEquals(1, first.single().findings.single().observationCount)
         assertEquals(1, second.single().findings.single().observationCount)
     }
+
+    // ---- remoteInteraction field -----------------------------------------------
+
+    @Test
+    fun `SessionFindings exposes remoteInteraction field defaulting to EMPTY`() {
+        // The aggregator (Phase 1) starts empty before any detector emits.
+        // Existing call sites that constructed SessionFindings without
+        // `remoteInteraction` should now default to RemoteInteractionFindings.EMPTY.
+        val agg = SessionFindingsAggregator(sessionStartedAtEpochMs = 1000L)
+        val session = agg.ingest(stubReport(2000L, emptyList()))
+        assertEquals(RemoteInteractionFindings.EMPTY, session.remoteInteraction)
+    }
 }
