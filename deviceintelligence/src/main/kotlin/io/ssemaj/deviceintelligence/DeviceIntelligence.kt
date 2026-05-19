@@ -5,10 +5,12 @@ import io.ssemaj.deviceintelligence.internal.Critical
 import io.ssemaj.deviceintelligence.internal.PrewarmCoordinator
 import io.ssemaj.deviceintelligence.internal.StackGuard
 import io.ssemaj.deviceintelligence.internal.TelemetryCollector
+import io.ssemaj.deviceintelligence.internal.interaction.RemoteInteractionAggregator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onEach
@@ -79,6 +81,49 @@ public object DeviceIntelligence {
      */
     @JvmField
     public val VERSION: String = BuildConfig.LIBRARY_VERSION
+
+    // ---------------------------------------------------------------------
+    // Remote-interaction aggregator (process singleton)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Process-singleton backing aggregator. Set exactly once by
+     * [io.ssemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider]
+     * during `onCreate`. Tests may overwrite via
+     * [installRemoteInteractionAggregator].
+     */
+    @Volatile
+    private var remoteInteractionAggregator: RemoteInteractionAggregator =
+        RemoteInteractionAggregator.newProductionInstance()
+
+    /**
+     * Hot stream of [InteractionEvent]s emitted by the
+     * remote-interaction detector family. See
+     * `docs/superpowers/specs/2026-05-19-remote-interaction-detector-design.md`
+     * §6.2. Phase 1 ships the flow as a no-op channel (no detector
+     * populates it yet); subsequent phases land detectors and
+     * listeners that emit through it.
+     *
+     * @since 1.2.0
+     */
+    public val interactionEvents: SharedFlow<InteractionEvent>
+        get() = remoteInteractionAggregator.events
+
+    /**
+     * Replaces the process-singleton aggregator with the given
+     * instance. Called by
+     * [io.ssemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider]
+     * at boot, and from test source sets that need a deterministic
+     * aggregator. `internal` visibility keeps it out of the host-app
+     * consumer surface — Kotlin's same-module rule means the unit
+     * test in `src/test/` can still reach it without exposing it
+     * to downstream consumers.
+     */
+    internal fun installRemoteInteractionAggregator(
+        aggregator: RemoteInteractionAggregator,
+    ) {
+        remoteInteractionAggregator = aggregator
+    }
 
     // ---------------------------------------------------------------------
     // Suspend entry points (primary surface)
