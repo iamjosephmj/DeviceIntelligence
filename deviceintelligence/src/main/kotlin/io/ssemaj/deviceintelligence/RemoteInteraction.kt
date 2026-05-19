@@ -91,3 +91,155 @@ public enum class A11yCapability {
     FILTER_KEY_EVENTS,
     TOUCH_EXPLORATION,
 }
+
+/**
+ * A signal observed in the remote-interaction surface — emitted
+ * either by a snapshot detector, a system listener, or a
+ * compile-time-injected hook, and consumed via
+ * [DeviceIntelligence.interactionEvents].
+ *
+ * Every variant carries the same three common fields:
+ *  - [severity] — tier used by [IntegritySignalMapper] to decide
+ *    which `REMOTE_INTERACTION_*` signal to surface.
+ *  - [timestampMs] — `System.currentTimeMillis()` at emit time.
+ *  - [source] — origin of the event (see [InteractionSource]).
+ *
+ * Variant-specific fields document each detector's evidence.
+ * New variants must also be added to [InteractionEventKind] and
+ * to `InteractionEventTest.sampleOneOfEach`.
+ */
+public sealed interface InteractionEvent {
+    public val severity: InteractionSeverity
+    public val timestampMs: Long
+    public val source: InteractionSource
+
+    /**
+     * Discriminator for rolling counts and finding-kind suffixing.
+     * Default implementation maps each sealed subtype to its
+     * canonical [InteractionEventKind]; subclasses must not
+     * override.
+     */
+    public val kind: InteractionEventKind
+        get() = when (this) {
+            is A11yServiceEnabled            -> InteractionEventKind.A11Y_SERVICE_ENABLED
+            is A11yStateChanged              -> InteractionEventKind.A11Y_STATE_CHANGED
+            is RemoteControlAppDetected      -> InteractionEventKind.REMOTE_CONTROL_APP_DETECTED
+            is ScreenCaptureStarted          -> InteractionEventKind.SCREEN_CAPTURE_STARTED
+            is InputDeviceAttached           -> InteractionEventKind.INPUT_DEVICE_ATTACHED
+            is SuspiciousInputDispatch       -> InteractionEventKind.SUSPICIOUS_INPUT_DISPATCH
+            is WindowObscured                -> InteractionEventKind.WINDOW_OBSCURED
+            is OverlayWindowAddedByHost      -> InteractionEventKind.OVERLAY_WINDOW_ADDED_BY_HOST
+            is VpnActivated                  -> InteractionEventKind.VPN_ACTIVATED
+            is NotificationListenerEnabled   -> InteractionEventKind.NOTIFICATION_LISTENER_ENABLED
+            is DeviceAdminActive             -> InteractionEventKind.DEVICE_ADMIN_ACTIVE
+            is DetectorFailed                -> InteractionEventKind.DETECTOR_FAILED
+            is RuntimeMismatch               -> InteractionEventKind.RUNTIME_MISMATCH
+        }
+
+    public data class A11yServiceEnabled(
+        val packageName: String,
+        val serviceName: String,
+        val capabilities: Set<A11yCapability>,
+        val installerPackage: String?,
+        val firstInstallMs: Long,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class A11yStateChanged(
+        val enabled: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class RemoteControlAppDetected(
+        val packageName: String,
+        val matchStrategy: MatchStrategy,
+        val capabilityScore: Int,
+        val isSideloaded: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class ScreenCaptureStarted(
+        val initiatedByHost: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class InputDeviceAttached(
+        val deviceId: Int,
+        val name: String,
+        val isVirtual: Boolean,
+        val sources: Int,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class SuspiciousInputDispatch(
+        val activityClass: String,
+        val sourceFlags: Int,
+        val deviceIsVirtual: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class WindowObscured(
+        val activityClass: String,
+        val partial: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class OverlayWindowAddedByHost(
+        val viewClass: String,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class VpnActivated(
+        val ownerPackage: String?,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class NotificationListenerEnabled(
+        val packageName: String,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class DeviceAdminActive(
+        val packageName: String,
+        val isDeviceOwner: Boolean,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class DetectorFailed(
+        val detectorName: String,
+        val reasonClass: String,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+
+    public data class RuntimeMismatch(
+        val pluginVersion: String,
+        val runtimeVersion: String,
+        override val severity: InteractionSeverity,
+        override val timestampMs: Long,
+        override val source: InteractionSource,
+    ) : InteractionEvent
+}
