@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.util.Log
+import io.ssemaj.deviceintelligence.DeviceIntelligence
+import io.ssemaj.deviceintelligence.internal.interaction.RemoteInteractionAggregator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -43,6 +45,14 @@ internal class DeviceIntelligenceInitProvider : ContentProvider() {
 
     override fun onCreate(): Boolean {
         val ctx = context ?: return false
+
+        // Phase 1 of RemoteInteraction: construct the process-singleton
+        // aggregator and install it. SessionFindingsAggregator (Task 9)
+        // by default constructs its own — we install ours BEFORE any
+        // SessionFindingsAggregator construction so we can pass the
+        // same instance and avoid divergent snapshots.
+        val interaction = RemoteInteractionAggregator.newProductionInstance()
+        DeviceIntelligence.installRemoteInteractionAggregator(interaction)
 
         // Touch NativeBridge so libdicore.so loads early (before any
         // third-party SDK has a chance to load and probe us). The
