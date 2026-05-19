@@ -1,7 +1,6 @@
 package io.ssemaj.deviceintelligence
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -30,25 +29,29 @@ class RemoteInteractionEnumsTest {
     }
 
     @Test
-    fun `InteractionEventKind has one entry per planned event variant`() {
-        // Phase 1 ships the full enum so wire format is stable
-        // even though detectors are not yet emitting all kinds.
-        val expected = setOf(
-            "A11Y_SERVICE_ENABLED",
-            "A11Y_STATE_CHANGED",
-            "REMOTE_CONTROL_APP_DETECTED",
-            "SCREEN_CAPTURE_STARTED",
-            "INPUT_DEVICE_ATTACHED",
-            "SUSPICIOUS_INPUT_DISPATCH",
-            "WINDOW_OBSCURED",
-            "OVERLAY_WINDOW_ADDED_BY_HOST",
-            "VPN_ACTIVATED",
-            "NOTIFICATION_LISTENER_ENABLED",
-            "DEVICE_ADMIN_ACTIVE",
-            "DETECTOR_FAILED",
-            "RUNTIME_MISMATCH",
+    fun `InteractionEventKind enumerates all 13 planned variants in append-only order`() {
+        // Phase 1 ships the full enum so wire format is stable even
+        // though detectors are not yet emitting all kinds. Ordered
+        // comparison enforces the file's "append at the end" contract —
+        // new values MUST be added at the end, never inserted.
+        assertEquals(
+            listOf(
+                "A11Y_SERVICE_ENABLED",
+                "A11Y_STATE_CHANGED",
+                "REMOTE_CONTROL_APP_DETECTED",
+                "SCREEN_CAPTURE_STARTED",
+                "INPUT_DEVICE_ATTACHED",
+                "SUSPICIOUS_INPUT_DISPATCH",
+                "WINDOW_OBSCURED",
+                "OVERLAY_WINDOW_ADDED_BY_HOST",
+                "VPN_ACTIVATED",
+                "NOTIFICATION_LISTENER_ENABLED",
+                "DEVICE_ADMIN_ACTIVE",
+                "DETECTOR_FAILED",
+                "RUNTIME_MISMATCH",
+            ),
+            InteractionEventKind.values().map { it.name },
         )
-        assertEquals(expected, InteractionEventKind.values().map { it.name }.toSet())
     }
 
     @Test
@@ -65,19 +68,19 @@ class RemoteInteractionEnumsTest {
     }
 
     @Test
-    fun `A11yCapability includes the four capabilities checked by A11yAbuseDetector`() {
-        // The detector (Phase 2) maps from AccessibilityServiceInfo.capabilities
-        // bits into this enum. Keeping the names locked here means the
-        // Phase 2 detector can land without renaming.
-        val required = setOf(
-            "RETRIEVE_WINDOW_CONTENT",
-            "PERFORM_GESTURES",
-            "FILTER_KEY_EVENTS",
-            "TOUCH_EXPLORATION",
-        )
-        assertTrue(
-            "A11yCapability missing required entries; have: ${A11yCapability.values().map { it.name }}",
-            A11yCapability.values().map { it.name }.toSet().containsAll(required),
+    fun `A11yCapability lists the four capabilities checked by A11yAbuseDetector`() {
+        // The Phase 2 detector maps from AccessibilityServiceInfo.capabilities
+        // bits into this enum. Ordered comparison enforces the file's "append
+        // at the end" contract: new capabilities MUST be added at the end so
+        // existing consumers' ordinal-based pivots do not shift.
+        assertEquals(
+            listOf(
+                "RETRIEVE_WINDOW_CONTENT",
+                "PERFORM_GESTURES",
+                "FILTER_KEY_EVENTS",
+                "TOUCH_EXPLORATION",
+            ),
+            A11yCapability.values().map { it.name },
         )
     }
 }
