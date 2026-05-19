@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -47,5 +48,13 @@ class InteractionEventsPropertyTest {
         // Replay buffer means first() returns the just-emitted event.
         val received = DeviceIntelligence.interactionEvents.first()
         assertEquals(event, received)
+    }
+
+    @Test
+    fun `boot-installed aggregator instance is also accessible internally for SessionFindingsAggregator wiring`() {
+        val agg = RemoteInteractionAggregator.forTesting()
+        DeviceIntelligence.installRemoteInteractionAggregator(agg)
+        // currentRemoteInteractionAggregator is internal; same-module test can reach it.
+        assertSame(agg, DeviceIntelligence.currentRemoteInteractionAggregator())
     }
 }

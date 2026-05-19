@@ -125,6 +125,16 @@ public object DeviceIntelligence {
         remoteInteractionAggregator = aggregator
     }
 
+    /**
+     * Internal accessor for the boot-time aggregator, used by
+     * [observeSessionFlow] so that per-session [SessionFindingsAggregator]
+     * instances share the same aggregator as the public
+     * [interactionEvents] flow. Without this, the two surfaces would
+     * diverge and consumers would see events on one but not the other.
+     */
+    internal fun currentRemoteInteractionAggregator(): RemoteInteractionAggregator =
+        remoteInteractionAggregator
+
     // ---------------------------------------------------------------------
     // Suspend entry points (primary surface)
     // ---------------------------------------------------------------------
@@ -330,7 +340,10 @@ public object DeviceIntelligence {
     internal fun observeSessionFlow(
         upstream: Flow<TelemetryReport>,
     ): Flow<SessionFindings> = flow {
-        val aggregator = SessionFindingsAggregator(System.currentTimeMillis())
+        val aggregator = SessionFindingsAggregator(
+            sessionStartedAtEpochMs = System.currentTimeMillis(),
+            remoteInteractionAggregator = currentRemoteInteractionAggregator(),
+        )
         upstream.collect { report ->
             emit(aggregator.ingest(report))
         }
