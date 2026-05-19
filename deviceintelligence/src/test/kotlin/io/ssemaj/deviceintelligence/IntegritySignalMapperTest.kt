@@ -288,26 +288,25 @@ class IntegritySignalMapperTest {
             IntegritySignal.DEBUG_FLAG_MISMATCH to "ro_debuggable_mismatch",
             IntegritySignal.HARDWARE_ATTESTED_USERSPACE_TAMPERED to
                 "hardware_attested_but_userspace_tampered",
+            IntegritySignal.REMOTE_INTERACTION_HIGH_RISK to "remote_interaction.a11y_high_capability_service",
+            IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK to "remote_interaction.remote_control_app_known",
+            IntegritySignal.REMOTE_INTERACTION_CONTEXT to "remote_interaction.vpn_active",
         )
-        // Remote-interaction signals (REMOTE_INTERACTION_HIGH_RISK,
-        // REMOTE_INTERACTION_AMBIENT_RISK, REMOTE_INTERACTION_CONTEXT)
-        // are added in Task 6 and their mappings will be added in Task 7.
-        // Until then, we only sanity-check the pre-1.2.0 signals.
-        val priorToRemoteInteraction = IntegritySignal.values()
-            .filter { signal ->
-                signal != IntegritySignal.REMOTE_INTERACTION_HIGH_RISK &&
-                    signal != IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK &&
-                    signal != IntegritySignal.REMOTE_INTERACTION_CONTEXT
-            }
-            .toSet()
         assertEquals(
-            "canonical map must cover every pre-1.2.0 IntegritySignal",
-            priorToRemoteInteraction,
+            "canonical map must cover every IntegritySignal",
+            IntegritySignal.values().toSet(),
             canonical.keys,
         )
         for ((expectedSignal, kind) in canonical) {
+            // Determine appropriate severity for remote_interaction kinds
+            val severity = when (expectedSignal) {
+                IntegritySignal.REMOTE_INTERACTION_HIGH_RISK -> Severity.CRITICAL
+                IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK -> Severity.MEDIUM
+                IntegritySignal.REMOTE_INTERACTION_CONTEXT -> Severity.LOW
+                else -> Severity.HIGH
+            }
             val report = makeReport(
-                listOf(makeDetector("test", listOf(makeFinding(kind = kind)))),
+                listOf(makeDetector("test", listOf(makeFinding(kind = kind, severity = severity)))),
             )
             assertEquals(
                 "kind '$kind' must map to $expectedSignal",
@@ -348,6 +347,36 @@ class IntegritySignalMapperTest {
         assertEquals(IntegritySignal.REMOTE_INTERACTION_HIGH_RISK, values[values.size - 3])
         assertEquals(IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK, values[values.size - 2])
         assertEquals(IntegritySignal.REMOTE_INTERACTION_CONTEXT, values[values.size - 1])
+    }
+
+    @Test
+    fun `remote_interaction CRITICAL finding maps to REMOTE_INTERACTION_HIGH_RISK`() {
+        val finding = makeFinding(
+            kind = "remote_interaction.a11y_high_capability_service",
+            severity = Severity.CRITICAL,
+        )
+        val signal = IntegritySignalMapper.signalFor(finding)
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_HIGH_RISK, signal)
+    }
+
+    @Test
+    fun `remote_interaction MEDIUM finding maps to REMOTE_INTERACTION_AMBIENT_RISK`() {
+        val finding = makeFinding(
+            kind = "remote_interaction.remote_control_app_known",
+            severity = Severity.MEDIUM,
+        )
+        val signal = IntegritySignalMapper.signalFor(finding)
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK, signal)
+    }
+
+    @Test
+    fun `remote_interaction LOW finding maps to REMOTE_INTERACTION_CONTEXT`() {
+        val finding = makeFinding(
+            kind = "remote_interaction.vpn_active",
+            severity = Severity.LOW,
+        )
+        val signal = IntegritySignalMapper.signalFor(finding)
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_CONTEXT, signal)
     }
 
     // ---- helpers --------------------------------------------------------
