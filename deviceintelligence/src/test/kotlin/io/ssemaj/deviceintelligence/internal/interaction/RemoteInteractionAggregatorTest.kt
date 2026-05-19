@@ -77,6 +77,43 @@ class RemoteInteractionAggregatorTest {
         assertEquals(InteractionSeverity.HIGH, ev.severity)
     }
 
+    @Test
+    fun `concurrent emits from N threads produce deterministic count rollup`() {
+        val agg = RemoteInteractionAggregator.forTesting()
+        val threadCount = 16
+        val perThread = 250
+        val expectedTotal = threadCount * perThread
+
+        val threads = (0 until threadCount).map {
+            Thread {
+                repeat(perThread) {
+                    agg.emit(sampleEvent(InteractionSeverity.MEDIUM))
+                }
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+
+        val snap = agg.snapshot()
+        // Every emit increments the count; aggregator must lose nothing.
+        assertEquals(expectedTotal, snap.eventCounts[InteractionEventKind.A11Y_SERVICE_ENABLED])
+        // Severity reached at least MEDIUM.
+        assertEquals(InteractionSeverity.MEDIUM, snap.highestSeverityObserved)
+    }
+
+    @Test
+    fun `DROP_OLDEST means flood does not throw and counts still reflect every emit`() {
+        // No collector subscribed — buffer fills, then drops oldest.
+        // The accounting (counts + severity) must still be exact because
+        // emit() updates counts BEFORE attempting tryEmit.
+        val agg = RemoteInteractionAggregator.forTesting(replayCount = 2, bufferCapacity = 4)
+        val emitCount = 10_000
+        repeat(emitCount) {
+            agg.emit(sampleEvent(InteractionSeverity.INFO))
+        }
+        assertEquals(emitCount, agg.snapshot().eventCounts[InteractionEventKind.A11Y_SERVICE_ENABLED])
+    }
+
     private fun sampleEvent(
         severity: InteractionSeverity,
         timestampMs: Long = 1L,
