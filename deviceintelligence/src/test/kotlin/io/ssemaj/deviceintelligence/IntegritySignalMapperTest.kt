@@ -379,6 +379,19 @@ class IntegritySignalMapperTest {
         assertEquals(IntegritySignal.REMOTE_INTERACTION_CONTEXT, signal)
     }
 
+    @Test
+    fun `remote_interaction HIGH finding also maps to REMOTE_INTERACTION_HIGH_RISK`() {
+        // Severity.HIGH and Severity.CRITICAL both warrant the HIGH_RISK
+        // treatment per the Severity enum's own definitions ("strong
+        // tampering signal" and "direct evidence of an active attack").
+        val finding = makeFinding(
+            kind = "remote_interaction.suspicious_input_dispatch",
+            severity = Severity.HIGH,
+        )
+        val signal = IntegritySignalMapper.signalFor(finding)
+        assertEquals(IntegritySignal.REMOTE_INTERACTION_HIGH_RISK, signal)
+    }
+
     // ---- helpers --------------------------------------------------------
 
     private fun makeReport(detectors: List<DetectorReport>): TelemetryReport =

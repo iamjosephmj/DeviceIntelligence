@@ -343,10 +343,10 @@ public data class IntegritySignalReport(
  * For most finding kinds, the mapping pivots only on stable
  * [Finding.kind] (advisory; the mapping is purely on kind).
  * Exception: `remote_interaction.*` findings are routed by both kind
- * prefix AND [Finding.severity] — [Severity.CRITICAL] →
- * [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK], [Severity.WARN] →
- * [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK], and
- * [Severity.INFO] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT].
+ * prefix AND [Finding.severity] — [Severity.CRITICAL] and
+ * [Severity.HIGH] → [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK];
+ * [Severity.MEDIUM] → [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK];
+ * [Severity.LOW] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT].
  *
  * Backends that prefer to do this lifting server-side can replicate
  * the mapping table — every entry below pivots on [Finding.kind],
@@ -364,19 +364,20 @@ public object IntegritySignalMapper {
      * of the mapper.
      *
      * For `remote_interaction.*` findings, the signal is determined by
-     * severity: [Severity.CRITICAL] → [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK],
-     * [Severity.MEDIUM] → [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK],
-     * [Severity.LOW] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT]. For all
-     * other findings, the signal depends only on [Finding.kind].
+     * severity: [Severity.CRITICAL] and [Severity.HIGH] →
+     * [IntegritySignal.REMOTE_INTERACTION_HIGH_RISK];
+     * [Severity.MEDIUM] → [IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK];
+     * [Severity.LOW] → [IntegritySignal.REMOTE_INTERACTION_CONTEXT].
+     * For all other findings, the signal depends only on [Finding.kind].
      */
     @JvmStatic
     public fun signalFor(finding: Finding): IntegritySignal? {
         if (finding.kind.startsWith("remote_interaction.")) {
             return when (finding.severity) {
-                Severity.CRITICAL -> IntegritySignal.REMOTE_INTERACTION_HIGH_RISK
+                Severity.CRITICAL,
+                Severity.HIGH -> IntegritySignal.REMOTE_INTERACTION_HIGH_RISK
                 Severity.MEDIUM -> IntegritySignal.REMOTE_INTERACTION_AMBIENT_RISK
                 Severity.LOW -> IntegritySignal.REMOTE_INTERACTION_CONTEXT
-                else -> null
             }
         }
         return KIND_TO_SIGNAL[finding.kind]
