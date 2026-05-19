@@ -1,5 +1,7 @@
 package io.ssemaj.deviceintelligence
 
+import io.ssemaj.deviceintelligence.internal.interaction.RemoteInteractionAggregator
+
 /**
  * Stateful aggregator that turns a stream of [TelemetryReport]s
  * into a stream of cumulative [SessionFindings] snapshots.
@@ -24,9 +26,16 @@ package io.ssemaj.deviceintelligence
  * single coroutine. The `flow {}` wrapper provides that contract
  * automatically (`collect` is sequential within one collector).
  */
-public class SessionFindingsAggregator(
+public class SessionFindingsAggregator internal constructor(
     private val sessionStartedAtEpochMs: Long,
+    private val remoteInteractionAggregator: RemoteInteractionAggregator,
 ) {
+
+    /** Public constructor — production callers and external consumers. */
+    public constructor(sessionStartedAtEpochMs: Long) : this(
+        sessionStartedAtEpochMs,
+        RemoteInteractionAggregator.newProductionInstance(),
+    )
 
     private val tracked = LinkedHashMap<String, TrackedFinding>()
     private var collectionsObserved: Int = 0
@@ -93,6 +102,7 @@ public class SessionFindingsAggregator(
             collectionsObserved = collectionsObserved,
             sessionStartedAtEpochMs = sessionStartedAtEpochMs,
             lastUpdatedAtEpochMs = now,
+            remoteInteraction = remoteInteractionAggregator.snapshot(),
         )
     }
 
