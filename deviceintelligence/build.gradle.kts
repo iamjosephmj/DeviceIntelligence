@@ -57,6 +57,16 @@ android {
         // means a backend correlating reports has a single version
         // identifier across plugin, library, and report payload.
         buildConfigField("String", "LIBRARY_VERSION", "\"$publishVersion\"")
+
+        // AndroidJUnitRunner powers the instrumented smoke tests under
+        // src/androidTest/. The suite validates `DeviceIntelligence.collect()`
+        // produces a structurally well-formed report on real Android
+        // (native lib load, every detector ran, summary aggregates
+        // consistently). It does NOT assert "no findings" — emulators
+        // and dev devices legitimately trip `runtime.emulator` /
+        // `integrity.bootloader_unlocked`, and treating those as test
+        // failures would mean the suite couldn't run anywhere realistic.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -94,6 +104,51 @@ android {
         }
     }
 
+    // AGP-managed virtual devices for instrumented tests. Declarative,
+    // reproducible, and runnable in CI without juggling avdmanager /
+    // emulator binaries by hand. ATD (Android Test Device) system images
+    // are the smaller/faster headless variant — they boot in seconds
+    // and run smoke tests fast enough for PR-blocking CI.
+    //
+    // The three API levels cover the meaningful matrix:
+    //   - 28: minSdk floor (the API surface we promise to support).
+    //   - 33: Tiramisu, the modal target SDK across Play Store apps.
+    //   - 35: latest stable, validates the 16 KB page-size + AGP 8.13
+    //         runtime path against current Android.
+    //
+    // Run all three locally with:
+    //   ./gradlew :deviceintelligence:allDevicesDebugAndroidTest
+    // Or a single API level (cheaper in CI) with:
+    //   ./gradlew :deviceintelligence:api33AtdDebugAndroidTest
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("api28Atd") {
+                    device = "Pixel 2"
+                    apiLevel = 28
+                    systemImageSource = "aosp-atd"
+                }
+                create("api33Atd") {
+                    device = "Pixel 6"
+                    apiLevel = 33
+                    systemImageSource = "aosp-atd"
+                }
+                create("api35Atd") {
+                    device = "Pixel 6"
+                    apiLevel = 35
+                    systemImageSource = "aosp-atd"
+                }
+            }
+            groups {
+                create("allDevices") {
+                    targetDevices.add(localDevices.getByName("api28Atd"))
+                    targetDevices.add(localDevices.getByName("api33Atd"))
+                    targetDevices.add(localDevices.getByName("api35Atd"))
+                }
+            }
+        }
+    }
+
     // First-class AGP publishing hook (8.0+). Tells AGP which variant
     // becomes the published `release` artifact, and asks it to also
     // produce the sources + javadoc jars expected by Maven Central
@@ -120,6 +175,13 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // Instrumented smoke-test stack. JUnit4 is the on-device runtime
+    // (Android still ships JUnit4 in androidx.test.ext); androidx.test.core
+    // gives us ApplicationProvider.getApplicationContext() for the suite.
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
 }
 
 // AGP creates the `release` software component lazily during evaluation
