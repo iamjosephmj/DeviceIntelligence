@@ -1,14 +1,22 @@
 # Instrumented smoke tests for the :deviceintelligence SDK.
 #
-# Boots an AGP-managed AOSP/ATD emulator (API 33, x86_64) inside the
-# GitHub Actions runner — Linux runners gained KVM/nested-virt support
-# in mid-2024, which is what makes managed devices viable here without
-# a third-party emulator action. ATD images are headless and boot in
-# seconds, so the suite is cheap enough to gate on every PR.
+# Runs the 11-test suite under :deviceintelligence:src/androidTest on
+# three API levels in parallel — 28 (minSdk floor), 33 (modal target
+# SDK), 35 (latest stable + 16 KB page-size path) — each on its own
+# AGP-managed emulator inside a GitHub Actions runner. Linux runners
+# gained KVM/nested-virt support in mid-2024, which is what makes
+# managed devices viable without a third-party emulator action.
 #
-# Local invocation mirror:
-#   ./gradlew :deviceintelligence:api33AtdDebugAndroidTest
-# Full matrix (API 28/33/35):
+# Image-source choice per API:
+#   - API 33 / 35: aosp_atd (Android Test Device — headless, ~250 MB,
+#     boots in seconds, purpose-built for CI smoke runs).
+#   - API 28: aosp default image (~700 MB, ~30 sec boot). ATD images
+#     only exist from API 30+, so the floor entry uses the standard
+#     AOSP system image.
+#
+# Local invocation mirror (single device):
+#   ./gradlew :deviceintelligence:api33DebugAndroidTest
+# Full matrix:
 #   ./gradlew :deviceintelligence:allDevicesDebugAndroidTest
 
 name: Instrumented tests
@@ -29,9 +37,26 @@ concurrency:
 
 jobs:
   smoke:
-    name: SDK smoke (API 33, x86_64, ATD)
+    name: SDK smoke (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # Independent per-API insight. A flake or genuine regression on
+      # one API level should not cancel the others — knowing it only
+      # repros on API 28 (or only on 35) is exactly the actionable
+      # signal this matrix exists to surface.
+      fail-fast: false
+      matrix:
+        include:
+          - api-level: 28
+            system-image: "system-images;android-28;default;x86_64"
+            gradle-task: api28DebugAndroidTest
+          - api-level: 33
+            system-image: "system-images;android-33;aosp_atd;x86_64"
+            gradle-task: api33DebugAndroidTest
+          - api-level: 35
+            system-image: "system-images;android-35;aosp_atd;x86_64"
+            gradle-task: api35DebugAndroidTest
     steps:
       - uses: actions/checkout@v5
 
@@ -75,15 +100,16 @@ jobs:
           # pipe semantics.
           set +o pipefail
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-          # `yes |` on the install command too: the ATD system image
-          # carries an additional MIPS evaluation license that
-          # `--licenses` does NOT pre-accept (it's prompted at
-          # install-time, not registered as an SDK license hash).
+          # `yes |` on the install command too: the system image (ATD
+          # or default) may carry an additional vendor evaluation
+          # license that `--licenses` does NOT pre-accept (it's
+          # prompted at install-time, not registered as an SDK license
+          # hash).
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install \
             "platform-tools" "emulator" \
             "platforms;android-36" "build-tools;36.0.0" \
             "ndk;27.0.12077973" "cmake;3.22.1" \
-            "system-images;android-33;aosp_atd;x86_64"
+            "${{ matrix.system-image }}"
           set -o pipefail
           {
             echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
@@ -91,10 +117,10 @@ jobs:
             echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$PATH"
           } >> "$GITHUB_ENV"
 
-      - name: Run :deviceintelligence:api33AtdDebugAndroidTest
+      - name: Run :deviceintelligence:${{ matrix.gradle-task }}
         run: |
           chmod +x ./gradlew
-          ./gradlew :deviceintelligence:api33AtdDebugAndroidTest \
+          ./gradlew :deviceintelligence:${{ matrix.gradle-task }} \
             --no-daemon \
             --stacktrace \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
@@ -103,7 +129,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: instrumented-test-report-api33
+          name: instrumented-test-report-api${{ matrix.api-level }}
           path: |
             deviceintelligence/build/reports/androidTests/managedDevice/**
             deviceintelligence/build/outputs/androidTest-results/managedDevice/**
