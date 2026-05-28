@@ -66,7 +66,13 @@ jobs:
           printf '\n24333f8a63b6825ea9c5514f748d145ef07021\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install \
+          # `yes |` on the install command too: the ATD system image
+          # carries an additional MIPS evaluation license that
+          # `--licenses` does NOT pre-accept (it's prompted at
+          # install-time, not registered as an SDK license hash).
+          # Without this pipe the install dies with exit 1 the moment
+          # the MIPS prompt appears.
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install \
             "platform-tools" "emulator" \
             "platforms;android-36" "build-tools;36.0.0" \
             "ndk;27.0.12077973" "cmake;3.22.1" \
