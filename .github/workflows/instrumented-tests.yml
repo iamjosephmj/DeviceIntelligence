@@ -65,18 +65,26 @@ jobs:
           mkdir -p "$ANDROID_SDK_ROOT/licenses"
           printf '\n24333f8a63b6825ea9c5514f748d145ef07021\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+          # GitHub Actions runs `bash -eo pipefail`, so a `yes | sdkmanager`
+          # pipeline fails the step when sdkmanager finishes and closes
+          # stdin: `yes` then gets SIGPIPE on its next write and exits
+          # non-zero, which under pipefail propagates as a pipeline
+          # failure even though sdkmanager itself succeeded. Drop
+          # pipefail just for the license / install pipes; restore it
+          # immediately after so the rest of the script keeps strict
+          # pipe semantics.
+          set +o pipefail
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
           # `yes |` on the install command too: the ATD system image
           # carries an additional MIPS evaluation license that
           # `--licenses` does NOT pre-accept (it's prompted at
           # install-time, not registered as an SDK license hash).
-          # Without this pipe the install dies with exit 1 the moment
-          # the MIPS prompt appears.
           yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install \
             "platform-tools" "emulator" \
             "platforms;android-36" "build-tools;36.0.0" \
             "ndk;27.0.12077973" "cmake;3.22.1" \
             "system-images;android-33;aosp_atd;x86_64"
+          set -o pipefail
           {
             echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
             echo "ANDROID_HOME=$ANDROID_SDK_ROOT"
