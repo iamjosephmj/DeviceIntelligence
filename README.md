@@ -12,6 +12,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
+  <a href="#privacy--gdpr"><img alt="GDPR-friendly" src="https://img.shields.io/badge/GDPR-friendly-2E7D32.svg"></a>
 </p>
 
 <p align="center">
