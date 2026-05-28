@@ -130,20 +130,35 @@ android {
     testOptions {
         managedDevices {
             localDevices {
+                // require64Bit pins each device to the 64-bit image
+                // variant. Without it, AGP's image-selection heuristic
+                // can pick the 32-bit (`x86`) variant on API 28 — both
+                // `system-images;android-28;default;x86` and
+                // `system-images;android-28;default;x86_64` exist, and
+                // the heuristic biases 32-bit on older APIs. That
+                // leaves the test APK install failing with
+                // INSTALL_FAILED_NO_MATCHING_ABIS, because :deviceintelligence's
+                // abiFilters are `[arm64-v8a, x86_64, armeabi-v7a]` —
+                // no overlap with a `[x86]`-only device. Explicit on
+                // every device for uniform config; effectively a no-op
+                // on API 33 / 35 where aosp-atd is x86_64-only anyway.
                 create("api28") {
                     device = "Pixel 2"
                     apiLevel = 28
                     systemImageSource = "aosp"
+                    require64Bit = true
                 }
                 create("api33") {
                     device = "Pixel 6"
                     apiLevel = 33
                     systemImageSource = "aosp-atd"
+                    require64Bit = true
                 }
                 create("api35") {
                     device = "Pixel 6"
                     apiLevel = 35
                     systemImageSource = "aosp-atd"
+                    require64Bit = true
                 }
             }
             groups {
