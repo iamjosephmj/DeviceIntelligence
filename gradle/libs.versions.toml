@@ -16,6 +16,12 @@ junit = "4.13.2"
 # typically requires re-checking these.
 androidx-test-core = "1.6.1"
 androidx-test-ext-junit = "1.2.1"
+# AndroidJUnitRunner ships in androidx.test:runner — separate artifact
+# from ext.junit (which only ships AndroidJUnit4 + ApplicationProvider).
+# testInstrumentationRunner references the runner class by name; without
+# this dep on androidTest classpath, the instrumentation start fails with
+# ClassNotFoundException at test-run time, not at build time.
+androidx-test-runner = "1.6.2"
 
 [libraries]
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
@@ -24,6 +30,7 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidx-test-core" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidx-test-ext-junit" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidx-test-runner" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
