@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
  *
  * Run locally:
  * ```
- * ./gradlew :deviceintelligence:api33AtdDebugAndroidTest
+ * ./gradlew :deviceintelligence:api33DebugAndroidTest
  * ```
  *
  * Run the full API matrix (28/33/35):

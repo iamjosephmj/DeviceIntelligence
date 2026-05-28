@@ -106,9 +106,7 @@ android {
 
     // AGP-managed virtual devices for instrumented tests. Declarative,
     // reproducible, and runnable in CI without juggling avdmanager /
-    // emulator binaries by hand. ATD (Android Test Device) system images
-    // are the smaller/faster headless variant — they boot in seconds
-    // and run smoke tests fast enough for PR-blocking CI.
+    // emulator binaries by hand.
     //
     // The three API levels cover the meaningful matrix:
     //   - 28: minSdk floor (the API surface we promise to support).
@@ -116,24 +114,33 @@ android {
     //   - 35: latest stable, validates the 16 KB page-size + AGP 8.13
     //         runtime path against current Android.
     //
+    // Image-source choice differs per API:
+    //   - API 33 / 35 use `aosp-atd` (Android Test Device): headless,
+    //     ~250 MB, boots in seconds — purpose-built for CI smoke runs.
+    //   - API 28 has no ATD variant (ATD images only ship from API 30
+    //     onwards), so it falls back to `aosp` (the full AOSP
+    //     `system-images;android-28;default;x86_64` package, ~700 MB,
+    //     ~30 sec boot). Functionally equivalent for the smoke suite;
+    //     just slower to provision.
+    //
     // Run all three locally with:
     //   ./gradlew :deviceintelligence:allDevicesDebugAndroidTest
     // Or a single API level (cheaper in CI) with:
-    //   ./gradlew :deviceintelligence:api33AtdDebugAndroidTest
+    //   ./gradlew :deviceintelligence:api33DebugAndroidTest
     testOptions {
         managedDevices {
             localDevices {
-                create("api28Atd") {
+                create("api28") {
                     device = "Pixel 2"
                     apiLevel = 28
-                    systemImageSource = "aosp-atd"
+                    systemImageSource = "aosp"
                 }
-                create("api33Atd") {
+                create("api33") {
                     device = "Pixel 6"
                     apiLevel = 33
                     systemImageSource = "aosp-atd"
                 }
-                create("api35Atd") {
+                create("api35") {
                     device = "Pixel 6"
                     apiLevel = 35
                     systemImageSource = "aosp-atd"
@@ -141,9 +148,9 @@ android {
             }
             groups {
                 create("allDevices") {
-                    targetDevices.add(localDevices.getByName("api28Atd"))
-                    targetDevices.add(localDevices.getByName("api33Atd"))
-                    targetDevices.add(localDevices.getByName("api35Atd"))
+                    targetDevices.add(localDevices.getByName("api28"))
+                    targetDevices.add(localDevices.getByName("api33"))
+                    targetDevices.add(localDevices.getByName("api35"))
                 }
             }
         }
