@@ -1,0 +1,97 @@
+# Instrumented smoke tests for the :deviceintelligence SDK.
+#
+# Boots an AGP-managed AOSP/ATD emulator (API 33, x86_64) inside the
+# GitHub Actions runner — Linux runners gained KVM/nested-virt support
+# in mid-2024, which is what makes managed devices viable here without
+# a third-party emulator action. ATD images are headless and boot in
+# seconds, so the suite is cheap enough to gate on every PR.
+#
+# Local invocation mirror:
+#   ./gradlew :deviceintelligence:api33AtdDebugAndroidTest
+# Full matrix (API 28/33/35):
+#   ./gradlew :deviceintelligence:allDevicesDebugAndroidTest
+
+name: Instrumented tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instrumented-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: SDK smoke (API 33, x86_64, ATD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # KVM is the gate for AGP managed devices on Linux. Without it
+      # the emulator falls back to TCG (software CPU) which times out
+      # on CI. The runner ships kvm-ok / kvm modules; this step ensures
+      # the user namespace has access.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install Android SDK (matches AGP / CMake / NDK in module build.gradle.kts)
+        shell: bash
+        run: |
+          set -eu
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -qo /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$PATH"
+          mkdir -p "$ANDROID_SDK_ROOT/licenses"
+          printf '\n24333f8a63b6825ea9c5514f748d145ef07021\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+          printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install \
+            "platform-tools" "emulator" \
+            "platforms;android-36" "build-tools;36.0.0" \
+            "ndk;27.0.12077973" "cmake;3.22.1" \
+            "system-images;android-33;aosp_atd;x86_64"
+          {
+            echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+            echo "ANDROID_HOME=$ANDROID_SDK_ROOT"
+            echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/emulator:$PATH"
+          } >> "$GITHUB_ENV"
+
+      - name: Run :deviceintelligence:api33AtdDebugAndroidTest
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :deviceintelligence:api33AtdDebugAndroidTest \
+            --no-daemon \
+            --stacktrace \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+
+      - name: Upload test report (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-report-api33
+          path: |
+            deviceintelligence/build/reports/androidTests/managedDevice/**
+            deviceintelligence/build/outputs/androidTest-results/managedDevice/**
+          if-no-files-found: ignore
+          retention-days: 7
