@@ -12,7 +12,6 @@ add_library(dicore SHARED
         dicore/hex.cpp
         dicore/zip_parser.cpp
         dicore/sigblock_parser.cpp
-        dicore/analytics.cpp
         dicore/jni_bridge.cpp
         dicore/emu_probe_jni.cpp
         dicore/cloner_probe.cpp

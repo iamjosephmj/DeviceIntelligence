@@ -39,8 +39,7 @@ DeviceIntelligence sits in the gap. It's:
 - **Fully open-source** (Kotlin + native C++) — every detection rule is auditable. No closed binary blobs.
 - **Free-of-Google** — no Play Services dependency; works on AOSP, OpenGApps, GrapheneOS, CalyxOS, etc. Hardware key attestation still works on those builds because it's a Keymaster API call, not a Google API call.
 - **Detection-rich** — covers the techniques real attackers actually use: Frida agents, Xposed/LSPosed/EdXposed, Pine, SandHook, YAHFA, Cydia Substrate, Magisk, Zygisk, Riru, Taichi, app cloners, and runtime DEX injection (`InMemoryDexClassLoader`/`DexClassLoader` payloads). 8 layers of in-process anti-hooking with circular-bypass design.
-- **Privacy-first** — anonymous-by-construction analytics. SHA-256 of `ro.build.fingerprint` for `client_id`, no PII, no package names, no memory addresses on the wire.
-- **Backend-agnostic** — emits one deterministic JSON. Send it to your own backend, Datadog, BigQuery, anywhere. No SDK tries to talk to a vendor cloud.
+- **Backend-agnostic** — emits one deterministic JSON. Send it to your own backend, Datadog, BigQuery, anywhere. The SDK itself performs no network calls and ships no analytics — collection and policy stay entirely in your hands.
 
 **Use it when** you need device-tampering evidence richer than Play Integrity's pass/fail bit, want server-side control of the policy decision, can't or won't take the Play Services dependency, or want to audit the detection logic rather than trust a vendor's claims.
 
@@ -76,7 +75,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "1.1.0"
+    id("io.ssemaj.deviceintelligence") version "2.0.0"
 }
 ```
 
@@ -209,35 +208,6 @@ DeviceIntelligence ships its own offensive verification harnesses — Frida scri
 | Samsung Knox warranty-bit parsing | Samsung Knox attestation extension OID prefix is detected on the leaf, but warranty-bit byte parsing requires on-device Samsung validation tracked for a follow-up minor | planned |
 
 Full step-by-step validation runbook for the Pixel 6 Pro: [`tools/red-team/FLAG1_RUNBOOK.md`](tools/red-team/FLAG1_RUNBOOK.md).
-
-## Analytics
-
-DeviceIntelligence ships anonymous device-hardware telemetry from the
-native runtime to help improve detector accuracy across the long tail
-of OEM devices. **Enabled by default.**
-
-**To opt out**, in your `app/build.gradle.kts`:
-
-```kotlin
-deviceintelligence {
-    disableAnalytics.set(true)
-}
-```
-
-When disabled, the plugin injects a manifest `<meta-data>` flag the
-native layer reads at startup; no background threads are started and
-no HTTP calls are made. The `INTERNET` permission declared by the AAR
-has no runtime effect (most apps already declare it for their own
-network usage; the manifest merger produces no duplicate).
-
-**What's collected**: ABI, API level, manufacturer, model, SoC name,
-CPU vendor (from the emulator probe), ART / native-integrity result
-codes, mount filesystem type names, loaded library basenames.
-
-**Never collected**: package names, certificate hashes, memory
-addresses, file paths, account / device / user identifiers, or any
-app-specific data. `client_id` is a one-way SHA-256 of
-`ro.build.fingerprint` and cannot be reversed to any user or device.
 
 ## JSON contract
 
@@ -413,7 +383,6 @@ adb shell am start -n io.ssemaj.sample/.MainActivity
 
 | Permission             | Required by                                         | Default | Opt-out / opt-in                       |
 |------------------------|-----------------------------------------------------|---------|----------------------------------------|
-| `INTERNET`             | Anonymous analytics drain (see [Analytics](#analytics)) | on    | `disableAnalytics.set(true)`           |
 | `QUERY_ALL_PACKAGES`   | `runtime.root` `root_manager_app_installed` channel | on      | Strip via `tools:node="remove"`        |
 | `ACCESS_NETWORK_STATE` | `DeviceContext.vpnActive`                           | off     | `enableVpnDetection.set(true)`         |
 | `USE_BIOMETRIC`        | `DeviceContext.biometricsEnrolled`                  | off     | `enableBiometricsDetection.set(true)`  |
