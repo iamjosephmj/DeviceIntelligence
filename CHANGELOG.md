@@ -4,6 +4,45 @@ All notable changes to **DeviceIntelligence** are recorded here. Format follows 
 
 The wire format (`TelemetryReport` JSON, `Finding.kind` identifiers, detector IDs) carries an independent `schema_version` integer that is **only** bumped on breaking changes. Adding new finding kinds or new detectors is additive and does NOT bump `schema_version`. Backends pin against `schema_version` for correctness; library version pinning is for build-time API stability.
 
+## [2.0.0] — 2026-05-28
+
+Stable major release. Removes the native analytics drain entirely: the SDK now performs zero network calls under any configuration, and the entire telemetry pipeline (collection → JSON → upload) lives in the consumer's process and on the consumer's backend.
+
+### Removed
+
+- **Native analytics layer (`cpp/dicore/analytics.{cpp,h}`).** The JNI-bridged `HttpURLConnection` POST drain that shipped from 1.0.0 onwards — `client_id` derivation, ring-buffer queue, detached drain thread, fire-and-forget POST to the Cloud Functions ingest endpoint — is gone in its entirety. `NativeBridge.nativeQueueTelemetryReport` / `queueTelemetryReport`, the `telemetry_report` event the C++ layer queued after every `collect()`, and the `Java_..._nativeQueueTelemetryReport` JNI export are all removed. `libdicore.so` now contains zero networking code.
+- **`disableAnalytics` Gradle DSL property** (`deviceintelligence { disableAnalytics.set(...) }`). Now redundant; removing it surfaces the new "no analytics, period" contract at build time rather than silently no-op'ing the opt-out.
+- **Manifest opt-out `<meta-data android:name="io.ssemaj.di.analytics" />`** generation in `GenerateOptionalManifestTask` — also redundant once analytics is gone.
+- **`android.permission.INTERNET`** declaration in the library AAR (`deviceintelligence/src/main/AndroidManifest.xml`). The permission was only there to satisfy the analytics drain; the library itself never needed it. Consumer apps that declare `INTERNET` for their own network usage are unaffected.
+
+### Breaking changes (Gradle DSL)
+
+Consumers currently writing
+
+```kotlin
+deviceintelligence {
+    disableAnalytics.set(true)
+}
+```
+
+will get an `Unknown property 'disableAnalytics' for object of type DeviceIntelligenceExtension` configuration-time error on 2.0.0. **Migration:** delete the line. There is nothing to opt out of any more.
+
+No other public Kotlin / Gradle / JNI surface changed.
+
+### Wire-format impact
+
+None. `schema_version` stays at `2`. `TelemetryReport`, `Finding.kind`, every detector ID, `IntegritySignal`, and the JSON encoder are byte-identical to 1.1.0 for the same input. Backends do not need to re-version anything.
+
+### Privacy posture
+
+The SDK now makes zero network calls under any configuration. All telemetry stays in the consumer's process until the consumer's own code chooses to upload `DeviceIntelligence.collectJson(context)` to the consumer's own backend. The README's "Backend-agnostic" / "no SDK tries to talk to a vendor cloud" promise is now true unconditionally (it was previously gated on the optional `disableAnalytics.set(true)` flag).
+
+### Validation
+
+- `./gradlew :deviceintelligence:assembleDebug :deviceintelligence-gradle:assemble` — BUILD SUCCESSFUL (Kotlin + Gradle plugin + native `libdicore.so` for `arm64-v8a`, `armeabi-v7a`, `x86_64`).
+- `./gradlew :deviceintelligence:testDebugUnitTest` — BUILD SUCCESSFUL (every per-detector test suite green).
+- Tree-wide grep for `analytics.h` / `analytics::` / `disableAnalytics` / `queueTelemetryReport` / `nativeQueueTelemetryReport` / `io.ssemaj.di.analytics` / `cloudfunctions` returns zero hits.
+
 ## [1.1.0] — 2026-05-13
 
 ### Added
@@ -152,6 +191,7 @@ Additive only — runtime-only types, nothing changes in the existing `Telemetry
 
 - GitHub Packages publication workflow (`.github/workflows/publish-github-packages.yml`).
 
+[2.0.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/2.0.0
 [1.1.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.1.0
 [1.0.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.0.0
 [0.9.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/0.9.0

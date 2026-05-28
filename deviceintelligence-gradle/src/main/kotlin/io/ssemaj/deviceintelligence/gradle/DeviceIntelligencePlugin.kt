@@ -40,7 +40,6 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             enableVpnDetection.convention(false)
             enableBiometricsDetection.convention(false)
             disableAutoRuntimeDependency.convention(false)
-            disableAnalytics.convention(false)
         }
 
         // Auto-apply the matching runtime AAR. Eager registration (not
@@ -351,7 +350,6 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             variantName.set(variant.name)
             needsAccessNetworkState.set(ext.enableVpnDetection)
             needsUseBiometric.set(ext.enableBiometricsDetection)
-            disableAnalytics.set(ext.disableAnalytics)
             outputManifest.set(outFile)
         }
 
@@ -360,7 +358,7 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             project.afterEvaluate {
                 if (ext.verbose.getOrElse(false)) {
                     project.logger.lifecycle(
-                        "io.ssemaj: registered ${task.name} (vpnDetection=${ext.enableVpnDetection.getOrElse(false)}, biometricsDetection=${ext.enableBiometricsDetection.getOrElse(false)}, disableAnalytics=${ext.disableAnalytics.getOrElse(false)})"
+                        "io.ssemaj: registered ${task.name} (vpnDetection=${ext.enableVpnDetection.getOrElse(false)}, biometricsDetection=${ext.enableBiometricsDetection.getOrElse(false)})"
                     )
                 }
             }

@@ -14,7 +14,6 @@
 // `art_integrity_jni.cpp` and `jni_bridge.cpp` is tracked as a
 // separate G7.5 follow-up.
 
-#include "analytics.h"
 #include "native_integrity/baseline.h"
 #include "native_integrity/caller_verify.h"
 #include "native_integrity/caller_verify_macro.h"
@@ -31,33 +30,6 @@
 namespace dicore {
 
 extern "C" {
-
-/**
- * Called by Kotlin's `TelemetryCollector.collect(...)` immediately after
- * the public `TelemetryReport` is encoded to JSON. Forwards the entire
- * JSON to the native analytics queue as a single `telemetry_report`
- * event, so the backend stores it verbatim under the corresponding run
- * document's `events.telemetry_report.params` field.
- *
- * The C++ analytics layer never inspects the JSON beyond splicing it
- * into the request envelope, so the wire shape on the backend is a
- * 1:1 mirror of what `DeviceIntelligence.collectJson(...)` returns.
- *
- * Null / empty input is a no-op (defensive — the Kotlin signature
- * already disallows null, but the analytics drain ignores empty
- * payloads and we don't want to queue an obviously-broken event).
- */
-JNIEXPORT void JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeQueueTelemetryReport(
-        JNIEnv* env, jclass, jstring jJson) {
-    if (jJson == nullptr) return;
-    const char* json = env->GetStringUTFChars(jJson, nullptr);
-    if (json == nullptr) return;
-    if (json[0] != '\0') {
-        analytics::queue_event("telemetry_report", json);
-    }
-    env->ReleaseStringUTFChars(jJson, json);
-}
 
 /**
  * G1 CTF probe. Returns `kProbeAlive` when the native_integrity
