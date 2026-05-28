@@ -390,6 +390,12 @@ adb shell am start -n io.ssemaj.sample/.MainActivity
 When you opt out of `vpnActive` / `biometricsEnrolled`, the field
 reports `null` (not `false`).
 
+## Privacy & GDPR
+
+**Zero data collection.** The SDK does not make any network calls, does not contact any vendor cloud, and does not transmit any telemetry to anyone. The output of `DeviceIntelligence.collectJson(context)` stays in your app's process; what your app chooses to upload — and to where — is entirely up to you.
+
+**GDPR-friendly by design.** Because the SDK transmits no data, it is neither a data controller nor a data processor under GDPR. Your app remains the sole data controller for any device telemetry it chooses to forward to its own backend, and the consent / retention / DSAR posture is yours to define. The library itself reads no advertising ID (GAID), no `ANDROID_ID`, no IMEI/IMSI, no SIM serial, no account identifiers, and no contact / location / file-system content. Everything available in the `TelemetryReport` is documented end-to-end in the [JSON contract](#json-contract) section above so you can audit exactly what fields exist before deciding what to ship server-side.
+
 ## Documentation
 
 - [**`docs/DETECTORS.md`**](docs/DETECTORS.md) — full per-detector reference (threat model, finding kinds, sample tripped JSON, costs, caveats)
