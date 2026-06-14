@@ -475,22 +475,61 @@ internal object KeyAttestationDetector : Detector {
         verdict: IntegrityVerdict,
         pkg: String,
     ): Finding {
-        val details = LinkedHashMap<String, String>(8)
+        val details = LinkedHashMap<String, String>(10)
         details["device_recognition"] = verdict.deviceRecognition
             .joinToString(",") { it.wire }
         details["app_recognition"] = verdict.appRecognition.wire
-        details["bootloader_locked"] = (c.parsed?.deviceLocked?.toString() ?: "unknown")
+        val locked = c.parsed?.deviceLocked
+        details["bootloader_locked"] = locked?.toString() ?: "unknown"
         details["verified_boot_state"] = c.parsed?.verifiedBootState?.wire ?: "Unknown"
+        // The hardware-attested hash of the key that signed the running boot
+        // image. On stock it chains to Google's AVB key; any other value is
+        // proof the boot partition was re-signed with a custom key.
+        val bootKeyHash = c.parsed?.verifiedBootKey?.let { sha256Hex(it) }
+        bootKeyHash?.let { details["verified_boot_key_sha256"] = it }
         details["verdict_authoritative"] = "false"
         verdict.reason?.let { details["reason"] = it }
+
+        // Attach the concrete, hardware-attested proof of *why* the OS is
+        // considered modified (when the boot state says so).
+        val proof = osModifiedProof(c.parsed?.verifiedBootState, locked, bootKeyHash)
+        proof?.let { details["os_modified_proof"] = it }
 
         return Finding(
             kind = "tee_integrity_verdict",
             severity = verdict.severity,
             subject = pkg,
-            message = "TEE evidence indicates degraded device or app integrity (advisory; verify chain server-side)",
+            message = proof
+                ?: "TEE evidence indicates degraded device or app integrity (advisory; verify chain server-side)",
             details = details,
         )
+    }
+
+    /**
+     * Hardware-attested proof of *why* the OS is considered modified, derived
+     * from the Verified Boot state in the attestation cert. Returns null for a
+     * Google-VERIFIED (green) boot — there is nothing to prove. These fields
+     * come from the secure element's RootOfTrust and cannot be forged on-device.
+     */
+    private fun osModifiedProof(
+        state: VerifiedBootState?,
+        locked: Boolean?,
+        bootKeyHash: String?,
+    ): String? = when (state) {
+        VerifiedBootState.SELF_SIGNED ->
+            "OS MODIFIED (hardware-attested): the running boot image is signed by a NON-Google " +
+                "(custom) AVB key [verifiedBootKey=${bootKeyHash ?: "?"}], verifiedBootState=SelfSigned. " +
+                "A stock device chains to Google's key; a custom key is the unavoidable footprint of a " +
+                "flashed + relocked boot (custom kernel / ROM / KernelSU). Bootloader-locked but not stock " +
+                "=> most probably rooted."
+        VerifiedBootState.UNVERIFIED ->
+            "OS MODIFIED (hardware-attested): bootloader is UNLOCKED (verifiedBootState=Unverified, " +
+                "deviceLocked=${locked ?: "?"}) — boot is not verified and can be arbitrarily replaced " +
+                "=> most probably rooted."
+        VerifiedBootState.FAILED ->
+            "OS MODIFIED (hardware-attested): boot verification FAILED (verifiedBootState=Failed) — the " +
+                "boot image does not match its expected signature. OS modified or corrupted."
+        else -> null
     }
 
     // ---- AttestationReport construction -----------------------------------
