@@ -4,7 +4,7 @@ All notable changes to **DeviceIntelligence** are recorded here. Format follows 
 
 The wire format (`TelemetryReport` JSON, `Finding.kind` identifiers, detector IDs) carries an independent `schema_version` integer that is **only** bumped on breaking changes. Adding new finding kinds or new detectors is additive and does NOT bump `schema_version`. Backends pin against `schema_version` for correctness; library version pinning is for build-time API stability.
 
-## [Unreleased]
+## [2.0.1] — 2026-06-14
 
 ### Changed
 
@@ -205,6 +205,7 @@ Additive only — runtime-only types, nothing changes in the existing `Telemetry
 
 - GitHub Packages publication workflow (`.github/workflows/publish-github-packages.yml`).
 
+[2.0.1]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/2.0.1
 [2.0.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/2.0.0
 [1.1.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.1.0
 [1.0.0]: https://github.com/iamjosephmj/DeviceIntelligence/releases/tag/1.0.0

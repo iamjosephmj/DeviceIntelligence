@@ -47,7 +47,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "2.0.0"
+    id("io.ssemaj.deviceintelligence") version "2.0.1"
 }
 ```
 
@@ -143,7 +143,7 @@ The underlying detectors (`integrity.apk`, `integrity.bootloader`, `integrity.ar
 ```jsonc
 {
   "schema_version": 2,
-  "library_version": "2.0.0",
+  "library_version": "2.0.1",
   "collected_at_epoch_ms": 1777400000000,
   "device":    { /* model, abi, soc, strongbox_available, ... */ },
   "app":       { "package_name": "...", "signer_cert_sha256": ["..."], "attestation": { /* chain + verdict */ } },
