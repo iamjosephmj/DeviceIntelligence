@@ -120,13 +120,19 @@ internal fun deriveIntegrityVerdict(
         firstFailure = "software_attestation"
     }
 
+    // Only a Google-VERIFIED (green) boot is a genuine OS. SELF_SIGNED (yellow)
+    // means the boot image is signed with a NON-Google (custom) AVB key — the
+    // unavoidable footprint of a relocked-with-own-key boot, i.e. a custom
+    // kernel / KernelSU / custom ROM. It is bootloader-"locked" but not stock,
+    // so it is most probably rooted and must NOT pass device integrity. Treat
+    // yellow like unverified (orange): not genuine -> CRITICAL severity below.
     val isGenuineOs = isHardware &&
-        (parsed.verifiedBootState == VerifiedBootState.VERIFIED ||
-            parsed.verifiedBootState == VerifiedBootState.SELF_SIGNED)
+        parsed.verifiedBootState == VerifiedBootState.VERIFIED
     if (isGenuineOs) {
         tiers += DeviceTier.MEETS_DEVICE_INTEGRITY
     } else if (isHardware && firstFailure == null) {
         firstFailure = when (parsed.verifiedBootState) {
+            VerifiedBootState.SELF_SIGNED -> "boot_self_signed"
             VerifiedBootState.UNVERIFIED, null -> "boot_unverified"
             VerifiedBootState.FAILED -> "boot_failed"
             else -> "boot_unrecognized"
@@ -161,7 +167,9 @@ internal fun deriveIntegrityVerdict(
         // means there is no hardware-backed evidence at all.
         !isHardware -> Severity.CRITICAL
         app == AppRecognition.UNRECOGNIZED_VERSION -> Severity.CRITICAL
-        !isGenuineOs -> Severity.HIGH
+        // Not a Google-VERIFIED boot (yellow/self-signed, orange/unverified, or
+        // red/failed) => the boot chain was modified => most probably rooted.
+        !isGenuineOs -> Severity.CRITICAL
         !isStrong -> Severity.MEDIUM
         else -> Severity.LOW
     }
