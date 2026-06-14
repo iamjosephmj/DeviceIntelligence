@@ -121,7 +121,7 @@ class IntegrityVerdictTest {
     }
 
     @Test
-    fun `self-signed boot state qualifies for DEVICE but not STRONG`() {
+    fun `self-signed boot is CRITICAL and stops at BASIC (OS modified)`() {
         val parsed = parsedKeyDescription(
             securityLevel = SecurityLevel.TRUSTED_ENVIRONMENT,
             verifiedBootState = VerifiedBootState.SELF_SIGNED,
@@ -139,19 +139,16 @@ class IntegrityVerdictTest {
             nowEpochMs = now,
         )
 
-        assertEquals(
-            setOf(
-                DeviceTier.MEETS_BASIC_INTEGRITY,
-                DeviceTier.MEETS_DEVICE_INTEGRITY,
-            ),
-            v.deviceRecognition,
-        )
-        assertEquals(Severity.MEDIUM, v.severity)
+        // Self-signed (yellow) is no longer a genuine OS: hardware-attested
+        // proof the boot was re-signed with a non-Google key => CRITICAL, and
+        // it must NOT earn MEETS_DEVICE_INTEGRITY.
+        assertEquals(setOf(DeviceTier.MEETS_BASIC_INTEGRITY), v.deviceRecognition)
+        assertEquals(Severity.CRITICAL, v.severity)
         assertEquals("boot_self_signed", v.reason)
     }
 
     @Test
-    fun `unverified boot state stops at BASIC with HIGH and boot_unverified`() {
+    fun `unverified boot state stops at BASIC with CRITICAL and boot_unverified`() {
         val parsed = parsedKeyDescription(
             securityLevel = SecurityLevel.TRUSTED_ENVIRONMENT,
             verifiedBootState = VerifiedBootState.UNVERIFIED,
@@ -170,7 +167,7 @@ class IntegrityVerdictTest {
         )
 
         assertEquals(setOf(DeviceTier.MEETS_BASIC_INTEGRITY), v.deviceRecognition)
-        assertEquals(Severity.HIGH, v.severity)
+        assertEquals(Severity.CRITICAL, v.severity)
         assertEquals("boot_unverified", v.reason)
     }
 
