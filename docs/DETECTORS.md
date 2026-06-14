@@ -606,7 +606,7 @@ Its output lives in **two places**, on purpose:
 
 | Finding kind                      | Severity | Triggered when                                                                                              |
 | --------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `tee_integrity_verdict`           | varies   | The locally derived advisory verdict is degraded (severity > LOW). Severity tracks the verdict's own severity ladder, which combines hardware-backing, verified-boot state, bootloader-locked flag, OS patch age, and app-recognition cross-check. CRITICAL when the chain is software-backed OR app-recognition flagged a mismatch; HIGH when verified-boot is anything other than Verified; MEDIUM for patch-too-old / bootloader-unlocked; LOW (suppressed) otherwise. |
+| `tee_integrity_verdict`           | varies   | The locally derived advisory verdict is degraded (severity > LOW). Severity tracks the verdict's own severity ladder, which combines hardware-backing, verified-boot state, bootloader-locked flag, OS patch age, and app-recognition cross-check. **CRITICAL** when the chain is software-backed, app-recognition flagged a mismatch, **OR verified-boot is anything other than Verified** — i.e. SelfSigned (yellow), Unverified (orange), or Failed (red). A non-Verified boot means the boot chain was modified (custom AVB key / unlocked / failed verification) and the device is most probably rooted, so it must not pass device integrity. MEDIUM for patch-too-old / bootloader-unlocked on an otherwise genuine (Verified) boot; LOW (suppressed) otherwise. When the boot state is non-Verified the finding's `message` carries the hardware-attested `os_modified_proof` string, and `details` add `verified_boot_key_sha256` (the attested boot-signing key hash — Google's on stock, a custom value otherwise) and `os_modified_proof`. |
 | `attestation_eat_format_detected` | low      | The leaf cert's KeyDescription extension (OID `1.3.6.1.4.1.11129.2.1.17`) carries **CBOR-EAT** bytes instead of the legacy ASN.1 `KeyDescription` SEQUENCE. KeyMint 200+ on Android 14+ (RKP-provisioned keys) can emit attestation in this format. Library-side parsed fields will be null on those leaves; backends must re-parse the raw chain bytes (`app.attestation.chain_b64`) server-side for full field-level data. Full on-device CBOR/EAT decoding is tracked as a follow-up minor. Heuristic detection only — checks for a CBOR major-type-5 (map) byte (`0xA0`–`0xBF`) at the start of the unwrapped extension content. |
 
 ### Sample tripped JSON
@@ -619,16 +619,18 @@ Its output lives in **two places**, on purpose:
   "findings": [
     {
       "kind": "tee_integrity_verdict",
-      "severity": "high",
+      "severity": "critical",
       "subject": "com.example.app",
-      "message": "TEE evidence indicates degraded device or app integrity (advisory; verify chain server-side)",
+      "message": "OS MODIFIED (hardware-attested): bootloader is UNLOCKED (verifiedBootState=Unverified, deviceLocked=false) — boot is not verified and can be arbitrarily replaced => most probably rooted.",
       "details": {
         "device_recognition": "MEETS_BASIC_INTEGRITY",
         "app_recognition": "RECOGNIZED",
         "bootloader_locked": "false",
         "verified_boot_state": "Unverified",
+        "verified_boot_key_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "verdict_authoritative": "false",
-        "reason": "boot_unverified"
+        "reason": "boot_unverified",
+        "os_modified_proof": "OS MODIFIED (hardware-attested): bootloader is UNLOCKED (verifiedBootState=Unverified, deviceLocked=false) — boot is not verified and can be arbitrarily replaced => most probably rooted."
       }
     }
   ]
