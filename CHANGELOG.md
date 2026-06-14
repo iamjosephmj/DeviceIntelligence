@@ -4,6 +4,20 @@ All notable changes to **DeviceIntelligence** are recorded here. Format follows 
 
 The wire format (`TelemetryReport` JSON, `Finding.kind` identifiers, detector IDs) carries an independent `schema_version` integer that is **only** bumped on breaking changes. Adding new finding kinds or new detectors is additive and does NOT bump `schema_version`. Backends pin against `schema_version` for correctness; library version pinning is for build-time API stability.
 
+## [Unreleased]
+
+### Changed
+
+- **`attestation.key` verdict: a non-Verified boot is now CRITICAL (was HIGH).** `deriveIntegrityVerdict` no longer treats SelfSigned (yellow) as a genuine OS — only a Google-Verified (green) boot qualifies for `MEETS_DEVICE_INTEGRITY`. SelfSigned (yellow), Unverified (orange), and Failed (red) all mean the boot chain was modified (custom AVB key / unlocked / failed verification), so the `tee_integrity_verdict` finding is now emitted at **CRITICAL** severity for all three. A yellow/relocked-with-own-key boot (custom kernel / KernelSU / custom ROM) no longer reaches `MEETS_DEVICE_INTEGRITY` and no longer downgrades to HIGH.
+
+### Added
+
+- **Hardware-attested "OS modified" proof on `tee_integrity_verdict`.** When the boot state is non-Verified, the finding's `message` now states *why* the OS is considered modified, and `details` gain two fields: `verified_boot_key_sha256` (the attested boot-signing key hash — Google's on stock, a custom value on a re-signed boot) and `os_modified_proof` (a human-readable, hardware-attested explanation). These come from the secure element's RootOfTrust and cannot be forged on-device.
+
+### Wire-format impact
+
+`schema_version` stays at `2` — the new `details` keys are additive and the severity field already existed. Backends that branch on `tee_integrity_verdict.severity` will now see `critical` where they previously saw `high` for non-Verified boots; treat that as a stronger signal, not a new shape.
+
 ## [2.0.0] — 2026-05-28
 
 Stable major release. Removes the native analytics drain entirely: the SDK now performs zero network calls under any configuration, and the entire telemetry pipeline (collection → JSON → upload) lives in the consumer's process and on the consumer's backend.
