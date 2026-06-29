@@ -2,7 +2,6 @@
 package io.ssemaj.deviceintelligence.gradle.tasks
 
 import io.ssemaj.deviceintelligence.gradle.internal.AabSigner
-import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
 import io.ssemaj.deviceintelligence.gradle.internal.KeystoreSigning
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -166,7 +165,7 @@ abstract class BundleIntegrityTask : DefaultTask() {
 
     private companion object {
         /** Fingerprint asset path inside the AAB's base module. */
-        val BUNDLE_ASSET_PATH: String = "base/" + Fingerprint.ASSET_PATH
+        const val BUNDLE_ASSET_PATH = "base/assets/io.ssemaj.deviceintelligence/fingerprint.bin"
         const val KEY_SIZE: Int = 32
     }
 }

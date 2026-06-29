@@ -1,7 +1,9 @@
 package io.ssemaj.deviceintelligence.gradle
 
+import org.gradle.api.Action
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
+import org.gradle.api.tasks.Nested
 
 /**
  * Consumer-facing DSL block. Real options (reaction policy, detector set,
@@ -87,9 +89,9 @@ abstract class DeviceIntelligenceExtension {
      * is `true`, the plugin bakes a bundle-mode fingerprint into the AAB and
      * re-signs it instead of instrumenting the APK.
      */
-    @get:org.gradle.api.tasks.Nested
+    @get:Nested
     abstract val appBundle: AppBundleOptions
 
     /** DSL sugar: `deviceIntelligence { appBundle { enabled = true } }`. */
-    fun appBundle(action: org.gradle.api.Action<AppBundleOptions>) = action.execute(appBundle)
+    fun appBundle(action: Action<AppBundleOptions>) = action.execute(appBundle)
 }
