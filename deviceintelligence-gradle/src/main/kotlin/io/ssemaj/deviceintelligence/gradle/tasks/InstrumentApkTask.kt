@@ -5,6 +5,7 @@ import com.android.build.api.artifact.ArtifactTransformationRequest
 import io.ssemaj.deviceintelligence.gradle.internal.ApkHasher
 import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
 import io.ssemaj.deviceintelligence.gradle.internal.FingerprintCodec
+import io.ssemaj.deviceintelligence.gradle.internal.KeystoreSigning
 import io.ssemaj.deviceintelligence.gradle.internal.NativeLibInventory
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -21,14 +22,9 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.FilterOutputStream
 import java.io.OutputStream
-import java.security.KeyStore
-import java.security.MessageDigest
-import java.security.PrivateKey
-import java.security.cert.X509Certificate
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
@@ -146,7 +142,7 @@ abstract class InstrumentApkTask : DefaultTask() {
             "key.bin is the wrong size: ${key.size} (expected $KEY_SIZE)"
         }
 
-        val signing = loadSigningMaterial(
+        val signing = KeystoreSigning.load(
             keystoreFile = keystoreFile.get().asFile,
             configuredType = keystoreType.orNull,
             keystorePassword = keystorePassword.get(),
@@ -170,7 +166,7 @@ abstract class InstrumentApkTask : DefaultTask() {
         input: File,
         output: File,
         key: ByteArray,
-        signing: SigningMaterial,
+        signing: KeystoreSigning.Material,
     ) {
         // 1. Read input APK entries (decompressed) into memory. Strip META-INF/*
         //    (apksig will regenerate the v1 manifest+signatures during sign()),
@@ -424,77 +420,6 @@ abstract class InstrumentApkTask : DefaultTask() {
             out.write(b, off, len)
             count += len
         }
-    }
-
-    // ---- Signing material -------------------------------------------------
-
-    private data class SigningMaterial(
-        val privateKey: PrivateKey,
-        val certs: List<X509Certificate>,
-        val certHashes: List<String>,
-    )
-
-    private fun loadSigningMaterial(
-        keystoreFile: File,
-        configuredType: String?,
-        keystorePassword: String,
-        alias: String,
-        entryPassword: String?,
-    ): SigningMaterial {
-        require(keystoreFile.isFile) { "keystore not found: $keystoreFile" }
-
-        // Mirror CertHasher: try the configured type first, then PKCS12, then
-        // JKS. Older debug keystores are JKS; newer ones default to PKCS12.
-        val candidates = buildList {
-            if (!configuredType.isNullOrEmpty()) add(configuredType.uppercase())
-            add("PKCS12")
-            add("JKS")
-        }.distinct()
-        var ks: KeyStore? = null
-        var lastError: Throwable? = null
-        for (type in candidates) {
-            try {
-                val candidate = KeyStore.getInstance(type)
-                FileInputStream(keystoreFile).use {
-                    candidate.load(it, keystorePassword.toCharArray())
-                }
-                ks = candidate
-                break
-            } catch (e: Throwable) {
-                lastError = e
-            }
-        }
-        ks ?: throw IllegalStateException(
-            "Failed to load keystore $keystoreFile as any of $candidates",
-            lastError,
-        )
-
-        val pwd = (entryPassword ?: keystorePassword).toCharArray()
-        val privateKey = ks.getKey(alias, pwd) as? PrivateKey
-            ?: error("alias '$alias' has no PrivateKey entry in $keystoreFile")
-        val rawChain = ks.getCertificateChain(alias)
-            ?: ks.getCertificate(alias)?.let { arrayOf(it) }
-            ?: error("alias '$alias' has no certificate in $keystoreFile")
-        val certs = rawChain.map {
-            require(it is X509Certificate) { "non-X.509 cert in chain: ${it::class}" }
-            it
-        }
-        val md = MessageDigest.getInstance("SHA-256")
-        val certHashes = certs.map { cert ->
-            md.reset()
-            md.digest(cert.encoded).toHex()
-        }
-        return SigningMaterial(privateKey, certs, certHashes)
-    }
-
-    private fun ByteArray.toHex(): String {
-        val hex = "0123456789abcdef".toCharArray()
-        val out = CharArray(size * 2)
-        for (i in indices) {
-            out[i * 2] = hex[(this[i].toInt() shr 4) and 0xF]
-            out[i * 2 + 1] = hex[this[i].toInt() and 0xF]
-        }
-        return String(out)
     }
 
     private companion object {
