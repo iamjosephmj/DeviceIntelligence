@@ -48,13 +48,27 @@ internal fun evaluateBundleIntegrity(
     for ((entryName, expectedHash) in bundleEntryHashes) {
         val observedHash = resolveDecompressedHash(entryName)
         when {
-            observedHash == null -> findings += Finding(
-                kind = "apk_entry_removed",
-                severity = Severity.HIGH,
-                subject = entryName,
-                message = "Bundle entry was present at build time but is absent across all splits",
-                details = mapOf("expected_hash" to expectedHash),
-            )
+            observedHash == null -> {
+                // ABI-split native libs (lib/<abi>/*.so) are conditionally delivered by Play:
+                // only the device-ABI split is installed, so other ABIs baked into the
+                // fingerprint will legitimately be absent. Treat as not-applicable — emit NO
+                // finding. A *present-but-patched* .so still fires apk_entry_modified below
+                // (tamper detection is preserved). A removed *active* .so is self-defeating
+                // since the app cannot load it. Non-ABI entries (e.g. classes*.dex) always
+                // live in the base module and are never conditionally stripped, so they
+                // continue to produce apk_entry_removed when absent.
+                if (entryName.startsWith("lib/") && entryName.endsWith(".so")) {
+                    // Conditionally-delivered ABI split — skip, not a tamper signal.
+                } else {
+                    findings += Finding(
+                        kind = "apk_entry_removed",
+                        severity = Severity.HIGH,
+                        subject = entryName,
+                        message = "Bundle entry was present at build time but is absent across all splits",
+                        details = mapOf("expected_hash" to expectedHash),
+                    )
+                }
+            }
             observedHash != expectedHash -> findings += Finding(
                 kind = "apk_entry_modified",
                 severity = Severity.CRITICAL,
