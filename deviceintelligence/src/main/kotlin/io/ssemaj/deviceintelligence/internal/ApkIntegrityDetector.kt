@@ -9,6 +9,68 @@ import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.Severity
 import android.content.Context
 
+internal sealed class BundleEval {
+    data class Ok(val findings: List<Finding>) : BundleEval()
+    object SignerUnavailable : BundleEval()
+}
+
+/**
+ * Pure decision logic for bundle-mode integrity. No JNI calls — all native
+ * results are supplied as parameters, making this fully unit-testable.
+ */
+internal fun evaluateBundleIntegrity(
+    observedSignerCerts: List<String>?,
+    allowSet: Set<String>,
+    bundleEntryHashes: Map<String, String>,
+    resolveDecompressedHash: (entryName: String) -> String?,
+    packageName: String = "",
+): BundleEval {
+    val findings = mutableListOf<Finding>()
+
+    if (allowSet.isNotEmpty()) {
+        if (observedSignerCerts == null) return BundleEval.SignerUnavailable
+        for (cert in observedSignerCerts) {
+            if (cert !in allowSet) {
+                findings += Finding(
+                    kind = "apk_signer_mismatch",
+                    severity = Severity.CRITICAL,
+                    subject = packageName.ifEmpty { null },
+                    message = "Bundle signer cert is not in the build-time allow-set",
+                    details = mapOf(
+                        "allow_set" to allowSet.joinToString(","),
+                        "observed" to cert,
+                    ),
+                )
+            }
+        }
+    }
+
+    for ((entryName, expectedHash) in bundleEntryHashes) {
+        val observedHash = resolveDecompressedHash(entryName)
+        when {
+            observedHash == null -> findings += Finding(
+                kind = "apk_entry_removed",
+                severity = Severity.HIGH,
+                subject = entryName,
+                message = "Bundle entry was present at build time but is absent across all splits",
+                details = mapOf("expected_hash" to expectedHash),
+            )
+            observedHash != expectedHash -> findings += Finding(
+                kind = "apk_entry_modified",
+                severity = Severity.CRITICAL,
+                subject = entryName,
+                message = "Bundle entry's decompressed bytes differ from build time",
+                details = mapOf(
+                    "expected_hash" to expectedHash,
+                    "observed_hash" to observedHash,
+                ),
+            )
+        }
+    }
+
+    return BundleEval.Ok(findings)
+}
+
 /**
  * `integrity.apk` — APK integrity detector.
  *
@@ -112,33 +174,37 @@ internal class ApkIntegrityDetector : Detector {
         if (baked.bundleMode) {
             // ---- Bundle mode: signer membership + decompressed entry diff across splits ----
 
-            // Signal 1 — signer membership. Each cert observed in base.apk
-            // must be a member of the baked allow-set. If the allow-set is
-            // empty (developer baked no certs), the check is skipped — documented
-            // fail-open for that edge case; dex/so hashing is then the sole anchor.
-            if (baked.signerCertSha256.isNotEmpty()) {
-                val allowSet = baked.signerCertSha256.toHashSet()
-                val observedCerts = NativeBridge.apkSignerCertHashes(apkPath)
-                    ?: return inconclusive(
-                        id = id,
-                        reason = "apk_unreadable",
-                        message = "apkSignerCertHashes returned null for $apkPath",
-                        durationMs = dur(),
-                    )
-                for (cert in observedCerts) {
-                    if (cert !in allowSet) {
-                        findings += Finding(
-                            kind = "apk_signer_mismatch",
-                            severity = Severity.CRITICAL,
-                            subject = context.packageName,
-                            message = "Bundle signer cert is not in the build-time allow-set",
-                            details = mapOf(
-                                "allow_set" to baked.signerCertSha256.joinToString(","),
-                                "observed_cert" to cert,
-                            ),
-                        )
+            val allowSet = baked.signerCertSha256.toHashSet()
+            // Only call NativeBridge when there is an allow-set to check against; empty
+            // allow-set is a documented fail-open (dex/so hashing becomes the sole anchor).
+            val observedSignerCerts: List<String>? = if (allowSet.isNotEmpty()) {
+                NativeBridge.apkSignerCertHashes(apkPath)?.toList()
+            } else {
+                emptyList()
+            }
+
+            val splitPaths: List<String> =
+                context.applicationInfo.splitSourceDirs?.toList() ?: emptyList()
+            val searchPaths: List<String> = listOf(apkPath) + splitPaths
+
+            when (val eval = evaluateBundleIntegrity(
+                observedSignerCerts = observedSignerCerts,
+                allowSet = allowSet,
+                bundleEntryHashes = baked.bundleEntryHashes,
+                resolveDecompressedHash = { entryName ->
+                    searchPaths.firstNotNullOfOrNull { splitPath ->
+                        NativeBridge.apkEntryDecompressedHash(splitPath, entryName)
                     }
-                }
+                },
+                packageName = context.packageName,
+            )) {
+                is BundleEval.SignerUnavailable -> return inconclusive(
+                    id = id,
+                    reason = "apk_unreadable",
+                    message = "apkSignerCertHashes returned null for $apkPath",
+                    durationMs = dur(),
+                )
+                is BundleEval.Ok -> findings += eval.findings
             }
 
             // Source-dir prefix check (same as APK mode).
@@ -153,38 +219,6 @@ internal class ApkIntegrityDetector : Detector {
                         "observed_path" to apkPath,
                     ),
                 )
-            }
-
-            // Signal 2 — decompressed code-entry integrity across base + all splits.
-            // For each baked entry (key = APK-relative name, value = expected SHA-256),
-            // search base.apk then every split APK for the first non-null decompressed hash.
-            val splitPaths: List<String> =
-                context.applicationInfo.splitSourceDirs?.toList() ?: emptyList()
-            val searchPaths: List<String> = listOf(apkPath) + splitPaths
-
-            for ((entryName, expectedHash) in baked.bundleEntryHashes) {
-                val observedHash: String? = searchPaths.firstNotNullOfOrNull { splitPath ->
-                    NativeBridge.apkEntryDecompressedHash(splitPath, entryName)
-                }
-                when {
-                    observedHash == null -> findings += Finding(
-                        kind = "apk_entry_removed",
-                        severity = Severity.HIGH,
-                        subject = entryName,
-                        message = "Bundle entry was present at build time but is absent across all splits",
-                        details = mapOf("expected_hash" to expectedHash),
-                    )
-                    observedHash != expectedHash -> findings += Finding(
-                        kind = "apk_entry_modified",
-                        severity = Severity.CRITICAL,
-                        subject = entryName,
-                        message = "Bundle entry's decompressed bytes differ from build time",
-                        details = mapOf(
-                            "expected_hash" to expectedHash,
-                            "observed_hash" to observedHash,
-                        ),
-                    )
-                }
             }
 
         } else {
