@@ -2,6 +2,7 @@ package io.ssemaj.deviceintelligence.gradle.internal
 
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -246,7 +247,7 @@ internal object FingerprintCodec {
             // v3 tail — absent on v1/v2 blobs; fields stay at their defaults.
             if (formatVersion >= 3) {
                 bundleMode = readBoolean()
-                val bundleCount = readInt()
+                val bundleCount = readNonNegative(readInt(), "bundleEntryCount")
                 bundleEntryHashes = LinkedHashMap<String, String>(bundleCount).apply {
                     repeat(bundleCount) {
                         val name = readUTF()
@@ -275,5 +276,10 @@ internal object FingerprintCodec {
                 bundleEntryHashes = bundleEntryHashes,
             )
         }
+    }
+
+    private fun readNonNegative(value: Int, field: String): Int {
+        if (value < 0) throw IOException("$field: negative count $value (corrupt blob)")
+        return value
     }
 }

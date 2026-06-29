@@ -45,6 +45,7 @@ internal object BundleFingerprintBuilder {
         variant: String,
         appId: String,
     ): ByteArray {
+        require(key.size == 32) { "key must be 32 bytes, got ${key.size}" }
         val bundleEntries = AabHasher.bundleEntryHashes(aab)
         val nativeFp = NativeLibInventory.walkRawEntries(aabBaseLibEntries(aab))
 

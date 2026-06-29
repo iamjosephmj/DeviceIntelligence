@@ -1,9 +1,11 @@
 package io.ssemaj.deviceintelligence.gradle.internal
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 
 class FingerprintCodecTest {
 
@@ -33,6 +35,50 @@ class FingerprintCodecTest {
         assertEquals(false, back.bundleMode)
         assertEquals(emptyMap<String, String>(), back.bundleEntryHashes)
         assertEquals("release", back.variantName)
+    }
+
+    /**
+     * A genuine raw v2 binary blob (no v3 tail) decodes with bundleMode=false
+     * and empty bundleEntryHashes. This proves the `if (formatVersion >= 3)`
+     * guard in the decoder correctly skips the v3 section for real v2 blobs.
+     */
+    @Test fun rawV2BlobDecodesWithNoBundleFields() {
+        val bytes = ByteArrayOutputStream().also { bos ->
+            DataOutputStream(bos).also { dos ->
+                dos.writeInt(FingerprintCodec.MAGIC)          // magic
+                dos.writeInt(2)                                // formatVersion = 2 (no v3 tail)
+                dos.writeInt(Fingerprint.SCHEMA_VERSION)       // schemaVersion
+                dos.writeLong(1_000_000L)                      // builtAtEpochMs
+                dos.writeUTF("5.0.0")                         // pluginVersion
+                dos.writeUTF("release")                        // variantName
+                dos.writeUTF("io.ssemaj.sample")              // applicationId
+                // signerCerts
+                dos.writeInt(1)
+                dos.writeUTF("deadbeef01234567")
+                // entries (empty)
+                dos.writeInt(0)
+                // ignoredEntries (empty)
+                dos.writeInt(0)
+                // ignoredEntryPrefixes (empty)
+                dos.writeInt(0)
+                // expectedSourceDirPrefix
+                dos.writeUTF("/data/app/")
+                // installerWhitelist (empty)
+                dos.writeInt(0)
+                // v2 tail: abiInventoryCount, abiFileHashCount, abiTextHashCount (all empty)
+                dos.writeInt(0)
+                dos.writeInt(0)
+                dos.writeInt(0)
+                dos.flush()
+            }
+        }.toByteArray()
+
+        val decoded = FingerprintCodec.decode(ByteArrayInputStream(bytes))
+
+        assertEquals(false, decoded.bundleMode)
+        assertTrue(decoded.bundleEntryHashes.isEmpty())
+        assertEquals(Fingerprint.SCHEMA_VERSION, decoded.schemaVersion)
+        assertEquals("release", decoded.variantName)
     }
 
     /** bundleEntryHashes keys are sorted on encode; order is stable. */

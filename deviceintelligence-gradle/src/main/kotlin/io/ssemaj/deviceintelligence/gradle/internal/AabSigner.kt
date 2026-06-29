@@ -33,12 +33,17 @@ internal object AabSigner {
         // JarSigner requires distinct input/output streams. Sign to a temp
         // sibling then atomically replace the original.
         val signed = File(aab.parentFile, "${aab.name}.signed")
-        ZipFile(aab).use { zf ->
-            FileOutputStream(signed).use { out -> signer.sign(zf, out) }
-        }
-        if (!signed.renameTo(aab)) {
-            signed.copyTo(aab, overwrite = true)
+        try {
+            ZipFile(aab).use { zf ->
+                FileOutputStream(signed).use { out -> signer.sign(zf, out) }
+            }
+            if (!signed.renameTo(aab)) {
+                signed.copyTo(aab, overwrite = true)
+                signed.delete()
+            }
+        } catch (t: Throwable) {
             signed.delete()
+            throw t
         }
     }
 }
