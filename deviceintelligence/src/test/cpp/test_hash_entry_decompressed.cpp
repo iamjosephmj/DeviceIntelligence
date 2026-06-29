@@ -165,6 +165,56 @@ int main() {
         printf("PASS test5: garbage file handled safely (has_cd=%d)\n", (int)has_cd);
     }
 
+    // Test 6 (M-3): valid-shaped ZIP with a DEFLATED entry whose body bytes are
+    // garbage (not a valid deflate stream). hash_entry_decompressed must return
+    // false and must not crash.
+    {
+        // Build a ZIP with a DEFLATED entry whose compressed body is random garbage.
+        const char* garbage_body_path = "/data/local/tmp/di_garbage_body.zip";
+        {
+            std::vector<uint8_t> zip6;
+            // Garbage compressed bytes — not a valid raw deflate stream.
+            const uint8_t garbage[] = {0xFF, 0xFE, 0xAB, 0xCD, 0x12, 0x34, 0x56, 0x78};
+            const uint32_t garbage_len = (uint32_t)sizeof(garbage);
+            // Claim uncomp_size = 100 (any plausible value ≤ kMaxInflateBytes).
+            const uint32_t fake_uncomp = 100u;
+
+            CdEntry e6;
+            e6.name      = "bad_deflate.bin";
+            e6.method    = 8; // DEFLATED
+            e6.comp_sz   = garbage_len;
+            e6.uncomp_sz = fake_uncomp;
+            e6.crc32v    = 0xDEADBEEFu; // deliberately wrong — inflate will fail first
+
+            emit_lfh(zip6, e6);
+            for (uint32_t i = 0; i < garbage_len; ++i) zip6.push_back(garbage[i]);
+
+            // Central directory
+            uint32_t cd6_start = (uint32_t)zip6.size();
+            w32(zip6,0x02014b50u); w16(zip6,20); w16(zip6,20); w16(zip6,0); w16(zip6,e6.method);
+            w16(zip6,0); w16(zip6,0);
+            w32(zip6,e6.crc32v); w32(zip6,e6.comp_sz); w32(zip6,e6.uncomp_sz);
+            w16(zip6,(uint16_t)e6.name.size()); w16(zip6,0); w16(zip6,0);
+            w16(zip6,0); w16(zip6,0); w32(zip6,0); w32(zip6,e6.lfh_off);
+            for (char c : e6.name) zip6.push_back((uint8_t)c);
+            uint32_t cd6_sz = (uint32_t)zip6.size() - cd6_start;
+
+            // EOCD
+            w32(zip6,0x06054b50u); w16(zip6,0); w16(zip6,0);
+            w16(zip6,1); w16(zip6,1);
+            w32(zip6,cd6_sz); w32(zip6,cd6_start); w16(zip6,0);
+
+            write_file(garbage_body_path, zip6);
+        }
+
+        ApkMap apk6; assert(apk6.open(garbage_body_path));
+        zip::CentralDirInfo cdi6; assert(zip::find_central_directory(apk6, &cdi6));
+        uint8_t out6[32];
+        bool ok6 = zip::hash_entry_decompressed(apk6, cdi6, "bad_deflate.bin", out6);
+        assert(!ok6 && "Test6: garbage deflate body must return false");
+        printf("PASS test6: garbage deflate body returns false (no crash)\n");
+    }
+
     printf("ALL TESTS PASSED\n");
     return 0;
 }

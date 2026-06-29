@@ -83,41 +83,84 @@ bool ensure_initialized() {
     return true;
 }
 
-bool sha256(const void* data, size_t len, uint8_t out[kDigestLen]) {
-    uint32_t state[8];
-    std::memcpy(state, H0, sizeof(H0));
+// ---------------------------------------------------------------------------
+// Incremental SHA-256 implementation
+// ---------------------------------------------------------------------------
 
+void sha256_init(Sha256Ctx* ctx) {
+    std::memcpy(ctx->state, H0, sizeof(H0));
+    ctx->total_bits = 0;
+    ctx->buf_len    = 0;
+}
+
+void sha256_update(Sha256Ctx* ctx, const void* data, size_t len) {
     const uint8_t* p = static_cast<const uint8_t*>(data);
-    size_t remaining = len;
+    ctx->total_bits += static_cast<uint64_t>(len) * 8u;
 
-    while (remaining >= 64) {
-        compress(state, p);
-        p         += 64;
-        remaining -= 64;
+    // If there's a partial block buffered, top it up first.
+    if (ctx->buf_len > 0) {
+        size_t need = 64 - ctx->buf_len;
+        size_t take = (len < need) ? len : need;
+        std::memcpy(ctx->buf + ctx->buf_len, p, take);
+        ctx->buf_len += take;
+        p   += take;
+        len -= take;
+        if (ctx->buf_len == 64) {
+            compress(ctx->state, ctx->buf);
+            ctx->buf_len = 0;
+        }
     }
 
+    // Process full blocks directly from the caller's buffer.
+    while (len >= 64) {
+        compress(ctx->state, p);
+        p   += 64;
+        len -= 64;
+    }
+
+    // Buffer the remainder (0..63 bytes).
+    if (len > 0) {
+        std::memcpy(ctx->buf, p, len);
+        ctx->buf_len = len;
+    }
+}
+
+void sha256_final(Sha256Ctx* ctx, uint8_t out[kDigestLen]) {
+    // Build and compress the padding block(s).
     uint8_t tail[128];
     std::memset(tail, 0, sizeof(tail));
-    if (remaining > 0) std::memcpy(tail, p, remaining);
-    tail[remaining] = 0x80;
+    if (ctx->buf_len > 0) {
+        std::memcpy(tail, ctx->buf, ctx->buf_len);
+    }
+    tail[ctx->buf_len] = 0x80;
 
-    // Trailing length is in bits, big-endian, in the last 8 bytes of the
-    // padded message. Padded length is 64 if remaining < 56, else 128.
-    size_t pad_end = (remaining < 56) ? 64 : 128;
-    uint64_t bit_len = static_cast<uint64_t>(len) * 8u;
+    size_t pad_end = (ctx->buf_len < 56) ? 64 : 128;
+    uint64_t bit_len = ctx->total_bits;
     for (int i = 0; i < 8; ++i) {
         tail[pad_end - 1 - i] = static_cast<uint8_t>(bit_len >> (i * 8));
     }
 
-    compress(state, tail);
-    if (pad_end == 128) compress(state, tail + 64);
+    compress(ctx->state, tail);
+    if (pad_end == 128) compress(ctx->state, tail + 64);
 
     for (int i = 0; i < 8; ++i) {
-        out[i * 4 + 0] = static_cast<uint8_t>(state[i] >> 24);
-        out[i * 4 + 1] = static_cast<uint8_t>(state[i] >> 16);
-        out[i * 4 + 2] = static_cast<uint8_t>(state[i] >> 8);
-        out[i * 4 + 3] = static_cast<uint8_t>(state[i]);
+        out[i * 4 + 0] = static_cast<uint8_t>(ctx->state[i] >> 24);
+        out[i * 4 + 1] = static_cast<uint8_t>(ctx->state[i] >> 16);
+        out[i * 4 + 2] = static_cast<uint8_t>(ctx->state[i] >> 8);
+        out[i * 4 + 3] = static_cast<uint8_t>(ctx->state[i]);
     }
+}
+
+// ---------------------------------------------------------------------------
+// One-shot convenience — routed through the incremental API so behavior is
+// identical by construction.
+// ---------------------------------------------------------------------------
+
+bool sha256(const void* data, size_t len, uint8_t out[kDigestLen]) {
+    Sha256Ctx ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, data, len);
+    sha256_final(&ctx, out);
     return true;
 }
 
