@@ -63,10 +63,12 @@ endif()
 
 find_library(log-lib log)
 find_library(android-lib android)
+find_library(z-lib z)
 
 target_link_libraries(dicore
         ${log-lib}
         ${android-lib}
+        ${z-lib}
         dl
 )
 

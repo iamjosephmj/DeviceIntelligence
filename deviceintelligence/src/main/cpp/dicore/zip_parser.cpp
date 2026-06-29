@@ -5,6 +5,7 @@
 #include "sha256.h"
 
 #include <cstring>
+#include <zlib.h>
 
 namespace dicore::zip {
 
@@ -20,6 +21,12 @@ constexpr size_t kLfhMinSize  = 30;
 
 // Max ZIP comment length (per spec).
 constexpr size_t kMaxComment  = 0xFFFFu;
+
+// Maximum decompressed entry size accepted by hash_entry_decompressed.
+// Entries larger than this are skipped (fail-closed). 64 MB covers the
+// largest realistic dex/so in production; a real tamper attempt has no
+// incentive to inflate to this size.
+constexpr size_t kMaxInflateBytes = 64u * 1024u * 1024u;
 
 inline uint16_t rd16(const uint8_t* p) {
     return (uint16_t)(p[0] | (p[1] << 8));
@@ -170,6 +177,143 @@ size_t hash_all_entries(const ApkMap& apk,
     }
 
     return hashed;
+}
+
+bool hash_entry_decompressed(const ApkMap& apk,
+                             const CentralDirInfo& cdi,
+                             const char* entry_name,
+                             uint8_t out32[32]) {
+    if (!cdi.present || !entry_name) return false;
+
+    const uint8_t* cd = apk.range((size_t)cdi.cd_offset, (size_t)cdi.cd_size);
+    if (!cd) return false;
+
+    size_t cd_off = 0;
+    for (uint64_t i = 0; i < cdi.total_entries; ++i) {
+        if (cd_off + kCdfhMinSize > (size_t)cdi.cd_size) break;
+        const uint8_t* p = cd + cd_off;
+        if (rd32(p) != kCdfhMagic) break;
+
+        uint16_t method    = rd16(p + 10);
+        uint32_t comp      = rd32(p + 20);
+        uint32_t uncomp    = rd32(p + 24);
+        uint16_t name_len  = rd16(p + 28);
+        uint16_t extra_len = rd16(p + 30);
+        uint16_t cmt_len   = rd16(p + 32);
+        uint32_t lfh_off   = rd32(p + 42);
+
+        size_t total_var = (size_t)name_len + extra_len + cmt_len;
+        if (cd_off + kCdfhMinSize + total_var > (size_t)cdi.cd_size) break;
+
+        std::string_view name(reinterpret_cast<const char*>(p + kCdfhMinSize), name_len);
+
+        if (name == entry_name) {
+            // ZIP64 sentinel guard — skip rather than misinterpret.
+            if (comp == 0xFFFFFFFFu || uncomp == 0xFFFFFFFFu) {
+                RLOGW("zip: hash_entry_decompressed: ZIP64 entry '%s', skipping", entry_name);
+                return false;
+            }
+
+            // Resolve body offset via LFH (LFH and CDFH extra fields may differ).
+            const uint8_t* lfh = apk.range(lfh_off, kLfhMinSize);
+            if (!lfh || rd32(lfh) != kLfhMagic) return false;
+            uint16_t lfh_name_len  = rd16(lfh + 26);
+            uint16_t lfh_extra_len = rd16(lfh + 28);
+            uint64_t body_off = (uint64_t)lfh_off + kLfhMinSize
+                                + lfh_name_len + lfh_extra_len;
+
+            // M-2: 32-bit body_off narrowing guard — reject before any size_t cast.
+            if (body_off > (uint64_t)apk.size()) return false;
+            if ((uint64_t)comp > (uint64_t)apk.size() - body_off) return false;
+
+            if (method == 0 /* STORED */) {
+                const uint8_t* body = apk.range((size_t)body_off, (size_t)comp);
+                if (!body) return false;
+                return sha::sha256(body, (size_t)comp, out32);
+            }
+
+            if (method == 8 /* DEFLATED */) {
+                // I-2: bound the compressed size symmetrically with the uncomp cap.
+                if (comp > kMaxInflateBytes) {
+                    RLOGW("zip: hash_entry_decompressed: comp_size %u > limit for '%s'",
+                          comp, entry_name);
+                    return false;
+                }
+                if (uncomp > kMaxInflateBytes) {
+                    RLOGW("zip: hash_entry_decompressed: uncomp_size %u > limit for '%s'",
+                          uncomp, entry_name);
+                    return false;
+                }
+
+                const uint8_t* comp_body = apk.range((size_t)body_off, (size_t)comp);
+                if (!comp_body) return false;
+
+                // I-1: Fixed-buffer streaming inflate + incremental SHA-256.
+                // Peak memory: O(64 KiB), independent of entry size.
+                constexpr size_t kBufSize = 64u * 1024u;
+                uint8_t out_buf[kBufSize];
+
+                sha::Sha256Ctx sha_ctx;
+                sha::sha256_init(&sha_ctx);
+
+                z_stream zs{};
+                // -MAX_WBITS = raw deflate (no zlib/gzip header).
+                if (inflateInit2(&zs, -MAX_WBITS) != Z_OK) return false;
+
+                zs.next_in  = const_cast<Bytef*>(comp_body);
+                zs.avail_in = comp;
+
+                size_t total_inflated = 0;
+                int ret = Z_OK;
+
+                while (ret != Z_STREAM_END) {
+                    zs.next_out  = out_buf;
+                    zs.avail_out = (uInt)kBufSize;
+
+                    ret = inflate(&zs, Z_NO_FLUSH);
+
+                    // Guard: no-progress with no pending input → infinite-loop risk.
+                    if (ret == Z_BUF_ERROR
+                            && zs.avail_out == (uInt)kBufSize
+                            && zs.avail_in  == 0) {
+                        inflateEnd(&zs);
+                        RLOGW("zip: hash_entry_decompressed: inflate no-progress for '%s'",
+                              entry_name);
+                        return false;
+                    }
+
+                    if (ret != Z_OK && ret != Z_STREAM_END) {
+                        inflateEnd(&zs);
+                        RLOGW("zip: hash_entry_decompressed: inflate ret=%d for '%s'",
+                              ret, entry_name);
+                        return false;
+                    }
+
+                    size_t produced = kBufSize - (size_t)zs.avail_out;
+                    total_inflated += produced;
+                    if (total_inflated > kMaxInflateBytes) {
+                        inflateEnd(&zs);
+                        RLOGW("zip: hash_entry_decompressed: inflate exceeded limit for '%s'",
+                              entry_name);
+                        return false;
+                    }
+
+                    sha::sha256_update(&sha_ctx, out_buf, produced);
+                }
+
+                inflateEnd(&zs);
+                sha::sha256_final(&sha_ctx, out32);
+                return true;
+            }
+
+            RLOGW("zip: hash_entry_decompressed: unsupported method %u for '%s'",
+                  method, entry_name);
+            return false;
+        }
+
+        cd_off += kCdfhMinSize + total_var;
+    }
+    return false; // entry not found
 }
 
 } // namespace dicore::zip

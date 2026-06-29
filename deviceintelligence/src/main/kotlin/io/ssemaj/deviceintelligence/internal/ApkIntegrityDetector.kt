@@ -9,6 +9,82 @@ import io.ssemaj.deviceintelligence.Finding
 import io.ssemaj.deviceintelligence.Severity
 import android.content.Context
 
+internal sealed class BundleEval {
+    data class Ok(val findings: List<Finding>) : BundleEval()
+    object SignerUnavailable : BundleEval()
+}
+
+/**
+ * Pure decision logic for bundle-mode integrity. No JNI calls — all native
+ * results are supplied as parameters, making this fully unit-testable.
+ */
+internal fun evaluateBundleIntegrity(
+    observedSignerCerts: List<String>?,
+    allowSet: Set<String>,
+    bundleEntryHashes: Map<String, String>,
+    resolveDecompressedHash: (entryName: String) -> String?,
+    packageName: String = "",
+): BundleEval {
+    val findings = mutableListOf<Finding>()
+
+    if (allowSet.isNotEmpty()) {
+        if (observedSignerCerts == null) return BundleEval.SignerUnavailable
+        for (cert in observedSignerCerts) {
+            if (cert !in allowSet) {
+                findings += Finding(
+                    kind = "apk_signer_mismatch",
+                    severity = Severity.CRITICAL,
+                    subject = packageName.ifEmpty { null },
+                    message = "Bundle signer cert is not in the build-time allow-set",
+                    details = mapOf(
+                        "allow_set" to allowSet.joinToString(","),
+                        "observed" to cert,
+                    ),
+                )
+            }
+        }
+    }
+
+    for ((entryName, expectedHash) in bundleEntryHashes) {
+        val observedHash = resolveDecompressedHash(entryName)
+        when {
+            observedHash == null -> {
+                // ABI-split native libs (lib/<abi>/*.so) are conditionally delivered by Play:
+                // only the device-ABI split is installed, so other ABIs baked into the
+                // fingerprint will legitimately be absent. Treat as not-applicable — emit NO
+                // finding. A *present-but-patched* .so still fires apk_entry_modified below
+                // (tamper detection is preserved). A removed *active* .so is self-defeating
+                // since the app cannot load it. Non-ABI entries (e.g. classes*.dex) always
+                // live in the base module and are never conditionally stripped, so they
+                // continue to produce apk_entry_removed when absent.
+                if (entryName.startsWith("lib/") && entryName.endsWith(".so")) {
+                    // Conditionally-delivered ABI split — skip, not a tamper signal.
+                } else {
+                    findings += Finding(
+                        kind = "apk_entry_removed",
+                        severity = Severity.HIGH,
+                        subject = entryName,
+                        message = "Bundle entry was present at build time but is absent across all splits",
+                        details = mapOf("expected_hash" to expectedHash),
+                    )
+                }
+            }
+            observedHash != expectedHash -> findings += Finding(
+                kind = "apk_entry_modified",
+                severity = Severity.CRITICAL,
+                subject = entryName,
+                message = "Bundle entry's decompressed bytes differ from build time",
+                details = mapOf(
+                    "expected_hash" to expectedHash,
+                    "observed_hash" to observedHash,
+                ),
+            )
+        }
+    }
+
+    return BundleEval.Ok(findings)
+}
+
 /**
  * `integrity.apk` — APK integrity detector.
  *
@@ -107,111 +183,162 @@ internal class ApkIntegrityDetector : Detector {
                 durationMs = dur(),
             )
 
-        val runtimeCerts = NativeBridge.apkSignerCertHashes(apkPath)
-            ?: return inconclusive(
-                id = id,
-                reason = "apk_unreadable",
-                message = "apkSignerCertHashes returned null for $apkPath",
-                durationMs = dur(),
-            )
+        val findings = ArrayList<Finding>(8)
 
-        val runtimeEntriesArr = NativeBridge.apkEntries(apkPath)
-            ?: return inconclusive(
-                id = id,
-                reason = "apk_unreadable",
-                message = "apkEntries returned null for $apkPath",
-                durationMs = dur(),
-            )
-        val runtimeEntries = parseEntryArray(runtimeEntriesArr)
+        if (baked.bundleMode) {
+            // ---- Bundle mode: signer membership + decompressed entry diff across splits ----
 
-        // 3. Diff. Findings stack independently.
-        val findings = ArrayList<Finding>(4)
-        val expectedCerts = baked.signerCertSha256.toSet()
-        val observedCerts = runtimeCerts.toSet()
-        if (observedCerts != expectedCerts) {
-            findings += Finding(
-                kind = "apk_signer_mismatch",
-                severity = Severity.CRITICAL,
-                subject = context.packageName,
-                message = "APK signer cert(s) differ from the build-time baked set",
-                details = mapOf(
-                    "expected" to baked.signerCertSha256.joinToString(","),
-                    "observed" to runtimeCerts.joinToString(","),
-                ),
-            )
-        }
+            val allowSet = baked.signerCertSha256.toHashSet()
+            // Only call NativeBridge when there is an allow-set to check against; empty
+            // allow-set is a documented fail-open (dex/so hashing becomes the sole anchor).
+            val observedSignerCerts: List<String>? = if (allowSet.isNotEmpty()) {
+                NativeBridge.apkSignerCertHashes(apkPath)?.toList()
+            } else {
+                emptyList()
+            }
 
-        if (!apkPath.startsWith(baked.expectedSourceDirPrefix)) {
-            findings += Finding(
-                kind = "apk_source_dir_unexpected",
-                severity = Severity.MEDIUM,
-                subject = apkPath,
-                message = "Installed APK lives outside the expected path prefix",
-                details = mapOf(
-                    "expected_prefix" to baked.expectedSourceDirPrefix,
-                    "observed_path" to apkPath,
-                ),
-            )
-        }
+            val splitPaths: List<String> =
+                context.applicationInfo.splitSourceDirs?.toList() ?: emptyList()
+            val searchPaths: List<String> = listOf(apkPath) + splitPaths
 
-        if (baked.expectedInstallerWhitelist.isNotEmpty()) {
-            val installer = readInstallerPackageName(context)
-            if (installer == null || installer !in baked.expectedInstallerWhitelist) {
+            when (val eval = evaluateBundleIntegrity(
+                observedSignerCerts = observedSignerCerts,
+                allowSet = allowSet,
+                bundleEntryHashes = baked.bundleEntryHashes,
+                resolveDecompressedHash = { entryName ->
+                    searchPaths.firstNotNullOfOrNull { splitPath ->
+                        NativeBridge.apkEntryDecompressedHash(splitPath, entryName)
+                    }
+                },
+                packageName = context.packageName,
+            )) {
+                is BundleEval.SignerUnavailable -> return inconclusive(
+                    id = id,
+                    reason = "apk_unreadable",
+                    message = "apkSignerCertHashes returned null for $apkPath",
+                    durationMs = dur(),
+                )
+                is BundleEval.Ok -> findings += eval.findings
+            }
+
+            // Source-dir prefix check (same as APK mode).
+            if (!apkPath.startsWith(baked.expectedSourceDirPrefix)) {
                 findings += Finding(
-                    kind = "installer_not_whitelisted",
+                    kind = "apk_source_dir_unexpected",
                     severity = Severity.MEDIUM,
-                    subject = installer,
-                    message = "Installer package is not in the baked whitelist",
+                    subject = apkPath,
+                    message = "Installed APK lives outside the expected path prefix",
                     details = mapOf(
-                        "whitelist" to baked.expectedInstallerWhitelist.joinToString(","),
-                        "observed_installer" to (installer ?: "<null>"),
+                        "expected_prefix" to baked.expectedSourceDirPrefix,
+                        "observed_path" to apkPath,
                     ),
                 )
             }
-        }
 
-        // Entry-level diff. Filter the runtime view through baked
-        // ignore rules so the comparison is apples-to-apples.
-        val ignoredEntries = baked.ignoredEntries.toHashSet()
-        val ignoredPrefixes = baked.ignoredEntryPrefixes
-        val filteredRuntime = HashMap<String, String>(runtimeEntries.size)
-        for ((name, hash) in runtimeEntries) {
-            if (name in ignoredEntries) continue
-            if (ignoredPrefixes.any { name.startsWith(it) }) continue
-            filteredRuntime[name] = hash
-        }
+        } else {
+            // ---- APK mode: existing equality checks (unchanged) ----
+            val runtimeCerts = NativeBridge.apkSignerCertHashes(apkPath)
+                ?: return inconclusive(
+                    id = id,
+                    reason = "apk_unreadable",
+                    message = "apkSignerCertHashes returned null for $apkPath",
+                    durationMs = dur(),
+                )
 
-        for ((name, expectedHash) in baked.entries) {
-            val observedHash = filteredRuntime[name]
-            when {
-                observedHash == null -> findings += Finding(
-                    kind = "apk_entry_removed",
-                    severity = Severity.HIGH,
-                    subject = name,
-                    message = "APK entry was present at build time but is missing at runtime",
-                    details = mapOf("expected_hash" to expectedHash),
+            val runtimeEntriesArr = NativeBridge.apkEntries(apkPath)
+                ?: return inconclusive(
+                    id = id,
+                    reason = "apk_unreadable",
+                    message = "apkEntries returned null for $apkPath",
+                    durationMs = dur(),
                 )
-                observedHash != expectedHash -> findings += Finding(
-                    kind = "apk_entry_modified",
-                    severity = Severity.CRITICAL,
-                    subject = name,
-                    message = "APK entry exists but its bytes differ from build time",
-                    details = mapOf(
-                        "expected_hash" to expectedHash,
-                        "observed_hash" to observedHash,
-                    ),
-                )
-            }
-        }
-        for ((name, observedHash) in filteredRuntime) {
-            if (name !in baked.entries) {
+            val runtimeEntries = parseEntryArray(runtimeEntriesArr)
+
+            val expectedCerts = baked.signerCertSha256.toSet()
+            val observedCerts = runtimeCerts.toSet()
+            if (observedCerts != expectedCerts) {
                 findings += Finding(
-                    kind = "apk_entry_added",
-                    severity = Severity.HIGH,
-                    subject = name,
-                    message = "APK entry exists at runtime but wasn't present at build time",
-                    details = mapOf("observed_hash" to observedHash),
+                    kind = "apk_signer_mismatch",
+                    severity = Severity.CRITICAL,
+                    subject = context.packageName,
+                    message = "APK signer cert(s) differ from the build-time baked set",
+                    details = mapOf(
+                        "expected" to baked.signerCertSha256.joinToString(","),
+                        "observed" to runtimeCerts.joinToString(","),
+                    ),
                 )
+            }
+
+            if (!apkPath.startsWith(baked.expectedSourceDirPrefix)) {
+                findings += Finding(
+                    kind = "apk_source_dir_unexpected",
+                    severity = Severity.MEDIUM,
+                    subject = apkPath,
+                    message = "Installed APK lives outside the expected path prefix",
+                    details = mapOf(
+                        "expected_prefix" to baked.expectedSourceDirPrefix,
+                        "observed_path" to apkPath,
+                    ),
+                )
+            }
+
+            if (baked.expectedInstallerWhitelist.isNotEmpty()) {
+                val installer = readInstallerPackageName(context)
+                if (installer == null || installer !in baked.expectedInstallerWhitelist) {
+                    findings += Finding(
+                        kind = "installer_not_whitelisted",
+                        severity = Severity.MEDIUM,
+                        subject = installer,
+                        message = "Installer package is not in the baked whitelist",
+                        details = mapOf(
+                            "whitelist" to baked.expectedInstallerWhitelist.joinToString(","),
+                            "observed_installer" to (installer ?: "<null>"),
+                        ),
+                    )
+                }
+            }
+
+            val ignoredEntries = baked.ignoredEntries.toHashSet()
+            val ignoredPrefixes = baked.ignoredEntryPrefixes
+            val filteredRuntime = HashMap<String, String>(runtimeEntries.size)
+            for ((name, hash) in runtimeEntries) {
+                if (name in ignoredEntries) continue
+                if (ignoredPrefixes.any { name.startsWith(it) }) continue
+                filteredRuntime[name] = hash
+            }
+
+            for ((name, expectedHash) in baked.entries) {
+                val observedHash = filteredRuntime[name]
+                when {
+                    observedHash == null -> findings += Finding(
+                        kind = "apk_entry_removed",
+                        severity = Severity.HIGH,
+                        subject = name,
+                        message = "APK entry was present at build time but is missing at runtime",
+                        details = mapOf("expected_hash" to expectedHash),
+                    )
+                    observedHash != expectedHash -> findings += Finding(
+                        kind = "apk_entry_modified",
+                        severity = Severity.CRITICAL,
+                        subject = name,
+                        message = "APK entry exists but its bytes differ from build time",
+                        details = mapOf(
+                            "expected_hash" to expectedHash,
+                            "observed_hash" to observedHash,
+                        ),
+                    )
+                }
+            }
+            for ((name, observedHash) in filteredRuntime) {
+                if (name !in baked.entries) {
+                    findings += Finding(
+                        kind = "apk_entry_added",
+                        severity = Severity.HIGH,
+                        subject = name,
+                        message = "APK entry exists at runtime but wasn't present at build time",
+                        details = mapOf("observed_hash" to observedHash),
+                    )
+                }
             }
         }
 

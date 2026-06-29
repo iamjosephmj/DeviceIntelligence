@@ -7,6 +7,7 @@ import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import io.ssemaj.deviceintelligence.gradle.internal.PluginCoordinates
 import io.ssemaj.deviceintelligence.gradle.tasks.BakeFingerprintTask
+import io.ssemaj.deviceintelligence.gradle.tasks.BundleIntegrityTask
 import io.ssemaj.deviceintelligence.gradle.tasks.ComputeFingerprintTask
 import io.ssemaj.deviceintelligence.gradle.tasks.GenerateKeyChunksTask
 import io.ssemaj.deviceintelligence.gradle.tasks.GenerateOptionalManifestTask
@@ -40,6 +41,8 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             enableVpnDetection.convention(false)
             enableBiometricsDetection.convention(false)
             disableAutoRuntimeDependency.convention(false)
+            appBundle.enabled.convention(false)
+            appBundle.playSigningCertSha256.convention(emptySet())
         }
 
         // Auto-apply the matching runtime AAR. Eager registration (not
@@ -181,9 +184,6 @@ class DeviceIntelligencePlugin : Plugin<Project> {
 
             val variantTitle = variant.name.replaceFirstChar { it.uppercase() }
             val genKeyTaskName = "generate${variantTitle}DeviceIntelligenceKeyChunks"
-            val computeTaskName = "compute${variantTitle}DeviceIntelligenceFingerprint"
-            val bakeTaskName = "bake${variantTitle}DeviceIntelligenceFingerprint"
-            val instrumentTaskName = "instrument${variantTitle}DeviceIntelligenceApk"
 
             val intermediatesDir = project.layout.buildDirectory
                 .dir("intermediates/io.ssemaj/${variant.name}")
@@ -193,6 +193,8 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             // 1) Codegen task — runs FIRST, no deps. Produces:
             //    - key.bin (build-private 32B key)
             //    - KeyChunkN.kt + KeyAssembler.kt (consumed by kotlin compile)
+            //    Registered here (before the bundle-mode gate) so BOTH the
+            //    bundle branch and the APK branch can reference it.
             val genKeyTask = project.tasks.register<GenerateKeyChunksTask>(genKeyTaskName) {
                 group = "io.ssemaj"
                 description = "Generates the per-build XOR key + KeyChunkN/KeyAssembler codegen for variant '${variant.name}'."
@@ -229,6 +231,55 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             project.tasks.matching { it.name == kotlinCompileTaskName }.configureEach {
                 dependsOn(genKeyTask)
             }
+
+            // App Bundle mode and APK instrumentation are mutually exclusive.
+            // When bundle mode is enabled, register BundleIntegrityTask on
+            // SingleArtifact.BUNDLE and skip the APK transform for this variant.
+            val bundleModeEnabled = ext.appBundle.enabled.getOrElse(false)
+            if (bundleModeEnabled) {
+                project.logger.lifecycle(
+                    "io.ssemaj: appBundle.enabled=true — APK integrity transform skipped " +
+                        "for variant '${variant.name}'; bundle-mode integrity applies"
+                )
+                val bundleTask = project.tasks.register<BundleIntegrityTask>(
+                    "bundle${variantTitle}DeviceIntelligenceIntegrity",
+                ) {
+                    group = "io.ssemaj"
+                    description = "Bakes bundle-mode fingerprint into the AAB and re-signs it " +
+                        "(variant '${variant.name}')."
+
+                    keyFile.set(genKeyTask.flatMap { it.keyFile })
+                    keystoreFile.fileValue(cfgStoreFile)
+                    keystorePassword.set(cfgStorePassword)
+                    keyAlias.set(cfgKeyAlias)
+                    if (cfgKeyPassword != null) keyPassword.set(cfgKeyPassword)
+                    if (!cfgStoreType.isNullOrBlank()) keystoreType.set(cfgStoreType)
+                    playSigningCertSha256.set(ext.appBundle.playSigningCertSha256)
+                    variantName.set(variant.name)
+                    applicationId.set(variant.applicationId)
+                    pluginVersion.set(PLUGIN_VERSION)
+                }
+
+                variant.artifacts.use(bundleTask)
+                    .wiredWithFiles(
+                        BundleIntegrityTask::inputAab,
+                        BundleIntegrityTask::outputAab,
+                    )
+                    .toTransform(SingleArtifact.BUNDLE)
+
+                project.afterEvaluate {
+                    if (ext.verbose.getOrElse(false)) {
+                        project.logger.lifecycle(
+                            "io.ssemaj: registered ${bundleTask.name} (BUNDLE transform)"
+                        )
+                    }
+                }
+                return@onVariants   // skip APK transform for this variant
+            }
+
+            val computeTaskName = "compute${variantTitle}DeviceIntelligenceFingerprint"
+            val bakeTaskName = "bake${variantTitle}DeviceIntelligenceFingerprint"
+            val instrumentTaskName = "instrument${variantTitle}DeviceIntelligenceApk"
 
             // 2) Compute task — runs after package${Variant}; reads the signed
             //    APK (which by now contains classes.dex with KeyChunk classes)
