@@ -43,4 +43,16 @@ size_t hash_all_entries(const ApkMap& apk,
                         const CentralDirInfo& cdi,
                         const std::function<void(const EntryHash&)>& sink);
 
+// Hash the DECOMPRESSED body of the ZIP entry named `entry_name`.
+// For STORED entries, SHA-256 the raw body directly.
+// For DEFLATED entries, inflate via NDK zlib (raw deflate, inflateInit2(-MAX_WBITS))
+// into a bounded buffer and SHA-256 the inflated bytes.
+// Writes 32 bytes to out32 on success and returns true.
+// Returns false (fail-closed, no crash) if: entry not found, null entry_name,
+// ZIP64 sentinel, zlib error, inflated size > 64 MB guard, or body out of range.
+bool hash_entry_decompressed(const ApkMap& apk,
+                             const CentralDirInfo& cdi,
+                             const char* entry_name,
+                             uint8_t out32[32]);
+
 } // namespace dicore::zip
