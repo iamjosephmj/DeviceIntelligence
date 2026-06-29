@@ -53,9 +53,10 @@ class ApkIntegrityDetectorBundleTest {
         assertTrue(findings.isEmpty())
     }
 
-    // Case 4: resolver returns null for all paths → apk_entry_removed HIGH
+    // Case 4: resolver returns null for a dex entry → apk_entry_removed HIGH
+    // (dex lives in the base module and is never conditionally stripped)
     @Test
-    fun `resolver returning null emits apk_entry_removed HIGH`() {
+    fun `resolver returning null for dex emits apk_entry_removed HIGH`() {
         val eval = evaluateBundleIntegrity(
             observedSignerCerts = null,
             allowSet = emptySet(),
@@ -66,6 +67,37 @@ class ApkIntegrityDetectorBundleTest {
         assertEquals(1, findings.size)
         assertEquals("apk_entry_removed", findings[0].kind)
         assertEquals(Severity.HIGH, findings[0].severity)
+    }
+
+    // Case 4b: resolver returns null for an ABI-split .so → NO finding
+    // (Play delivers only the device-ABI config split; other ABIs baked into
+    // the fingerprint are legitimately absent — this must not be flagged)
+    @Test
+    fun `resolver returning null for non-device-ABI so emits no finding`() {
+        val eval = evaluateBundleIntegrity(
+            observedSignerCerts = null,
+            allowSet = emptySet(),
+            bundleEntryHashes = mapOf("lib/x86_64/libfoo.so" to bakedHash),
+            resolveDecompressedHash = { null },
+        )
+        val findings = (eval as BundleEval.Ok).findings
+        assertTrue("Expected no findings for absent ABI-split .so, got: $findings", findings.isEmpty())
+    }
+
+    // Case 4c: present-but-mismatched .so → apk_entry_modified CRITICAL
+    // (tamper detection is preserved even with the ABI-split skip rule)
+    @Test
+    fun `resolver returning mismatched hash for so emits apk_entry_modified CRITICAL`() {
+        val eval = evaluateBundleIntegrity(
+            observedSignerCerts = null,
+            allowSet = emptySet(),
+            bundleEntryHashes = mapOf("lib/arm64-v8a/libfoo.so" to bakedHash),
+            resolveDecompressedHash = { "00000000" },
+        )
+        val findings = (eval as BundleEval.Ok).findings
+        assertEquals(1, findings.size)
+        assertEquals("apk_entry_modified", findings[0].kind)
+        assertEquals(Severity.CRITICAL, findings[0].severity)
     }
 
     // Case 5: resolver returns a mismatched hash → apk_entry_modified CRITICAL
