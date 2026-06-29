@@ -40,6 +40,8 @@ class DeviceIntelligencePlugin : Plugin<Project> {
             enableVpnDetection.convention(false)
             enableBiometricsDetection.convention(false)
             disableAutoRuntimeDependency.convention(false)
+            appBundle.enabled.convention(false)
+            appBundle.playSigningCertSha256.convention(emptySet())
         }
 
         // Auto-apply the matching runtime AAR. Eager registration (not
