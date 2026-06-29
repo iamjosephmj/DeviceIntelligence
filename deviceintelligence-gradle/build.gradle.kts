@@ -51,6 +51,13 @@ dependencies {
     // without shelling out to `apksigner`. This is the same library that
     // AGP itself uses internally.
     implementation("com.android.tools.build:apksig:8.13.2")
+
+    // JUnit 5 for plugin unit tests
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 gradlePlugin {

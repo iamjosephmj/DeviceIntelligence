@@ -52,15 +52,25 @@ internal data class Fingerprint(
      * pre-load `.so` replacement (Component 3 / Vector G2).
      */
     val dicoreTextSha256ByAbi: Map<String, String> = emptyMap(),
+    /** v3 — true when baked for an App Bundle build (split-aware, decompressed hashing). */
+    val bundleMode: Boolean = false,
+    /**
+     * v3 — APK-relative entry path -> SHA-256 hex of the entry's DECOMPRESSED body,
+     * for `classes*.dex` + `.so` files under `lib/<abi>/`. Used only in bundle mode;
+     * `entries` is left empty in bundle mode because Play re-deflates, making
+     * compressed-byte hashes unstable.
+     */
+    val bundleEntryHashes: Map<String, String> = emptyMap(),
 ) {
     companion object {
         /**
-         * Bumped from 1 to 2 to add `nativeLibInventoryByAbi`,
-         * `nativeLibHashesByAbi`, and `dicoreTextSha256ByAbi`. The
-         * runtime decoder accepts both 1 and 2; v1 blobs simply
-         * leave the new fields empty.
+         * Bumped from 1 to 2 to add `nativeLibInventoryByAbi`, `nativeLibHashesByAbi`,
+         * and `dicoreTextSha256ByAbi`.
+         * Bumped from 2 to 3 to add `bundleMode` and `bundleEntryHashes` for App Bundle
+         * integrity support. Runtime decoder accepts v1/v2/v3; older blobs leave the new
+         * fields at their defaults (bundleMode=false, bundleEntryHashes=emptyMap()).
          */
-        const val SCHEMA_VERSION: Int = 2
+        const val SCHEMA_VERSION: Int = 3
         const val ASSET_PATH: String = "assets/io.ssemaj.deviceintelligence/fingerprint.bin"
         val DEFAULT_IGNORED_ENTRY_PREFIXES: List<String> = listOf("META-INF/")
         val DEFAULT_IGNORED_ENTRIES: List<String> = listOf(ASSET_PATH)

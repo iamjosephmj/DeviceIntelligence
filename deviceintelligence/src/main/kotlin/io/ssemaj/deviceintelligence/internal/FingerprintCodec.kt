@@ -29,6 +29,11 @@ import java.io.InputStream
  *   uint32  abiInventoryCount + (utf8 abi, uint32 fileCount, utf8 filename[])[]
  *   uint32  abiFileHashCount  + (utf8 abi, uint32 entryCount, (utf8 filename, utf8 sha)[])[]
  *   uint32  abiTextHashCount  + (utf8 abi, utf8 sha)[]
+ *   --- v3 additions ---
+ *   uint8   bundleMode             (0/1)
+ *   uint32  bundleEntryCount
+ *     utf8  entryName    [bundleEntryCount times, sorted]
+ *     utf8  sha256Hex    [bundleEntryCount times]
  *
  * Decode-only: the runtime never re-encodes a fingerprint, so we drop the
  * encoder half to keep the AAR small and remove the temptation to mutate
@@ -40,7 +45,7 @@ internal object FingerprintCodec {
     const val MAGIC: Int = 0x52615370
 
     /** Newest wire format the decoder understands. */
-    const val FORMAT_VERSION: Int = 2
+    const val FORMAT_VERSION: Int = 3
 
     /**
      * Oldest wire format the decoder accepts. Kept at 1 so apps
@@ -109,6 +114,8 @@ internal object FingerprintCodec {
         var inventoryByAbi: Map<String, List<String>> = emptyMap()
         var hashesByAbi: Map<String, Map<String, String>> = emptyMap()
         var textHashByAbi: Map<String, String> = emptyMap()
+        var bundleMode = false
+        var bundleEntryHashes: Map<String, String> = emptyMap()
         if (formatVersion >= 2) {
             val invCount = readNonNegative(din.readInt(), "abiInventoryCount")
             inventoryByAbi = LinkedHashMap<String, List<String>>(invCount).apply {
@@ -148,6 +155,18 @@ internal object FingerprintCodec {
             }
         }
 
+        if (formatVersion >= 3) {
+            bundleMode = din.readBoolean()
+            val bundleCount = readNonNegative(din.readInt(), "bundleEntryCount")
+            bundleEntryHashes = LinkedHashMap<String, String>(bundleCount).apply {
+                repeat(bundleCount) {
+                    val name = din.readUTF()
+                    val sha = din.readUTF()
+                    put(name, sha)
+                }
+            }
+        }
+
         return Fingerprint(
             schemaVersion = schemaVersion,
             builtAtEpochMs = builtAtEpochMs,
@@ -163,6 +182,8 @@ internal object FingerprintCodec {
             nativeLibInventoryByAbi = inventoryByAbi,
             nativeLibHashesByAbi = hashesByAbi,
             dicoreTextSha256ByAbi = textHashByAbi,
+            bundleMode = bundleMode,
+            bundleEntryHashes = bundleEntryHashes,
         )
     }
 
