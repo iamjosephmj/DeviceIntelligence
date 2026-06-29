@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="LICENSE"><img alt="License: CC BY-ND 4.0" src="https://img.shields.io/badge/License-CC_BY--ND_4.0-blue.svg"></a>
   <a href="https://jitpack.io/#iamjosephmj/DeviceIntelligence"><img alt="JitPack" src="https://jitpack.io/v/iamjosephmj/DeviceIntelligence.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
@@ -190,4 +190,5 @@ The SDK makes **zero network calls** and reads no GAID, `ANDROID_ID`, IMEI/IMSI,
 
 ## License
 
-Apache 2.0 — see [`LICENSE`](LICENSE).
+**Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)** — see [`LICENSE`](LICENSE).
+Commercial use and verbatim redistribution are permitted with attribution; redistributing **modified** copies is not (a source-available, not OSI-approved, license).

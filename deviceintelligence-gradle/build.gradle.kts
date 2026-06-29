@@ -136,8 +136,8 @@ afterEvaluate {
                 url.set("https://github.com/iamjosephmj/DeviceIntelligence")
                 licenses {
                     license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                        name.set("Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)")
+                        url.set("https://creativecommons.org/licenses/by-nd/4.0/legalcode")
                         distribution.set("repo")
                     }
                 }
