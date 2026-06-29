@@ -81,4 +81,15 @@ abstract class DeviceIntelligenceExtension {
      * `-Pdeviceintelligence.disableAutoRuntimeDependency=true`.
      */
     abstract val disableAutoRuntimeDependency: Property<Boolean>
+
+    /**
+     * Opt-in App Bundle integrity ("bundle mode"). When `appBundle.enabled`
+     * is `true`, the plugin bakes a bundle-mode fingerprint into the AAB and
+     * re-signs it instead of instrumenting the APK.
+     */
+    @get:org.gradle.api.tasks.Nested
+    abstract val appBundle: AppBundleOptions
+
+    /** DSL sugar: `deviceIntelligence { appBundle { enabled = true } }`. */
+    fun appBundle(action: org.gradle.api.Action<AppBundleOptions>) = action.execute(appBundle)
 }
