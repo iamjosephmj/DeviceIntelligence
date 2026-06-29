@@ -1,4 +1,5 @@
 #include "apkmap.h"
+#include "hex.h"
 #include "log.h"
 #include "sha256.h"
 #include "sigblock_parser.h"
@@ -99,6 +100,42 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes(
           certs.source == sigblock::SignerCerts::Source::kV3 ? "v3" : "v2");
 
     return strings_to_jarray(env, certs.cert_sha256_hex);
+}
+
+JNIEXPORT jstring JNICALL
+Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash(
+        JNIEnv* env, jclass, jstring jpath, jstring jentry) {
+    if (!jpath || !jentry) return nullptr;
+
+    const char* path = env->GetStringUTFChars(jpath, nullptr);
+    if (!path) return nullptr;
+    const char* entry = env->GetStringUTFChars(jentry, nullptr);
+    if (!entry) {
+        env->ReleaseStringUTFChars(jpath, path);
+        return nullptr;
+    }
+
+    ApkMap apk;
+    bool ok = apk.open(path);
+    env->ReleaseStringUTFChars(jpath, path);
+    if (!ok) {
+        RLOGE("apkEntryDecompressedHash: open failed for entry '%s'", entry);
+        env->ReleaseStringUTFChars(jentry, entry);
+        return nullptr;
+    }
+
+    zip::CentralDirInfo cdi;
+    if (!zip::find_central_directory(apk, &cdi)) {
+        env->ReleaseStringUTFChars(jentry, entry);
+        return nullptr;
+    }
+
+    uint8_t md[sha::kDigestLen];
+    bool found = zip::hash_entry_decompressed(apk, cdi, entry, md);
+    env->ReleaseStringUTFChars(jentry, entry);
+    if (!found) return nullptr;
+
+    return make_jstring(env, hex::encode(md, sha::kDigestLen));
 }
 
 } // extern "C"

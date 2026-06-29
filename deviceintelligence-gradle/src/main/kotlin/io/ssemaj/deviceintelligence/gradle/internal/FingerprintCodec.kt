@@ -2,6 +2,7 @@ package io.ssemaj.deviceintelligence.gradle.internal
 
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -42,6 +43,11 @@ import java.io.OutputStream
  *   uint32  abiTextHashCount
  *     utf8  abi
  *     utf8  dicoreTextSha256Hex
+ *   --- v3 additions below ---
+ *   uint8   bundleMode             (0/1)
+ *   uint32  bundleEntryCount
+ *     utf8  entryName    [bundleEntryCount times, sorted]
+ *     utf8  sha256Hex    [bundleEntryCount times]
  *
  * The format is intentionally trivial: no length-prefixed envelopes, no CBOR
  * tags, no varints. The runtime decoder mirrors this byte-for-byte using
@@ -63,7 +69,7 @@ internal object FingerprintCodec {
     const val MAGIC: Int = 0x52615370 // 'DeviceIntelligence'
 
     /** Newest wire format produced by the encoder. */
-    const val FORMAT_VERSION: Int = 2
+    const val FORMAT_VERSION: Int = 3
 
     /** Minimum wire format the decoder understands. */
     const val MIN_SUPPORTED_FORMAT_VERSION: Int = 1
@@ -132,6 +138,15 @@ internal object FingerprintCodec {
                 writeUTF(fp.dicoreTextSha256ByAbi.getValue(abi))
             }
 
+            // v3 tail — sorted by entry name for byte-deterministic output.
+            writeBoolean(fp.bundleMode)
+            val bundleKeys = fp.bundleEntryHashes.keys.sorted()
+            writeInt(bundleKeys.size)
+            for (k in bundleKeys) {
+                writeUTF(k)
+                writeUTF(fp.bundleEntryHashes.getValue(k))
+            }
+
             flush()
         }
     }
@@ -190,6 +205,8 @@ internal object FingerprintCodec {
             var inventoryByAbi: Map<String, List<String>> = emptyMap()
             var hashesByAbi: Map<String, Map<String, String>> = emptyMap()
             var textHashByAbi: Map<String, String> = emptyMap()
+            var bundleMode = false
+            var bundleEntryHashes: Map<String, String> = emptyMap()
             if (formatVersion >= 2) {
                 val invCount = readInt()
                 inventoryByAbi = LinkedHashMap<String, List<String>>(invCount).apply {
@@ -227,6 +244,19 @@ internal object FingerprintCodec {
                 }
             }
 
+            // v3 tail — absent on v1/v2 blobs; fields stay at their defaults.
+            if (formatVersion >= 3) {
+                bundleMode = readBoolean()
+                val bundleCount = readNonNegative(readInt(), "bundleEntryCount")
+                bundleEntryHashes = LinkedHashMap<String, String>(bundleCount).apply {
+                    repeat(bundleCount) {
+                        val name = readUTF()
+                        val sha = readUTF()
+                        put(name, sha)
+                    }
+                }
+            }
+
             return Fingerprint(
                 schemaVersion = schemaVersion,
                 builtAtEpochMs = builtAtEpochMs,
@@ -242,7 +272,14 @@ internal object FingerprintCodec {
                 nativeLibInventoryByAbi = inventoryByAbi,
                 nativeLibHashesByAbi = hashesByAbi,
                 dicoreTextSha256ByAbi = textHashByAbi,
+                bundleMode = bundleMode,
+                bundleEntryHashes = bundleEntryHashes,
             )
         }
+    }
+
+    private fun readNonNegative(value: Int, field: String): Int {
+        if (value < 0) throw IOException("$field: negative count $value (corrupt blob)")
+        return value
     }
 }

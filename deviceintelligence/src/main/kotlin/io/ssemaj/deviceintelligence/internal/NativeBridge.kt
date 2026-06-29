@@ -56,6 +56,16 @@ internal object NativeBridge {
     external fun apkSignerCertHashes(path: String): Array<String>?
 
     /**
+     * Returns the SHA-256 hex of the DECOMPRESSED body of the ZIP entry named
+     * [entryName] inside the APK/split at [path]. Returns null if the entry
+     * is not found, the APK can't be opened, or inflate fails (fail-closed to
+     * not-found, not a crash). Used by [ApkIntegrityDetector] in bundle mode
+     * to compare decompressed code entry hashes across base + split APKs.
+     */
+    @JvmStatic
+    external fun apkEntryDecompressedHash(path: String, entryName: String): String?
+
+    /**
      * Reads a single Android system property via `__system_property_get`
      * (the same syscall behind `getprop` on the shell). Returns null
      * when the property is unset, the buffer overflows, or the call

@@ -54,10 +54,17 @@ internal data class Fingerprint(
      * pre-load `.so` replacement (Component 3 of the design doc).
      */
     val dicoreTextSha256ByAbi: Map<String, String> = emptyMap(),
+    /** v3 — true when baked for an App Bundle build (split-aware, decompressed hashing). */
+    val bundleMode: Boolean = false,
+    /**
+     * v3 — APK-relative entry path -> SHA-256 hex of the entry's DECOMPRESSED body,
+     * for `classes*.dex` + `.so` files under `lib/<abi>/`. Used only in bundle mode.
+     */
+    val bundleEntryHashes: Map<String, String> = emptyMap(),
 ) {
     companion object {
         /** Schema currently produced by the plugin. Must match plugin SCHEMA_VERSION. */
-        const val SCHEMA_VERSION: Int = 2
+        const val SCHEMA_VERSION: Int = 3
 
         /**
          * Path of the encrypted blob inside the APK as written by F8's
