@@ -1,7 +1,10 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     `maven-publish`
+    id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
 // Read coordinates from gradle.properties so JitPack (which sets
@@ -171,18 +174,8 @@ android {
         }
     }
 
-    // First-class AGP publishing hook (8.0+). Tells AGP which variant
-    // becomes the published `release` artifact, and asks it to also
-    // produce the sources + javadoc jars expected by Maven Central
-    // / Sonatype tooling. JitPack doesn't strictly require these but
-    // shipping them makes IDE source-attachment work for consumers
-    // (and costs nothing).
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-            withJavadocJar()
-        }
-    }
+    // Variant selection + sources/javadoc jars are handled by the
+    // vanniktech AndroidSingleVariantLibrary config below.
 }
 
 dependencies {
@@ -207,59 +200,66 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
 }
 
-// AGP creates the `release` software component lazily during evaluation
-// of the android {} block, so the publishing block has to run after the
-// android {} block has materialised it.
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-                groupId = publishGroup
-                artifactId = libraryArtifactId
-                version = publishVersion
-
-                pom {
-                    name.set("DeviceIntelligence")
-                    description.set(
-                        "Android device-intelligence telemetry SDK: hardware-backed " +
-                            "key attestation, bootloader integrity, root indicators, " +
-                            "in-process tampering, emulator probe, app-cloner signals " +
-                            "— emitted as a single deterministic JSON report."
-                    )
-                    url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-                    licenses {
-                        license {
-                            name.set("Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)")
-                            url.set("https://creativecommons.org/licenses/by-nd/4.0/legalcode")
-                            distribution.set("repo")
-                        }
-                    }
-                    developers {
-                        developer {
-                            id.set("iamjosephmj")
-                            name.set("Joseph James")
-                            url.set("https://github.com/iamjosephmj")
-                        }
-                    }
-                    scm {
-                        url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-                        connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
-                        developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
-                    }
-                }
+// Maven Central (Sonatype Central Portal) + signing, via vanniktech.
+// Coordinates come from gradle.properties: tech.thessemaj:deviceintelligence.
+mavenPublishing {
+    configure(
+        AndroidSingleVariantLibrary(
+            variant = "release",
+            sourcesJar = true,
+            publishJavadocJar = true,
+        )
+    )
+    publishToMavenCentral(automaticRelease = true)
+    // Sign only when a key is supplied (CI). JitPack's keyless
+    // publishToMavenLocal must keep working.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
+    coordinates(publishGroup, libraryArtifactId, publishVersion)
+    pom {
+        name.set("DeviceIntelligence")
+        description.set(
+            "Android device-intelligence telemetry SDK: hardware-backed " +
+                "key attestation, bootloader integrity, root indicators, " +
+                "in-process tampering, emulator probe, app-cloner signals " +
+                "— emitted as a single deterministic JSON report."
+        )
+        url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+        licenses {
+            license {
+                name.set("Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)")
+                url.set("https://creativecommons.org/licenses/by-nd/4.0/legalcode")
+                distribution.set("repo")
             }
         }
-        // GitHub Actions only (GITHUB_REPOSITORY + GITHUB_TOKEN set by the runner).
-        repositories {
-            System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
-                maven {
-                    name = "GitHubPackages"
-                    url = uri("https://maven.pkg.github.com/$gpr")
-                    credentials {
-                        username = System.getenv("GITHUB_ACTOR").orEmpty()
-                        password = System.getenv("GITHUB_TOKEN").orEmpty()
-                    }
+        developers {
+            developer {
+                id.set("iamjosephmj")
+                name.set("Joseph James")
+                url.set("https://github.com/iamjosephmj")
+            }
+        }
+        scm {
+            url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+            connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
+            developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
+        }
+    }
+}
+
+// Keep publishing the AAR to GitHub Packages too (CI only — GITHUB_REPOSITORY
+// + GITHUB_TOKEN are set by the runner). vanniktech owns the publications;
+// this only adds a second repository target.
+publishing {
+    repositories {
+        System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/$gpr")
+                credentials {
+                    username = System.getenv("GITHUB_ACTOR").orEmpty()
+                    password = System.getenv("GITHUB_TOKEN").orEmpty()
                 }
             }
         }

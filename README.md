@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: CC BY-ND 4.0" src="https://img.shields.io/badge/License-CC_BY--ND_4.0-blue.svg"></a>
-  <a href="https://jitpack.io/#iamjosephmj/DeviceIntelligence"><img alt="JitPack" src="https://jitpack.io/v/iamjosephmj/DeviceIntelligence.svg"></a>
+  <a href="https://central.sonatype.com/artifact/tech.thessemaj/deviceintelligence"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/tech.thessemaj/deviceintelligence?label=Maven%20Central"></a>
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Android-3DDC84.svg?logo=android&logoColor=white">
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
@@ -19,27 +19,19 @@
 
 ## Install
 
-Distributed via [JitPack](https://jitpack.io/#iamjosephmj/DeviceIntelligence). Apply the Gradle plugin — it auto-wires the runtime AAR and bakes the build-time APK fingerprint.
+On **Maven Central** (`tech.thessemaj`). Apply the Gradle plugin — it auto-wires
+the runtime AAR and bakes the build-time APK fingerprint. Standard repositories,
+no `resolutionStrategy` dance.
 
 **`settings.gradle.kts`**
 
 ```kotlin
 pluginManagement {
-    repositories { maven("https://jitpack.io"); gradlePluginPortal(); google() }
-    resolutionStrategy {
-        eachPlugin {
-            if (requested.id.id == "tech.thessemaj.deviceintelligence") {
-                useModule(
-                    "com.github.iamjosephmj.DeviceIntelligence:" +
-                        "deviceintelligence-gradle:${requested.version}"
-                )
-            }
-        }
-    }
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
 
 dependencyResolutionManagement {
-    repositories { google(); mavenCentral(); maven("https://jitpack.io") }
+    repositories { google(); mavenCentral() }
 }
 ```
 
@@ -47,9 +39,18 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("tech.thessemaj.deviceintelligence") version "2.0.1"
+    id("tech.thessemaj.deviceintelligence") version "2.2.0"
 }
 ```
+
+<details>
+<summary>Legacy: JitPack (versions ≤ 2.1.0, group <code>com.github.iamjosephmj.DeviceIntelligence</code>)</summary>
+
+Older tags remain resolvable via JitPack — add `maven("https://jitpack.io")`
+and the `resolutionStrategy { eachPlugin { … useModule("com.github.iamjosephmj.DeviceIntelligence:deviceintelligence-gradle:<version>") } }`
+mapping. New integrations should use Maven Central.
+
+</details>
 
 `minSdk` 28. Ships native binaries for `arm64-v8a`, `x86_64`, and `armeabi-v7a`. `kotlinx-coroutines-android` is the only runtime dependency.
 

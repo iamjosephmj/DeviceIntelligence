@@ -62,7 +62,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x ./gradlew
-          ./gradlew :deviceintelligence:publish --no-daemon -x test --stacktrace
+          # Target only the GitHubPackages repo — a bare `publish` would also
+          # hit vanniktech's mavenCentral repository (see publish-maven-central.yml).
+          ./gradlew :deviceintelligence:publishAllPublicationsToGitHubPackagesRepository --no-daemon -x test --stacktrace
 
       - name: Publish Gradle plugin (+ marker POM)
         env:
@@ -70,4 +72,4 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./gradlew -p deviceintelligence-gradle publish --no-daemon --stacktrace
+          ./gradlew -p deviceintelligence-gradle publishAllPublicationsToGitHubPackagesRepository --no-daemon --stacktrace
