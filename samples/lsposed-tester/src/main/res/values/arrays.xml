@@ -6,6 +6,6 @@
     has to flip a single switch to activate the hook.
     -->
     <string-array name="xposed_scope">
-        <item>io.ssemaj.sample</item>
+        <item>tech.thessemaj.sample</item>
     </string-array>
 </resources>

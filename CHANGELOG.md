@@ -26,7 +26,7 @@ Stable major release. Removes the native analytics drain entirely: the SDK now p
 
 - **Native analytics layer (`cpp/dicore/analytics.{cpp,h}`).** The JNI-bridged `HttpURLConnection` POST drain that shipped from 1.0.0 onwards — `client_id` derivation, ring-buffer queue, detached drain thread, fire-and-forget POST to the Cloud Functions ingest endpoint — is gone in its entirety. `NativeBridge.nativeQueueTelemetryReport` / `queueTelemetryReport`, the `telemetry_report` event the C++ layer queued after every `collect()`, and the `Java_..._nativeQueueTelemetryReport` JNI export are all removed. `libdicore.so` now contains zero networking code.
 - **`disableAnalytics` Gradle DSL property** (`deviceintelligence { disableAnalytics.set(...) }`). Now redundant; removing it surfaces the new "no analytics, period" contract at build time rather than silently no-op'ing the opt-out.
-- **Manifest opt-out `<meta-data android:name="io.ssemaj.di.analytics" />`** generation in `GenerateOptionalManifestTask` — also redundant once analytics is gone.
+- **Manifest opt-out `<meta-data android:name="tech.thessemaj.di.analytics" />`** generation in `GenerateOptionalManifestTask` — also redundant once analytics is gone.
 - **`android.permission.INTERNET`** declaration in the library AAR (`deviceintelligence/src/main/AndroidManifest.xml`). The permission was only there to satisfy the analytics drain; the library itself never needed it. Consumer apps that declare `INTERNET` for their own network usage are unaffected.
 
 ### Breaking changes (Gradle DSL)
@@ -55,7 +55,7 @@ The SDK now makes zero network calls under any configuration. All telemetry stay
 
 - `./gradlew :deviceintelligence:assembleDebug :deviceintelligence-gradle:assemble` — BUILD SUCCESSFUL (Kotlin + Gradle plugin + native `libdicore.so` for `arm64-v8a`, `armeabi-v7a`, `x86_64`).
 - `./gradlew :deviceintelligence:testDebugUnitTest` — BUILD SUCCESSFUL (every per-detector test suite green).
-- Tree-wide grep for `analytics.h` / `analytics::` / `disableAnalytics` / `queueTelemetryReport` / `nativeQueueTelemetryReport` / `io.ssemaj.di.analytics` / `cloudfunctions` returns zero hits.
+- Tree-wide grep for `analytics.h` / `analytics::` / `disableAnalytics` / `queueTelemetryReport` / `nativeQueueTelemetryReport` / `tech.thessemaj.di.analytics` / `cloudfunctions` returns zero hits.
 
 ## [1.1.0] — 2026-05-13
 

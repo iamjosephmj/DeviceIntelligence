@@ -36,4 +36,4 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-deviceintelligence = { id = "io.ssemaj.deviceintelligence", version.ref = "deviceintelligence" }
+deviceintelligence = { id = "tech.thessemaj.deviceintelligence", version.ref = "deviceintelligence" }

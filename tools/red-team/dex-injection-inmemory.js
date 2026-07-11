@@ -21,7 +21,7 @@
  *      matters for the bridge; the detector sees an in-memory
  *      load regardless.
  *   2. Get the live sample-app PID and attach this script:
- *        PID=$(frida-ps -D <device> -ai | awk '/io\.ssemaj\.sample/ {print $1}')
+ *        PID=$(frida-ps -D <device> -ai | awk '/tech.thessemaj\.sample/ {print $1}')
  *        frida -D <device> -p $PID -q -l tools/red-team/dex-injection-inmemory.js
  *
  * Capture criteria — Flag 1 is captured when:
@@ -63,10 +63,10 @@ setImmediate(function () {
 
 function run() {
     var ActivityThread = Java.use('android.app.ActivityThread');
-    var DiCls = Java.use('io.ssemaj.deviceintelligence.DeviceIntelligence');
-    var TelemetryReportCls = Java.use('io.ssemaj.deviceintelligence.TelemetryReport');
-    var DetectorReportCls = Java.use('io.ssemaj.deviceintelligence.DetectorReport');
-    var FindingCls = Java.use('io.ssemaj.deviceintelligence.Finding');
+    var DiCls = Java.use('tech.thessemaj.deviceintelligence.DeviceIntelligence');
+    var TelemetryReportCls = Java.use('tech.thessemaj.deviceintelligence.TelemetryReport');
+    var DetectorReportCls = Java.use('tech.thessemaj.deviceintelligence.DetectorReport');
+    var FindingCls = Java.use('tech.thessemaj.deviceintelligence.Finding');
     var MapEntryCls = Java.use('java.util.Map$Entry');
     var ByteBuffer = Java.use('java.nio.ByteBuffer');
     var FileInputStream = Java.use('java.io.FileInputStream');

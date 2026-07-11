@@ -25,7 +25,7 @@
  * call without crashing anything.
  *
  * Usage:
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-f.js
  *

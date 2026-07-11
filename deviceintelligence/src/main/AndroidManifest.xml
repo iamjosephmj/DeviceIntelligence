@@ -58,7 +58,7 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <application
-        android:appComponentFactory="io.ssemaj.deviceintelligence.internal.DeviceIntelligenceComponentFactory"
+        android:appComponentFactory="tech.thessemaj.deviceintelligence.internal.DeviceIntelligenceComponentFactory"
         tools:targetApi="28">
         <!--
             Earliest-possible bootstrap for libdicore. AGP manifest
@@ -93,8 +93,8 @@
             higher number => earlier.
         -->
         <provider
-            android:name="io.ssemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider"
-            android:authorities="${applicationId}.io.ssemaj.deviceintelligence.InitProvider"
+            android:name="tech.thessemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider"
+            android:authorities="${applicationId}.tech.thessemaj.deviceintelligence.InitProvider"
             android:exported="false"
             android:initOrder="2147483647" />
     </application>

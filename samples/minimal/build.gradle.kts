@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "io.ssemaj.sample"
+    namespace = "tech.thessemaj.sample"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.ssemaj.sample"
+        applicationId = "tech.thessemaj.sample"
         minSdk = 28
         targetSdk = 36
         versionCode = 1

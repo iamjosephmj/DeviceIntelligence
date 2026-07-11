@@ -48,12 +48,12 @@ function artPrepare(label) {
     if (artCached) return artCached;
     var bag = {};
     Java.perform(function () {
-        bag.DetectorCls = Java.use('io.ssemaj.deviceintelligence.internal.ArtIntegrityDetector');
-        bag.DiCls = Java.use('io.ssemaj.deviceintelligence.DeviceIntelligence');
+        bag.DetectorCls = Java.use('tech.thessemaj.deviceintelligence.internal.ArtIntegrityDetector');
+        bag.DiCls = Java.use('tech.thessemaj.deviceintelligence.DeviceIntelligence');
         bag.ActivityThread = Java.use('android.app.ActivityThread');
-        bag.TelemetryReportCls = Java.use('io.ssemaj.deviceintelligence.TelemetryReport');
-        bag.DetectorReportCls = Java.use('io.ssemaj.deviceintelligence.DetectorReport');
-        bag.FindingCls = Java.use('io.ssemaj.deviceintelligence.Finding');
+        bag.TelemetryReportCls = Java.use('tech.thessemaj.deviceintelligence.TelemetryReport');
+        bag.DetectorReportCls = Java.use('tech.thessemaj.deviceintelligence.DetectorReport');
+        bag.FindingCls = Java.use('tech.thessemaj.deviceintelligence.Finding');
         bag.MapEntryCls = Java.use('java.util.Map$Entry');
 
         var app = bag.ActivityThread.currentApplication();

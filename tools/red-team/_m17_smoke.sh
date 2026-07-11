@@ -20,7 +20,7 @@
 set -u
 
 FRIDA=/tmp/frida-venv/bin/frida
-APP=io.ssemaj.sample
+APP=tech.thessemaj.sample
 HELPER=tools/red-team/_verify_helper.js
 LOGDIR=build/m17
 mkdir -p "$LOGDIR"

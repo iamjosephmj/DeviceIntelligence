@@ -67,7 +67,7 @@ bool read_proc_self_maps(std::string* out) {
 extern "C" {
 
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_systemProperty(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_systemProperty(
         JNIEnv* env, jclass, jstring jname) {
     if (!jname) return nullptr;
     const char* name = env->GetStringUTFChars(jname, nullptr);
@@ -80,7 +80,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_systemProperty(
 }
 
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_procSelfMaps(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_procSelfMaps(
         JNIEnv* env, jclass) {
     std::string contents;
     if (!read_proc_self_maps(&contents)) return nullptr;

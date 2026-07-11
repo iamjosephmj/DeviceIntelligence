@@ -299,7 +299,7 @@ internal object StackGuard {
 1. Capture `Throwable().stackTrace`
 2. Walk each frame's class name
 3. Check the package against the allowlist:
-   - `io.ssemaj.deviceintelligence`
+   - `tech.thessemaj.deviceintelligence`
    - `kotlin` / `kotlinx`
    - `java` / `javax` / `sun`
    - `android` / `androidx`
@@ -331,7 +331,7 @@ An LSPosed module hooking `collect()` would produce:
 {
   "kind": "stack_foreign_frame",
   "severity": "high",
-  "subject": "io.ssemaj.sample",
+  "subject": "tech.thessemaj.sample",
   "message": "Foreign frame in @Critical method call stack",
   "details": {
     "critical_method": "DeviceIntelligence.collect",
@@ -401,10 +401,10 @@ hooked `BootloaderIntegrityDetector.evaluate()`, the captured stack
 looks like:
 
 ```
-io.ssemaj.deviceintelligence.internal.BootloaderIntegrityDetector.evaluate
+tech.thessemaj.deviceintelligence.internal.BootloaderIntegrityDetector.evaluate
 de.robv.android.xposed.XposedBridge.handleHookedMethod   <-- FOREIGN
-io.ssemaj.deviceintelligence.internal.TelemetryCollector.collect
-io.ssemaj.deviceintelligence.DeviceIntelligence.collect
+tech.thessemaj.deviceintelligence.internal.TelemetryCollector.collect
+tech.thessemaj.deviceintelligence.DeviceIntelligence.collect
 ...
 ```
 
@@ -437,13 +437,13 @@ Same `stack_foreign_frame` finding kind as Part A, with an additional
 {
   "kind": "stack_foreign_frame",
   "severity": "high",
-  "subject": "io.ssemaj.sample",
+  "subject": "tech.thessemaj.sample",
   "message": "Foreign frame detected in collector thread stack sample",
   "details": {
     "source": "watchdog_sample",
     "sample_index": "7",
     "foreign_frame": "de.robv.android.xposed.XposedBridge.handleHookedMethod",
-    "hooked_method": "io.ssemaj.deviceintelligence.internal.BootloaderIntegrityDetector.evaluate",
+    "hooked_method": "tech.thessemaj.deviceintelligence.internal.BootloaderIntegrityDetector.evaluate",
     "trace": "...first 10 frames..."
   }
 }
@@ -458,7 +458,7 @@ Same `stack_foreign_frame` finding kind as Part A, with an additional
 - **Hook on `Thread.getStackTrace()` itself**: this is a `java.lang`
   method — hooking it trips `integrity.art` Vector A/F.
 - **Hook on `StackWatchdog` itself**: the watchdog class is in
-  `io.ssemaj.deviceintelligence.internal` — hooking it trips the
+  `tech.thessemaj.deviceintelligence.internal` — hooking it trips the
   deterministic `StackGuard.verify()` check at the `collect()` entry
   point (the foreign frame appears in the entry-point stack).
 

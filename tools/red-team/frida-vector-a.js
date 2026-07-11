@@ -40,7 +40,7 @@
  * Findings off the hot path.
  *
  * Usage (one-shot, prints F18 findings before exiting):
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-a.js
  *
@@ -125,7 +125,7 @@ function runAttack() {
         // tamper window. Once Object.<init> is patched, any new
         // Java.use() / Java.cast() / object allocation hits the
         // trampoline and crashes.
-        var NativeBridge = Java.use('io.ssemaj.deviceintelligence.internal.NativeBridge');
+        var NativeBridge = Java.use('tech.thessemaj.deviceintelligence.internal.NativeBridge');
         var nb = Java.cast(NativeBridge.INSTANCE.value, NativeBridge);
         // Warm Frida's bridge cache for artIntegrityScan().
         nb.artIntegrityScan();

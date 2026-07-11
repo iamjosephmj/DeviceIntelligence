@@ -81,7 +81,7 @@ rm -f "$DIST/minimal-genuine.apk" "$DIST/minimal-farm-resigned.apk"
 
 # ---- helper: produce a TAMPERED twin via a Python ZIP rewrite --------------
 # Args: <input-apk> <output-apk> <kind: stripped|inject|modify> [args...]
-# 'stripped' takes no extra arg (removes assets/io.ssemaj.deviceintelligence/fingerprint.bin).
+# 'stripped' takes no extra arg (removes assets/tech.thessemaj.deviceintelligence/fingerprint.bin).
 # 'inject'   takes <inner-name> <body-bytes> (writes a new entry).
 # 'modify'   takes <inner-name> (corrupts the bytes of an existing entry).
 #
@@ -104,7 +104,7 @@ with zipfile.ZipFile(src_path, 'r') as src, \
         if info.filename.startswith('META-INF/'):
             continue
         # 'stripped' drops the fingerprint blob; everything else passes through.
-        if kind == 'stripped' and info.filename == 'assets/io.ssemaj.deviceintelligence/fingerprint.bin':
+        if kind == 'stripped' and info.filename == 'assets/tech.thessemaj.deviceintelligence/fingerprint.bin':
             continue
         data = src.read(info.filename)
         if kind == 'modify' and info.filename == arg1:

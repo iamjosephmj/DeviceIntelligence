@@ -15,7 +15,7 @@ group = publishGroup
 version = publishVersion
 
 android {
-    namespace = "io.ssemaj.deviceintelligence"
+    namespace = "tech.thessemaj.deviceintelligence"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 

@@ -38,7 +38,7 @@ extern "C" {
  * means the build skipped the unit and no Gx layer can run.
  */
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityProbe(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityProbe(
         JNIEnv*, jclass) {
     DI_VERIFY_CALLER();
     return static_cast<jint>(native_integrity::probe());
@@ -51,7 +51,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityProbe(
  * shows libc>=1, libdl>=1, libart>=1, libdicore>=1.
  */
 JNIEXPORT jintArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityRangeCounts(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityRangeCounts(
         JNIEnv* env, jclass) {
     DI_VERIFY_CALLER();
     const jint values[6] = {
@@ -81,7 +81,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeIntegrityRangeCoun
  * fingerprint decode.
  */
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_initNativeIntegrity(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_initNativeIntegrity(
         JNIEnv* env, jclass,
         jstring jExpectedTextHash, jobjectArray jExpectedSoList) {
     DI_VERIFY_CALLER();
@@ -139,7 +139,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_initNativeIntegrity(
  * Returns true on accepted input, false on null/empty.
  */
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_addTrustedNativeLibraryDirectory(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_addTrustedNativeLibraryDirectory(
         JNIEnv* env, jclass, jstring jPath) {
     DI_VERIFY_CALLER();
     if (jPath == nullptr) return JNI_FALSE;
@@ -166,7 +166,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_addTrustedNativeLibraryD
  * device returns 0 and an actively-Frida'd device returns 1-3.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanLoadedLibraries(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_scanLoadedLibraries(
         JNIEnv* env, jclass) {
     DI_VERIFY_CALLER();
     constexpr size_t kCap = 64;
@@ -215,7 +215,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanLoadedLibraries(
  * than as a finding.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanTextIntegrity(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_scanTextIntegrity(
         JNIEnv* env, jclass) {
     DI_VERIFY_CALLER();
     native_integrity::TextScan scan{};
@@ -289,7 +289,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanTextIntegrity(
  * coarser-grained signals for.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanGotIntegrity(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_scanGotIntegrity(
         JNIEnv* env, jclass) {
     DI_VERIFY_CALLER();
     constexpr size_t kCap = 128;
@@ -339,7 +339,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_scanGotIntegrity(
  * records max).
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_snapshotCallerViolations(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_snapshotCallerViolations(
         JNIEnv* env, jclass) {
     DI_VERIFY_CALLER();
     constexpr size_t kCap = 256;

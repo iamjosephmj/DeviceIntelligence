@@ -25,7 +25,7 @@ Reference setup:
 ## Install once
 
 ```bash
-# Sample app under test (the target io.ssemaj.sample)
+# Sample app under test (the target tech.thessemaj.sample)
 adb install -r samples/minimal/build/outputs/apk/debug/minimal-debug.apk
 
 # LSPosed-tester APK — declares all three Flag 1 entry points
@@ -39,7 +39,7 @@ adb shell chmod 0644 /data/local/tmp/flag1-payload.dex
 
 In the LSPosed Manager UI:
 1. Modules → enable **DI LSPosed Tester**.
-2. Scope picker → tick **io.ssemaj.sample**.
+2. Scope picker → tick **tech.thessemaj.sample**.
 3. **Important:** for clean signal, enable only **one** of the
    three xposed_init entries at a time by editing the module's
    `assets/xposed_init` and rebuilding. Or run all three; just
@@ -54,7 +54,7 @@ working at all; if it doesn't, stop here and debug the install
 before moving on.
 
 ```bash
-PID=$(frida-ps -D <device> -ai | awk '/io\.ssemaj\.sample/ {print $1}')
+PID=$(frida-ps -D <device> -ai | awk '/tech.thessemaj\.sample/ {print $1}')
 frida -D <device> -p $PID -q -l tools/red-team/dex-injection-inmemory.js
 ```
 
@@ -88,14 +88,14 @@ after the prewarm has captured the baseline.
 Force-stop and restart the sample app, then watch the LSPosed
 log:
 ```bash
-adb shell am force-stop io.ssemaj.sample
-adb shell am start -n io.ssemaj.sample/.MainActivity   # adjust to your launcher activity
+adb shell am force-stop tech.thessemaj.sample
+adb shell am start -n tech.thessemaj.sample/.MainActivity   # adjust to your launcher activity
 adb logcat -s DI-LSPDexHook
 ```
 
 Expected:
 ```
-DI-LSPDexHook: scheduled DEX-injection harness for io.ssemaj.sample
+DI-LSPDexHook: scheduled DEX-injection harness for tech.thessemaj.sample
 DI-LSPDexHook: step 1: baseline collect (locks DexInjection helper snapshot)
 DI-LSPDexHook: [DI-LSPDexHook baseline] runtime.environment dex-injection findings=0
 DI-LSPDexHook: step 2a: InMemoryDexClassLoader injection (channel b)
@@ -118,8 +118,8 @@ becomes part of the baseline snapshot.
 
 Same restart + logcat pattern, different tag:
 ```bash
-adb shell am force-stop io.ssemaj.sample
-adb shell am start -n io.ssemaj.sample/.MainActivity
+adb shell am force-stop tech.thessemaj.sample
+adb shell am start -n tech.thessemaj.sample/.MainActivity
 adb logcat -s DI-LSPEarlyHook
 ```
 

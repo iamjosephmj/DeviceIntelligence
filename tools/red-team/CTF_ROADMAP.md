@@ -49,7 +49,7 @@ gaps.
 
 **Status: shipped, awaiting on-device capture.** Implementation
 references:
-- Helper: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/DexInjection.kt`
+- Helper: `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/DexInjection.kt`
   (called from `RuntimeEnvironmentDetector.doLiveEvaluate`; **not** a
   separate detector — the findings ride on the `runtime.environment`
   wire-format ID alongside `hook_framework_present`,

@@ -14,7 +14,7 @@ extern "C" {
 // Diagnostic only — see [nativeForeignApkInMaps] for the policy
 // signal.
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeApkPathFromMaps(
+Java_tech_thessemaj_deviceintelligence_internal_ClonerDetector_nativeApkPathFromMaps(
     JNIEnv* env, jclass) {
     char buf[512];
     int n = dicore::cloner::read_apk_path_from_maps(buf, sizeof(buf));
@@ -27,7 +27,7 @@ Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeApkPathFromMaps(
 // every apk mapping belongs to us. The Kotlin facade treats a
 // non-null result as decisive cloner evidence.
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeForeignApkInMaps(
+Java_tech_thessemaj_deviceintelligence_internal_ClonerDetector_nativeForeignApkInMaps(
     JNIEnv* env, jclass, jstring jpkg) {
     if (!jpkg) return nullptr;
     const char* pkg = env->GetStringUTFChars(jpkg, nullptr);
@@ -45,7 +45,7 @@ Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeForeignApkInMaps
 // such mount-points were found / read failed. The Kotlin facade
 // asserts our package name appears in the returned set.
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeDataDirOwnerPackages(
+Java_tech_thessemaj_deviceintelligence_internal_ClonerDetector_nativeDataDirOwnerPackages(
     JNIEnv* env, jclass) {
     char buf[1024];
     int n = dicore::cloner::list_data_dir_owners(buf, sizeof(buf));
@@ -57,7 +57,7 @@ Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeDataDirOwnerPack
 // describing the first suspicious mount that touches [packageName],
 // or null if none was found / read failed.
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeSuspiciousMountFor(
+Java_tech_thessemaj_deviceintelligence_internal_ClonerDetector_nativeSuspiciousMountFor(
     JNIEnv* env, jclass, jstring jpkg) {
     if (!jpkg) return nullptr;
     const char* pkg = env->GetStringUTFChars(jpkg, nullptr);
@@ -73,7 +73,7 @@ Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeSuspiciousMountF
 // Returns the kernel-reported real UID from /proc/self/status's
 // "Uid:" line, or -1 on read / parse failure.
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_ClonerDetector_nativeKernelUidFromStatus(
+Java_tech_thessemaj_deviceintelligence_internal_ClonerDetector_nativeKernelUidFromStatus(
     JNIEnv*, jclass) {
     return static_cast<jint>(dicore::cloner::read_kernel_uid_from_status());
 }

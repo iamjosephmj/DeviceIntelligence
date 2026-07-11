@@ -45,7 +45,7 @@ install:
   - ANDROID_HOME="$HOME/android-sdk" ./gradlew :deviceintelligence:publishToMavenLocal --no-daemon -x test
   # Step 2: the Gradle plugin (`deviceintelligence-gradle` included build).
   # Publishes the plugin JAR, the auto-generated marker POM (which makes
-  # `id("io.ssemaj.deviceintelligence") version "X"` resolvable for
+  # `id("tech.thessemaj.deviceintelligence") version "X"` resolvable for
   # consumers without a settings-time resolutionStrategy hack), and the
   # main + sources + javadoc artifacts.
   - ANDROID_HOME="$HOME/android-sdk" ./gradlew -p deviceintelligence-gradle publishToMavenLocal --no-daemon

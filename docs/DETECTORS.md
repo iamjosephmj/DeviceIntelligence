@@ -82,7 +82,7 @@ it. Any structural divergence becomes a `Finding`; a clean run
 produces an empty findings list with `status: "ok"`.
 
 The fingerprint blob lives at
-`assets/io.ssemaj.deviceintelligence/fingerprint.bin`, XOR-encrypted
+`assets/tech.thessemaj.deviceintelligence/fingerprint.bin`, XOR-encrypted
 with a per-build key whose chunks are split across generated
 Kotlin classes (cost amplifier — defeats `unzip + grep` and naive
 blob substitution; not real encryption). The detector decrypts
@@ -145,7 +145,7 @@ allow-list (configured via the Gradle plugin DSL).
     {
       "kind": "apk_signer_mismatch",
       "severity": "critical",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "Runtime signer cert does not match the fingerprint baked at build time",
       "details": {
         "expected_sha256": "a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4",
@@ -450,7 +450,7 @@ plus a direct `ACC_NATIVE` flip on the same method (the
     {
       "kind": "art_method_entry_drifted",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "ArtMethod entry pointer changed since JNI_OnLoad snapshot",
       "details": {
         "method": "java.lang.Object#hashCode",
@@ -463,7 +463,7 @@ plus a direct `ACC_NATIVE` flip on the same method (the
     {
       "kind": "art_method_entry_drifted",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "ArtMethod entry pointer changed since JNI_OnLoad snapshot",
       "details": {
         "method": "java.lang.Object#getClass",
@@ -476,7 +476,7 @@ plus a direct `ACC_NATIVE` flip on the same method (the
     {
       "kind": "art_method_acc_native_flipped_on",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "ArtMethod ACC_NATIVE bit flipped ON since JNI_OnLoad — Java method now dispatches as native (canonical Frida-Java fingerprint)",
       "details": {
         "method": "java.lang.String#length",
@@ -740,7 +740,7 @@ app process:
     {
       "kind": "ro_debuggable_mismatch",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "Application debuggable flag disagrees with system ro.debuggable property",
       "details": {
         "app_debuggable_flag": "true",
@@ -750,7 +750,7 @@ app process:
     {
       "kind": "rwx_memory_mapping",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "Read-write-executable memory mapping detected — strong signature of an in-process hooking framework trampoline (LSPosed/YAHFA/SandHook/Frida agent/Substrate). The Android loader and ART JIT do not produce RWX pages on API 28+; this is the canonical fingerprint left behind when a hooker allocates an RWX page to host its method-redirect trampolines.",
       "details": {
         "region_count": "1",
@@ -1025,10 +1025,10 @@ The three signals are independent; any subset may trip per run.
     {
       "kind": "apk_path_mismatch",
       "severity": "high",
-      "subject": "io.ssemaj.sample",
+      "subject": "tech.thessemaj.sample",
       "message": "An APK mapped into our address space does not carry our package name (cloner host)",
       "details": {
-        "expected_package": "io.ssemaj.sample",
+        "expected_package": "tech.thessemaj.sample",
         "foreign_apk": "/data/app/com.lbe.parallel-VqLcjP-y6Q==/base.apk"
       }
     }

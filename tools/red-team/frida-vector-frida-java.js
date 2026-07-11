@@ -39,7 +39,7 @@
  * concerned.
  *
  * Usage:
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-frida-java.js
  *
@@ -72,7 +72,7 @@ function runAttack() {
         // Pre-warm ALL native scan bridges before tampering;
         // once `String.length` is hooked, calling Java methods
         // can recurse infinitely through Frida's bridge.
-        var NativeBridge = Java.use('io.ssemaj.deviceintelligence.internal.NativeBridge');
+        var NativeBridge = Java.use('tech.thessemaj.deviceintelligence.internal.NativeBridge');
         var nb = Java.cast(NativeBridge.INSTANCE.value, NativeBridge);
         nb.artIntegrityScan();
         nb.artIntegrityJniEnvScan();

@@ -28,7 +28,7 @@ pluginManagement {
     repositories { maven("https://jitpack.io"); gradlePluginPortal(); google() }
     resolutionStrategy {
         eachPlugin {
-            if (requested.id.id == "io.ssemaj.deviceintelligence") {
+            if (requested.id.id == "tech.thessemaj.deviceintelligence") {
                 useModule(
                     "com.github.iamjosephmj.DeviceIntelligence:" +
                         "deviceintelligence-gradle:${requested.version}"
@@ -47,7 +47,7 @@ dependencyResolutionManagement {
 
 ```kotlin
 plugins {
-    id("io.ssemaj.deviceintelligence") version "2.0.1"
+    id("tech.thessemaj.deviceintelligence") version "2.0.1"
 }
 ```
 
@@ -174,7 +174,7 @@ When opted out, `vpnActive` / `biometricsEnrolled` report `null` (not `false`).
 git clone https://github.com/iamjosephmj/DeviceIntelligence.git
 cd DeviceIntelligence
 ./gradlew :samples:minimal:installDebug
-adb shell am start -n io.ssemaj.sample/.MainActivity
+adb shell am start -n tech.thessemaj.sample/.MainActivity
 ```
 
 ## Privacy & GDPR

@@ -34,7 +34,7 @@
  *   - il2cpp_dumper   — `libil2cppdumper` or `zygisk-il2cpp`
  *
  * Usage:
- *   PID=$(frida-ps -D <device> -ai | awk '/io\.ssemaj\.sample/ {print $1}')
+ *   PID=$(frida-ps -D <device> -ai | awk '/tech.thessemaj\.sample/ {print $1}')
  *   frida -D <device> -p $PID -q -l tools/red-team/maps-newer-frameworks.js
  *
  * The script does NOT run the actual frameworks — it only fakes
@@ -76,12 +76,12 @@ setImmediate(function () {
 
 function run() {
     var ActivityThread = Java.use('android.app.ActivityThread');
-    var DiCls = Java.use('io.ssemaj.deviceintelligence.DeviceIntelligence');
-    var TelemetryReportCls = Java.use('io.ssemaj.deviceintelligence.TelemetryReport');
-    var DetectorReportCls = Java.use('io.ssemaj.deviceintelligence.DetectorReport');
-    var FindingCls = Java.use('io.ssemaj.deviceintelligence.Finding');
+    var DiCls = Java.use('tech.thessemaj.deviceintelligence.DeviceIntelligence');
+    var TelemetryReportCls = Java.use('tech.thessemaj.deviceintelligence.TelemetryReport');
+    var DetectorReportCls = Java.use('tech.thessemaj.deviceintelligence.DetectorReport');
+    var FindingCls = Java.use('tech.thessemaj.deviceintelligence.Finding');
     var MapEntryCls = Java.use('java.util.Map$Entry');
-    var ReDetectorCls = Java.use('io.ssemaj.deviceintelligence.internal.RuntimeEnvironmentDetector');
+    var ReDetectorCls = Java.use('tech.thessemaj.deviceintelligence.internal.RuntimeEnvironmentDetector');
 
     var app = ActivityThread.currentApplication();
     if (!app) {

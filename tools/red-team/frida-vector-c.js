@@ -16,7 +16,7 @@
  * explicit so the test is deterministic across Frida versions.
  *
  * Usage (one-shot, prints F18 findings before exiting):
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-c.js
  *

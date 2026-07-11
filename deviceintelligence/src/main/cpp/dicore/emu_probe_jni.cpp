@@ -28,13 +28,13 @@ const dicore::emu::Signals& cached_probe() {
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_EmulatorProbe_nativeEmulatorDecisive(
+Java_tech_thessemaj_deviceintelligence_internal_EmulatorProbe_nativeEmulatorDecisive(
     JNIEnv*, jclass) {
     return cached_probe().decisive ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_EmulatorProbe_nativeEmulatorRawSignals(
+Java_tech_thessemaj_deviceintelligence_internal_EmulatorProbe_nativeEmulatorRawSignals(
     JNIEnv* env, jclass) {
     const dicore::emu::Signals& s = cached_probe();
     return env->NewStringUTF(s.raw);

@@ -2,7 +2,7 @@ pluginManagement {
     // includeBuild is load-bearing here: the JitPack publish job runs
     // `./gradlew :deviceintelligence:publishToMavenLocal -x test`, which
     // evaluates this settings file and then `:samples:minimal/build.gradle.kts`,
-    // which applies `id("io.ssemaj.deviceintelligence") version "<VERSION_NAME>"`.
+    // which applies `id("tech.thessemaj.deviceintelligence") version "<VERSION_NAME>"`.
     // In that worker the matching plugin is NOT yet on JitPack (we are trying
     // to publish it in the same job), so without composite-build substitution
     // the entire root build aborts and the runtime AAR never gets published.

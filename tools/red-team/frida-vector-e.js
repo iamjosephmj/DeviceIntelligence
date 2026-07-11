@@ -28,7 +28,7 @@
  * code path during the F18 collect call).
  *
  * Usage:
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-e.js
  *
@@ -116,7 +116,7 @@ function runAttack() {
             return;
         }
 
-        var NativeBridge = Java.use('io.ssemaj.deviceintelligence.internal.NativeBridge');
+        var NativeBridge = Java.use('tech.thessemaj.deviceintelligence.internal.NativeBridge');
         var nb = Java.cast(NativeBridge.INSTANCE.value, NativeBridge);
         // Warm the artIntegrityJniEntryScan bridge cache.
         nb.artIntegrityJniEntryScan();

@@ -62,7 +62,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
 }
 
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityProbe(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityProbe(
         JNIEnv*, jclass) {
     uint32_t v = art_integrity::probe();
     if (v != art_integrity::kProbeAlive) {
@@ -72,19 +72,19 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityProbe(
 }
 
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityRegistrySize(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityRegistrySize(
         JNIEnv*, jclass) {
     return static_cast<jint>(art_integrity::registry_size());
 }
 
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityRegistryResolved(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityRegistryResolved(
         JNIEnv*, jclass) {
     return static_cast<jint>(art_integrity::resolved_count());
 }
 
 JNIEXPORT jint JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityEntryPointReadable(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityEntryPointReadable(
         JNIEnv*, jclass) {
     return static_cast<jint>(art_integrity::entry_point_readable_count());
 }
@@ -96,7 +96,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityEntryPointRe
  * up at least one libart and one boot OAT mapping on the device.
  */
 JNIEXPORT jintArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityRangeCounts(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityRangeCounts(
         JNIEnv* env, jclass) {
     const jint values[4] = {
         static_cast<jint>(art_integrity::libart_range_count()),
@@ -125,7 +125,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityRangeCounts(
  * the scan engine couldn't run" (e.g. unknown API offset).
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityScan(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityScan(
         JNIEnv* env, jclass) {
     art_integrity::ScanEntry entries[art_integrity::kMaxScanEntries];
     const size_t n = art_integrity::scan_live(entries, art_integrity::kMaxScanEntries);
@@ -165,7 +165,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityScan(
  * recaptured (no prior baseline to verify).
  */
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityBaselineIntact(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityBaselineIntact(
         JNIEnv*, jclass) {
     return art_integrity::last_scan_baseline_intact() ? JNI_TRUE : JNI_FALSE;
 }
@@ -181,7 +181,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityBaselineInta
  * "Vector C unavailable" rather than a finding.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvScan(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvScan(
         JNIEnv* env, jclass) {
     art_integrity::JniEnvScanEntry entries[art_integrity::kJniEnvWatched];
     const size_t n = art_integrity::scan_jni_env(env, entries, art_integrity::kJniEnvWatched);
@@ -216,7 +216,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvScan(
  * its values on the most recent scan.
  */
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvBaselineIntact(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvBaselineIntact(
         JNIEnv*, jclass) {
     return art_integrity::last_jni_env_baseline_intact() ? JNI_TRUE : JNI_FALSE;
 }
@@ -232,7 +232,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEnvBaseli
  * that as "vector D unavailable".
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlinePrologueScan(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlinePrologueScan(
         JNIEnv* env, jclass) {
     art_integrity::InlinePrologueScanEntry entries[art_integrity::kInlineMaxTargets] = {};
     const size_t n = art_integrity::scan_inline_prologue(
@@ -277,7 +277,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlineProlog
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlinePrologueBaselineIntact(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlinePrologueBaselineIntact(
         JNIEnv*, jclass) {
     return art_integrity::last_inline_baseline_intact() ? JNI_TRUE : JNI_FALSE;
 }
@@ -294,7 +294,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityInlineProlog
  * could read on its own.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityExtractPrologueBaseline(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityExtractPrologueBaseline(
         JNIEnv* env, jclass) {
     return art_integrity::extract_baseline_dump(env);
 }
@@ -310,7 +310,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityExtractProlo
  * as "vector E unavailable" rather than emitting a finding.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryScan(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryScan(
         JNIEnv* env, jclass) {
     art_integrity::JniEntryScanEntry entries[art_integrity::kJniEntryMaxEntries] = {};
     const size_t n = art_integrity::scan_jni_entry(
@@ -343,7 +343,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryScan
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryBaselineIntact(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryBaselineIntact(
         JNIEnv*, jclass) {
     return art_integrity::last_jni_entry_baseline_intact() ? JNI_TRUE : JNI_FALSE;
 }
@@ -361,7 +361,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityJniEntryBase
  * marker) does legitimately tweak access_flags_ during runtime.
  */
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityAccessFlagsScan(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityAccessFlagsScan(
         JNIEnv* env, jclass) {
     art_integrity::AccessFlagsScanEntry entries[art_integrity::kAccessFlagsMaxEntries] = {};
     const size_t n = art_integrity::scan_access_flags(
@@ -392,7 +392,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityAccessFlagsS
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_artIntegrityAccessFlagsBaselineIntact(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_artIntegrityAccessFlagsBaselineIntact(
         JNIEnv*, jclass) {
     return art_integrity::last_access_flags_baseline_intact() ? JNI_TRUE : JNI_FALSE;
 }

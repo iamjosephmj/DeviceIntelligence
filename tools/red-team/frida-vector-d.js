@@ -10,14 +10,14 @@
  * (HIGH).
  *
  * If the script attaches BEFORE the sample app launches (e.g.
- * via `frida -U -f io.ssemaj.sample -l ...`), the snapshot
+ * via `frida -U -f tech.thessemaj.sample -l ...`), the snapshot
  * captured at JNI_OnLoad already reflects the patch, so the
  * drift signal won't fire — but the embedded API-keyed
  * baseline check WILL flag it as
  * `art_internal_prologue_baseline_mismatch` (MEDIUM) instead.
  *
  * Usage (one-shot, prints F18 findings before exiting):
- *   frida -U -n io.ssemaj.sample \
+ *   frida -U -n tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-d.js
  *
@@ -27,7 +27,7 @@
  *
  * Pre-launch variant (exercises `baseline_mismatch` instead of
  * `_drifted`):
- *   frida -U -f io.ssemaj.sample \
+ *   frida -U -f tech.thessemaj.sample \
  *     -l tools/red-team/_verify_helper.js \
  *     -l tools/red-team/frida-vector-d.js
  */

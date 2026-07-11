@@ -35,12 +35,12 @@ jobjectArray strings_to_jarray(JNIEnv* env, const std::vector<std::string>& v) {
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_nativeReady(JNIEnv*, jclass) {
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_nativeReady(JNIEnv*, jclass) {
     return sha::ensure_initialized() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntries(JNIEnv* env, jclass,
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkEntries(JNIEnv* env, jclass,
                                                      jstring jpath) {
     if (!jpath) return nullptr;
     const char* path = env->GetStringUTFChars(jpath, nullptr);
@@ -72,7 +72,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntries(JNIEnv* env, 
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes(
         JNIEnv* env, jclass, jstring jpath) {
     if (!jpath) return nullptr;
     const char* path = env->GetStringUTFChars(jpath, nullptr);
@@ -103,7 +103,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes(
 }
 
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash(
         JNIEnv* env, jclass, jstring jpath, jstring jentry) {
     if (!jpath || !jentry) return nullptr;
 

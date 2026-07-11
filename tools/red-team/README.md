@@ -81,7 +81,7 @@ Each script:
 
 ```bash
 # Get the live PID of the sample app on a rooted device:
-PID=$(frida-ps -D <device-id> -ai | awk '/io\.ssemaj\.sample/ {print $1}')
+PID=$(frida-ps -D <device-id> -ai | awk '/tech.thessemaj\.sample/ {print $1}')
 
 # Run any vector script against it:
 frida -D <device-id> -p $PID -q \

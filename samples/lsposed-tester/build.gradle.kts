@@ -14,13 +14,13 @@ plugins {
 // no dependency on the DeviceIntelligence library. It is
 // installed alongside the sample app on a rooted, LSPosed-
 // enabled device, then activated and scoped to
-// `io.ssemaj.sample` via the LSPosed Manager UI.
+// `tech.thessemaj.sample` via the LSPosed Manager UI.
 android {
-    namespace = "io.ssemaj.lspmodule"
+    namespace = "tech.thessemaj.lspmodule"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.ssemaj.lspmodule"
+        applicationId = "tech.thessemaj.lspmodule"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
@@ -71,14 +71,14 @@ val bakeFlag1Payload by tasks.registering {
         }
         val bytes = flag1PayloadFile.readBytes()
         val target = flag1GeneratedDir.get()
-            .file("io/ssemaj/lspmodule/Flag1Payload.kt")
+            .file("tech/thessemaj/lspmodule/Flag1Payload.kt")
             .asFile
         target.parentFile.mkdirs()
         target.writeText(buildString {
             append("// Generated from tools/red-team/flag1-payload/payload.dex — do not edit.\n")
             append("// Regenerate by re-running build-payload.sh; the bakeFlag1Payload\n")
             append("// Gradle task picks up the new bytes automatically.\n")
-            append("package io.ssemaj.lspmodule\n\n")
+            append("package tech.thessemaj.lspmodule\n\n")
             append("internal object Flag1Payload {\n")
             append("    /** Raw DEX bytes for the CTF Flag 1 payload class. */\n")
             append("    internal val BAKED_DEX: ByteArray = byteArrayOf(\n        ")

@@ -29,30 +29,30 @@
 ### Created
 | File | Responsibility |
 |---|---|
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/AppBundleOptions.kt` | Consumer DSL: `enabled`, `playSigningCertSha256` |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt` | Shared keystore-load + cert-hash helper (extracted from `InstrumentApkTask`) |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasher.kt` | Compute decompressed SHA-256 of base-module dex/`.so` entries |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabSigner.kt` | Re-sign `.aab` with JDK JarSigner |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt` | Build the v3 encrypted fingerprint blob from the `.aab` |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt` | AGP `BUNDLE` transform task |
-| `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt` | v3 round-trip + v2 backward-compat codec test |
-| `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasherTest.kt` | Key-normalization + decompressed-hash correctness |
-| `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt` | Blob decodes to `bundleMode=true` + merged signer allow-set |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/AppBundleOptions.kt` | Consumer DSL: `enabled`, `playSigningCertSha256` |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt` | Shared keystore-load + cert-hash helper (extracted from `InstrumentApkTask`) |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasher.kt` | Compute decompressed SHA-256 of base-module dex/`.so` entries |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabSigner.kt` | Re-sign `.aab` with JDK JarSigner |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt` | Build the v3 encrypted fingerprint blob from the `.aab` |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt` | AGP `BUNDLE` transform task |
+| `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt` | v3 round-trip + v2 backward-compat codec test |
+| `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasherTest.kt` | Key-normalization + decompressed-hash correctness |
+| `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt` | Blob decodes to `bundleMode=true` + merged signer allow-set |
 | `deviceintelligence/src/test/cpp/test_hash_entry_decompressed.cpp` | Native C++ host test: STORED + DEFLATED + missing + garbage |
 
 ### Modified
 | File | Change |
 |---|---|
 | `deviceintelligence-gradle/build.gradle.kts` | Add `testImplementation(junit-jupiter)` + `useJUnitPlatform()` |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt` | Add `@Nested appBundle: AppBundleOptions` + DSL sugar |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/Fingerprint.kt` | Add `bundleMode`, `bundleEntryHashes`; bump `SCHEMA_VERSION` 2→3 |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt` | Bump `FORMAT_VERSION` 2→3; add v3 encode + decode tail |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt` | Replace inline `SigningMaterial`/`loadSigningMaterial` with `KeystoreSigning` |
-| `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt` | Add bundle-mode gate + `BundleIntegrityTask` wiring; add `appBundle.enabled.convention(false)` |
-| `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/Fingerprint.kt` | Add `bundleMode`, `bundleEntryHashes`; bump `SCHEMA_VERSION` 2→3 |
-| `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/FingerprintCodec.kt` | Bump `FORMAT_VERSION` 2→3; add v3 decode branch |
-| `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/NativeBridge.kt` | Add `external fun apkEntryDecompressedHash(path: String, entryName: String): String?` |
-| `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/ApkIntegrityDetector.kt` | Add bundle branch in `evaluate()` |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt` | Add `@Nested appBundle: AppBundleOptions` + DSL sugar |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/Fingerprint.kt` | Add `bundleMode`, `bundleEntryHashes`; bump `SCHEMA_VERSION` 2→3 |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt` | Bump `FORMAT_VERSION` 2→3; add v3 encode + decode tail |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt` | Replace inline `SigningMaterial`/`loadSigningMaterial` with `KeystoreSigning` |
+| `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt` | Add bundle-mode gate + `BundleIntegrityTask` wiring; add `appBundle.enabled.convention(false)` |
+| `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/Fingerprint.kt` | Add `bundleMode`, `bundleEntryHashes`; bump `SCHEMA_VERSION` 2→3 |
+| `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/FingerprintCodec.kt` | Bump `FORMAT_VERSION` 2→3; add v3 decode branch |
+| `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/NativeBridge.kt` | Add `external fun apkEntryDecompressedHash(path: String, entryName: String): String?` |
+| `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/ApkIntegrityDetector.kt` | Add bundle branch in `evaluate()` |
 | `deviceintelligence/src/main/cpp/CMakeLists.txt` | Add `find_library(z-lib z)` + link zlib |
 | `deviceintelligence/src/main/cpp/dicore/zip_parser.h` | Add `hash_entry_decompressed` declaration |
 | `deviceintelligence/src/main/cpp/dicore/zip_parser.cpp` | Add `hash_entry_decompressed` implementation + `#include <zlib.h>` |
@@ -63,9 +63,9 @@
 ### Task 1: DSL — AppBundleOptions + DeviceIntelligenceExtension
 
 **Files:**
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/AppBundleOptions.kt`
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt` (lines 11–84)
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt` (line 43 — `apply()` conventions)
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/AppBundleOptions.kt`
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt` (lines 11–84)
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt` (line 43 — `apply()` conventions)
 
 **Interfaces:**
 - Consumes: nothing (first task)
@@ -78,8 +78,8 @@ There is no automated test for the DSL itself (Gradle property wiring is an inte
 - [ ] **Step 2: Create `AppBundleOptions.kt`**
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/AppBundleOptions.kt
-package io.ssemaj.deviceintelligence.gradle
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/AppBundleOptions.kt
+package tech.thessemaj.deviceintelligence.gradle
 
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
@@ -154,9 +154,9 @@ Expected: BUILD SUCCESSFUL. Fix any compile errors before continuing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/AppBundleOptions.kt \
-        deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt \
-        deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt
+git add deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/AppBundleOptions.kt \
+        deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligenceExtension.kt \
+        deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt
 git commit -m "feat(bundle): add AppBundleOptions DSL + extension wire"
 ```
 
@@ -165,12 +165,12 @@ git commit -m "feat(bundle): add AppBundleOptions DSL + extension wire"
 ### Task 2: Fingerprint v3 + Codec v3 (plugin + runtime) + codec unit tests
 
 **Files:**
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/Fingerprint.kt` (line 63: SCHEMA_VERSION=2)
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt` (line 66: FORMAT_VERSION=2)
-- Modify: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/Fingerprint.kt` (line 60: SCHEMA_VERSION=2)
-- Modify: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/FingerprintCodec.kt` (line 43: FORMAT_VERSION=2)
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/Fingerprint.kt` (line 63: SCHEMA_VERSION=2)
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt` (line 66: FORMAT_VERSION=2)
+- Modify: `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/Fingerprint.kt` (line 60: SCHEMA_VERSION=2)
+- Modify: `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/FingerprintCodec.kt` (line 43: FORMAT_VERSION=2)
 - Modify: `deviceintelligence-gradle/build.gradle.kts` (add test deps + JUnit platform)
-- Create: `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt`
+- Create: `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt`
 
 **Interfaces:**
 - Consumes: nothing new (extends existing types)
@@ -202,15 +202,15 @@ tasks.named<Test>("test") {
 
 Create the test source directory:
 ```bash
-mkdir -p /home/joseph/AndroidStudioProjects/DeviceIntelligence/deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal
+mkdir -p /home/joseph/AndroidStudioProjects/DeviceIntelligence/deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal
 ```
 
 - [ ] **Step 2: Write the failing codec test**
 
-Create `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt`:
+Create `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt`:
 
 ```kotlin
-package io.ssemaj.deviceintelligence.gradle.internal
+package tech.thessemaj.deviceintelligence.gradle.internal
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -270,10 +270,10 @@ class FingerprintCodecTest {
         builtAtEpochMs = 1_000_000L,
         pluginVersion = "5.0.0",
         variantName = "release",
-        applicationId = "io.ssemaj.sample",
+        applicationId = "tech.thessemaj.sample",
         signerCertSha256 = listOf("deadbeef01234567"),
         entries = mapOf("classes.dex" to "hash0"),
-        ignoredEntries = listOf("assets/io.ssemaj.deviceintelligence/fingerprint.bin"),
+        ignoredEntries = listOf("assets/tech.thessemaj.deviceintelligence/fingerprint.bin"),
         ignoredEntryPrefixes = listOf("META-INF/"),
         expectedSourceDirPrefix = "/data/app/",
         expectedInstallerWhitelist = emptyList(),
@@ -295,7 +295,7 @@ Expected: FAILED — compilation error because `Fingerprint` has no `bundleMode`
 
 - [ ] **Step 4: Modify plugin `Fingerprint.kt` — add v3 fields + bump SCHEMA_VERSION**
 
-In `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/Fingerprint.kt`:
+In `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/Fingerprint.kt`:
 
 After `val dicoreTextSha256ByAbi: Map<String, String> = emptyMap(),` (line 54), add:
 
@@ -393,7 +393,7 @@ Expected: 3 tests, BUILD SUCCESSFUL.
 
 - [ ] **Step 7: Modify runtime `Fingerprint.kt` — add v3 fields + bump SCHEMA_VERSION**
 
-In `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/Fingerprint.kt`:
+In `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/Fingerprint.kt`:
 
 After `val dicoreTextSha256ByAbi: Map<String, String> = emptyMap(),` (line 56), add:
 
@@ -461,11 +461,11 @@ Expected: BUILD SUCCESSFUL.
 ```bash
 git add \
     deviceintelligence-gradle/build.gradle.kts \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/Fingerprint.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt \
-    deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt \
-    deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/Fingerprint.kt \
-    deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/FingerprintCodec.kt
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/Fingerprint.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodec.kt \
+    deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/FingerprintCodecTest.kt \
+    deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/Fingerprint.kt \
+    deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/FingerprintCodec.kt
 git commit -m "feat(bundle): bump schema+codec to v3 — bundleMode + bundleEntryHashes"
 ```
 
@@ -474,13 +474,13 @@ git commit -m "feat(bundle): bump schema+codec to v3 — bundleMode + bundleEntr
 ### Task 3: KeystoreSigning + AabHasher + AabSigner + BundleFingerprintBuilder
 
 **Files:**
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt`
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasher.kt`
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabSigner.kt`
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt`
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt` (replace inline `SigningMaterial` + `loadSigningMaterial()` with `KeystoreSigning`)
-- Create: `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasherTest.kt`
-- Create: `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt`
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt`
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasher.kt`
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabSigner.kt`
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt`
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt` (replace inline `SigningMaterial` + `loadSigningMaterial()` with `KeystoreSigning`)
+- Create: `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasherTest.kt`
+- Create: `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt`
 
 **Interfaces:**
 - Consumes: `Fingerprint` v3, `FingerprintCodec` v3, `NativeLibInventory.walkRawEntries()` (unchanged).
@@ -493,10 +493,10 @@ git commit -m "feat(bundle): bump schema+codec to v3 — bundleMode + bundleEntr
 
 - [ ] **Step 1: Write the failing `AabHasherTest`**
 
-Create `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasherTest.kt`:
+Create `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasherTest.kt`:
 
 ```kotlin
-package io.ssemaj.deviceintelligence.gradle.internal
+package tech.thessemaj.deviceintelligence.gradle.internal
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -563,8 +563,8 @@ Expected: FAILED — `AabHasher` not found.
 - [ ] **Step 3: Create `KeystoreSigning.kt`**
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt
-package io.ssemaj.deviceintelligence.gradle.internal
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt
+package tech.thessemaj.deviceintelligence.gradle.internal
 
 import java.io.File
 import java.io.FileInputStream
@@ -676,8 +676,8 @@ Remove the `import` for `FileInputStream` if it's no longer used directly in `In
 - [ ] **Step 5: Create `AabHasher.kt`**
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasher.kt
-package io.ssemaj.deviceintelligence.gradle.internal
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasher.kt
+package tech.thessemaj.deviceintelligence.gradle.internal
 
 import java.io.File
 import java.security.MessageDigest
@@ -738,8 +738,8 @@ internal object AabHasher {
 - [ ] **Step 6: Create `AabSigner.kt`**
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabSigner.kt
-package io.ssemaj.deviceintelligence.gradle.internal
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabSigner.kt
+package tech.thessemaj.deviceintelligence.gradle.internal
 
 import jdk.security.jarsigner.JarSigner
 import java.io.File
@@ -789,13 +789,13 @@ internal object AabSigner {
 **DI-specific adaptation:** RASP's `BundleFingerprintBuilder` calls `DiBaker.fpKey(seed)` and produces a `seed ‖ XOR(cbo, fpKey(seed))` envelope. DI has no `DiBaker`; it uses the pre-shared `key.bin` from `GenerateKeyChunksTask`. The builder here takes `key: ByteArray` directly and produces `XOR(cbo, key)` — the same format `FingerprintDecoder.decode()` already decrypts at runtime.
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt
-package io.ssemaj.deviceintelligence.gradle.tasks
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt
+package tech.thessemaj.deviceintelligence.gradle.tasks
 
-import io.ssemaj.deviceintelligence.gradle.internal.AabHasher
-import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
-import io.ssemaj.deviceintelligence.gradle.internal.FingerprintCodec
-import io.ssemaj.deviceintelligence.gradle.internal.NativeLibInventory
+import tech.thessemaj.deviceintelligence.gradle.internal.AabHasher
+import tech.thessemaj.deviceintelligence.gradle.internal.Fingerprint
+import tech.thessemaj.deviceintelligence.gradle.internal.FingerprintCodec
+import tech.thessemaj.deviceintelligence.gradle.internal.NativeLibInventory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.ZipFile
@@ -896,17 +896,17 @@ internal object BundleFingerprintBuilder {
 
 - [ ] **Step 8: Write `BundleFingerprintBuilderTest`**
 
-Create `deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt`.
+Create `deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt`.
 
 First, create the directory:
 ```bash
-mkdir -p /home/joseph/AndroidStudioProjects/DeviceIntelligence/deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/tasks
+mkdir -p /home/joseph/AndroidStudioProjects/DeviceIntelligence/deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks
 ```
 
 ```kotlin
-package io.ssemaj.deviceintelligence.gradle.tasks
+package tech.thessemaj.deviceintelligence.gradle.tasks
 
-import io.ssemaj.deviceintelligence.gradle.internal.FingerprintCodec
+import tech.thessemaj.deviceintelligence.gradle.internal.FingerprintCodec
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -939,7 +939,7 @@ class BundleFingerprintBuilderTest {
             playPins = listOf("bb22", "aa11"), // overlap must be de-duplicated
             pluginVersion = "5.0.0",
             variant = "release",
-            appId = "io.ssemaj.sample",
+            appId = "tech.thessemaj.sample",
         )
 
         // Decrypt: XOR with the same key.
@@ -952,7 +952,7 @@ class BundleFingerprintBuilderTest {
         assertFalse("base/resources.pb" in fp.bundleEntryHashes.keys)
         // De-duplicated merged signer allow-set.
         assertEquals(setOf("aa11", "bb22"), fp.signerCertSha256.toSet())
-        assertEquals("io.ssemaj.sample", fp.applicationId)
+        assertEquals("tech.thessemaj.sample", fp.applicationId)
         // APK-mode entries is empty in bundle mode.
         assertTrue(fp.entries.isEmpty())
     }
@@ -975,13 +975,13 @@ Expected: all tests pass (`FingerprintCodecTest` × 3, `AabHasherTest` × 2, `Bu
 
 ```bash
 git add \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasher.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabSigner.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt \
-    deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/internal/AabHasherTest.kt \
-    deviceintelligence-gradle/src/test/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/KeystoreSigning.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasher.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabSigner.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilder.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/InstrumentApkTask.kt \
+    deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/internal/AabHasherTest.kt \
+    deviceintelligence-gradle/src/test/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleFingerprintBuilderTest.kt
 git commit -m "feat(bundle): KeystoreSigning, AabHasher, AabSigner, BundleFingerprintBuilder"
 ```
 
@@ -990,8 +990,8 @@ git commit -m "feat(bundle): KeystoreSigning, AabHasher, AabSigner, BundleFinger
 ### Task 4: BundleIntegrityTask + Plugin Gate
 
 **Files:**
-- Create: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt`
-- Modify: `deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt`
+- Create: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt`
+- Modify: `deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt`
 
 **Interfaces:**
 - Consumes: `BundleFingerprintBuilder.build(...)`, `AabSigner.sign(...)`, `KeystoreSigning.load(...)`, `GenerateKeyChunksTask.keyFile`, `AppBundleOptions.enabled`, `AppBundleOptions.playSigningCertSha256`.
@@ -1000,12 +1000,12 @@ git commit -m "feat(bundle): KeystoreSigning, AabHasher, AabSigner, BundleFinger
 - [ ] **Step 1: Create `BundleIntegrityTask.kt`**
 
 ```kotlin
-// deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt
-package io.ssemaj.deviceintelligence.gradle.tasks
+// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt
+package tech.thessemaj.deviceintelligence.gradle.tasks
 
-import io.ssemaj.deviceintelligence.gradle.internal.AabSigner
-import io.ssemaj.deviceintelligence.gradle.internal.Fingerprint
-import io.ssemaj.deviceintelligence.gradle.internal.KeystoreSigning
+import tech.thessemaj.deviceintelligence.gradle.internal.AabSigner
+import tech.thessemaj.deviceintelligence.gradle.internal.Fingerprint
+import tech.thessemaj.deviceintelligence.gradle.internal.KeystoreSigning
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
@@ -1029,7 +1029,7 @@ import java.util.zip.ZipOutputStream
  * AGP hands us the just-built, AGP-signed `.aab`; we:
  *   1. Bake the v3 bundle-mode fingerprint blob (decompressed dex/`.so` hashes +
  *      signer allow-set) with [BundleFingerprintBuilder].
- *   2. Repack the AAB with `base/assets/io.ssemaj.deviceintelligence/fingerprint.bin`
+ *   2. Repack the AAB with `base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin`
  *      injected as a STORED entry, stripping the old `META-INF/` signature and any
  *      pre-existing fingerprint. ONLY file entries are emitted — bundletool rejects
  *      directory entries in a re-packed AAB.
@@ -1112,7 +1112,7 @@ abstract class BundleIntegrityTask : DefaultTask() {
             appId = applicationId.get(),
         )
         logger.lifecycle(
-            "io.ssemaj: bundle-mode fingerprint '${variantName.get()}': " +
+            "tech.thessemaj: bundle-mode fingerprint '${variantName.get()}': " +
                 "signerLeaf=${signing.certHashes.firstOrNull()}, " +
                 "playPins=${playSigningCertSha256.getOrElse(emptySet()).size}, " +
                 "bundleEntries=${blob.size}B"
@@ -1122,7 +1122,7 @@ abstract class BundleIntegrityTask : DefaultTask() {
         AabSigner.sign(output, signing.privateKey, signing.certs)
 
         logger.lifecycle(
-            "io.ssemaj: bundle-mode integrity → ${output.relativeTo(project.rootDir)} (asset injected, re-signed)"
+            "tech.thessemaj: bundle-mode integrity → ${output.relativeTo(project.rootDir)} (asset injected, re-signed)"
         )
     }
 
@@ -1179,7 +1179,7 @@ abstract class BundleIntegrityTask : DefaultTask() {
 In `DeviceIntelligencePlugin.kt`, add an import at the top:
 
 ```kotlin
-import io.ssemaj.deviceintelligence.gradle.tasks.BundleIntegrityTask
+import tech.thessemaj.deviceintelligence.gradle.tasks.BundleIntegrityTask
 ```
 
 Inside `wireApplication()`, after the signing-material null-checks (after the block ending `return@onVariants` at line 180) but **before** the existing variant title / task-name lines (line 182), insert the bundle-mode gate:
@@ -1191,14 +1191,14 @@ Inside `wireApplication()`, after the signing-material null-checks (after the bl
             val bundleModeEnabled = ext.appBundle.enabled.getOrElse(false)
             if (bundleModeEnabled) {
                 project.logger.lifecycle(
-                    "io.ssemaj: appBundle.enabled=true — APK integrity transform skipped " +
+                    "tech.thessemaj: appBundle.enabled=true — APK integrity transform skipped " +
                         "for variant '${variant.name}'; bundle-mode integrity applies"
                 )
                 val bundleTitle = variant.name.replaceFirstChar { it.uppercase() }
                 val bundleTask = project.tasks.register<BundleIntegrityTask>(
                     "bundle${bundleTitle}DeviceIntelligenceIntegrity",
                 ) {
-                    group = "io.ssemaj"
+                    group = "tech.thessemaj"
                     description = "Bakes bundle-mode fingerprint into the AAB and re-signs it " +
                         "(variant '${variant.name}')."
 
@@ -1224,7 +1224,7 @@ Inside `wireApplication()`, after the signing-material null-checks (after the bl
                 project.afterEvaluate {
                     if (ext.verbose.getOrElse(false)) {
                         project.logger.lifecycle(
-                            "io.ssemaj: registered ${bundleTask.name} (BUNDLE transform)"
+                            "tech.thessemaj: registered ${bundleTask.name} (BUNDLE transform)"
                         )
                     }
                 }
@@ -1263,8 +1263,8 @@ Expected: BUILD SUCCESSFUL. The sample's debug build uses APK mode (no `appBundl
 
 ```bash
 git add \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt \
-    deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt \
+    deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/DeviceIntelligencePlugin.kt
 git commit -m "feat(bundle): BundleIntegrityTask + plugin gate (SingleArtifact.BUNDLE transform)"
 ```
 
@@ -1277,14 +1277,14 @@ git commit -m "feat(bundle): BundleIntegrityTask + plugin gate (SingleArtifact.B
 - Modify: `deviceintelligence/src/main/cpp/dicore/zip_parser.h`
 - Modify: `deviceintelligence/src/main/cpp/dicore/zip_parser.cpp`
 - Modify: `deviceintelligence/src/main/cpp/dicore/jni_bridge.cpp`
-- Modify: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/NativeBridge.kt`
+- Modify: `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/NativeBridge.kt`
 - Create: `deviceintelligence/src/test/cpp/test_hash_entry_decompressed.cpp`
 
 **Interfaces:**
 - Consumes: existing `ApkMap`, `find_central_directory`, `sha::sha256`, `hex::encode`.
 - Produces:
   - C++: `bool dicore::zip::hash_entry_decompressed(const ApkMap& apk, const CentralDirInfo& cdi, const char* entry_name, uint8_t out32[32])`
-  - JNI: `Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash` → `String?`
+  - JNI: `Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash` → `String?`
   - Kotlin: `external fun apkEntryDecompressedHash(path: String, entryName: String): String?`
   - All consumed by Task 6 (`ApkIntegrityDetector`).
 
@@ -1687,11 +1687,11 @@ If `test2`'s hash matches `test1`'s, the function is accidentally hashing the co
 
 - [ ] **Step 8: Add `apkEntryDecompressedHash` JNI function to `jni_bridge.cpp`**
 
-In `deviceintelligence/src/main/cpp/dicore/jni_bridge.cpp`, after the closing brace of `Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes` (currently the last function, around line 102), before `} // extern "C"`, add:
+In `deviceintelligence/src/main/cpp/dicore/jni_bridge.cpp`, after the closing brace of `Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkSignerCertHashes` (currently the last function, around line 102), before `} // extern "C"`, add:
 
 ```cpp
 JNIEXPORT jstring JNICALL
-Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash(
+Java_tech_thessemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash(
         JNIEnv* env, jclass, jstring jpath, jstring jentry) {
     if (!jpath || !jentry) return nullptr;
 
@@ -1729,7 +1729,7 @@ Java_io_ssemaj_deviceintelligence_internal_NativeBridge_apkEntryDecompressedHash
 
 - [ ] **Step 9: Add `apkEntryDecompressedHash` to `NativeBridge.kt`**
 
-In `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/NativeBridge.kt`, after the `apkSignerCertHashes` declaration (around line 56), add:
+In `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/NativeBridge.kt`, after the `apkSignerCertHashes` declaration (around line 56), add:
 
 ```kotlin
     /**
@@ -1760,7 +1760,7 @@ git add \
     deviceintelligence/src/main/cpp/dicore/zip_parser.h \
     deviceintelligence/src/main/cpp/dicore/zip_parser.cpp \
     deviceintelligence/src/main/cpp/dicore/jni_bridge.cpp \
-    deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/NativeBridge.kt \
+    deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/NativeBridge.kt \
     deviceintelligence/src/test/cpp/test_hash_entry_decompressed.cpp
 git commit -m "feat(bundle): native hash_entry_decompressed via NDK zlib + JNI apkEntryDecompressedHash"
 ```
@@ -1770,7 +1770,7 @@ git commit -m "feat(bundle): native hash_entry_decompressed via NDK zlib + JNI a
 ### Task 6: Runtime `ApkIntegrityDetector` Bundle Branch
 
 **Files:**
-- Modify: `deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/ApkIntegrityDetector.kt`
+- Modify: `deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/ApkIntegrityDetector.kt`
 
 **Interfaces:**
 - Consumes: `Fingerprint.bundleMode`, `Fingerprint.bundleEntryHashes`, `Fingerprint.signerCertSha256` (allow-set semantics), `NativeBridge.apkSignerCertHashes()`, `NativeBridge.apkEntryDecompressedHash()`, `applicationInfo.sourceDir`, `applicationInfo.splitSourceDirs`.
@@ -2010,7 +2010,7 @@ Expected: BUILD SUCCESSFUL with `instrument*` tasks running (not bundle tasks).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/ApkIntegrityDetector.kt
+git add deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/ApkIntegrityDetector.kt
 git commit -m "feat(bundle): ApkIntegrityDetector bundle branch — signer membership + decompressed entry diff"
 ```
 
@@ -2081,7 +2081,7 @@ Expected: no `fingerprint_asset_missing`, no `apk_signer_mismatch`, no `apk_entr
 
 Two options (pick one):
 
-**Option 1: Flip a baked hash.** After `bundleRelease`, in the emitted AAB, locate the `base/assets/io.ssemaj.deviceintelligence/fingerprint.bin`, corrupt it (e.g., flip a byte at offset 64), re-pack, re-sign with a test key. Reinstall. Expected: `fingerprint_bad_magic` or `fingerprint_corrupt` CRITICAL finding.
+**Option 1: Flip a baked hash.** After `bundleRelease`, in the emitted AAB, locate the `base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin`, corrupt it (e.g., flip a byte at offset 64), re-pack, re-sign with a test key. Reinstall. Expected: `fingerprint_bad_magic` or `fingerprint_corrupt` CRITICAL finding.
 
 **Option 2: Patch a dex in a split.** Using `bundletool build-apks --mode=universal`, extract the universal APK, patch one byte inside `classes.dex` using a hex editor, repack and sideload. Expected: `apk_entry_modified` CRITICAL finding for `classes.dex`.
 

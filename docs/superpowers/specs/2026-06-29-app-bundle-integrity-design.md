@@ -67,7 +67,7 @@ RASP `AabHasher.kt` mapping.)
 
 ## Components / files
 
-### Plugin (`deviceintelligence-gradle/src/main/kotlin/io/ssemaj/deviceintelligence/gradle/`)
+### Plugin (`deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/`)
 - **Create** `internal/AppBundleOptions.kt` — `@Nested` DSL: `enabled: Property<Boolean>`
   (default false) + `playSigningCertSha256: SetProperty<String>` with a
   `fun playSigningCertSha256(vararg hex: String)` that normalizes (strip `:`, lowercase).
@@ -94,7 +94,7 @@ RASP `AabHasher.kt` mapping.)
   chunks as APK mode. (Mirror RASP `BundleFingerprintBuilder.kt`.)
 - **Create** `tasks/BundleIntegrityTask.kt` — `DefaultTask` wired to `SingleArtifact.BUNDLE`
   (single-file `.use(task).wiredWith(inputFile,outputFile).toTransform(SingleArtifact.BUNDLE)`):
-  (1) `BundleFingerprintBuilder.build`, (2) inject `base/assets/io.ssemaj.deviceintelligence/fingerprint.bin`
+  (1) `BundleFingerprintBuilder.build`, (2) inject `base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin`
   (STORED) into the `.aab` — full repack, drop `META-INF/` + any old fingerprint, **no
   directory entries** (bundletool rejects them), (3) `AabSigner.sign`. (Mirror RASP
   `BundleIntegrityTask.kt`.)
@@ -116,7 +116,7 @@ RASP `AabHasher.kt` mapping.)
   (mmap the apk, call `hash_entry_decompressed`, return hex or null). Looped per entry in
   Kotlin; no multi-path JNI needed.
 
-### Runtime (`deviceintelligence/src/main/kotlin/io/ssemaj/deviceintelligence/internal/`)
+### Runtime (`deviceintelligence/src/main/kotlin/tech/thessemaj/deviceintelligence/internal/`)
 - **Modify** `ApkIntegrityDetector.kt` — after decoding the fingerprint, if `fp.bundleMode`
   take a **bundle branch instead of** the APK-mode entry diff:
   - **Signer membership:** observed certs (`NativeBridge.apkSignerCertHashes(base)`) each must

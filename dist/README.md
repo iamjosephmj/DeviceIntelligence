@@ -2,7 +2,7 @@
 
 Two builds of the `samples:minimal` app, intended to be installed
 side by side on an emulator (one at a time — they share the same
-`applicationId` of `io.ssemaj.sample`).
+`applicationId` of `tech.thessemaj.sample`).
 
 ## `minimal-genuine.apk`
 
@@ -16,7 +16,7 @@ fingerprint, runs cleanly, and reports an empty `findings` list.
 | Signer DN | `C=US, O=Android, CN=Android Debug` |
 | Signer cert SHA-256 | `a91535782adbd690b915679d456628153166d35527ea867ab830bccd730065a4` |
 | Signing schemes | v2 + v3 |
-| applicationId | `io.ssemaj.sample` |
+| applicationId | `tech.thessemaj.sample` |
 
 Install:
 
@@ -48,12 +48,12 @@ and continue to operate normally on top of that.
 | Signer DN | `CN=Fake Repackager, OU=Evil, O=Attacker, L=Nowhere, ST=NA, C=ZZ` |
 | Signer cert SHA-256 | `98ab45b7278ad8011783b8cdd5e3a62a06ce2d7498755150fae61bc146782a0b` |
 | Signing schemes | v1 + v2 + v3 |
-| applicationId | `io.ssemaj.sample` |
+| applicationId | `tech.thessemaj.sample` |
 
 Install:
 
 ```sh
-adb uninstall io.ssemaj.sample            # different signer; can't update in place
+adb uninstall tech.thessemaj.sample            # different signer; can't update in place
 adb install dist/minimal-farm-resigned.apk
 ```
 
