@@ -12,6 +12,8 @@ Two decisions shaped the design:
 
 ## Integration
 
+### Android
+
 Provision one X25519 keypair on your machine — never in a build, never on a device:
 
 ```sh
@@ -45,7 +47,7 @@ Send the token even when `initialize()` or `setSession()` returns false. A faile
 
 If you're not on coroutines, `tech.thessemaj.deviceintelligence.dx.NativeBridge` is the blocking core underneath. Same three methods, plus `NativeBridge.s(FrameworkShim::class.java)`, which must run once before anything else. `setSession` still has to stay off the UI thread.
 
-## Backend
+### Backend
 
 Your backend issues session ids, opens tokens, and decides. The `verifier` module is a zero-dependency Kotlin/JVM library for exactly that:
 
