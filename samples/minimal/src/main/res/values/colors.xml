@@ -1,4 +1,8 @@
 <resources>
-    <!-- Mirrors Ui.Palette.LIGHT.pageBg (0xFFF6F7F9). -->
-    <color name="sample_page_bg">#F6F7F9</color>
+    <!--
+      Matches IntelColors.Background (#0B0E13). The window background is what the
+      launcher shows between cold start and the first Compose frame, so a light
+      value here flashes white before a dark app. It used to.
+    -->
+    <color name="sample_page_bg">#0B0E13</color>
 </resources>

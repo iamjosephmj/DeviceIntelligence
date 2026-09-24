@@ -1,0 +1,521 @@
+{
+ "registryVersion": 1,
+ "note": "SOURCE OF TRUTH for signal codes. The device emits only the opaque `id`; detector/kind never leave the device. APPEND-ONLY: never reuse or renumber a code. To drop a signal set status:\"retired\" (keep the row as a tombstone). Regenerate the C++ table with tools/gen-signal-ids.py after any edit. Consumed by: native signal_to_json (via signal_ids.gen.h), corpus/red-team/decode_token.py, tools/server/verify_token.py.",
+ "signals": [
+  {
+   "id": "INTEL_0000",
+   "detector": "attestation",
+   "kind": "attestation_critical",
+   "severity": "CRITICAL",
+   "title": "Hardware attestation failure",
+   "description": "TEE key-attestation cross-checks failed (keybox reuse / device-property honeypot / revoked keybox); the device's hardware-backed identity is untrustworthy."
+  },
+  {
+   "id": "INTEL_0001",
+   "detector": "art",
+   "kind": "art_hook_critical",
+   "severity": "CRITICAL",
+   "title": "ART method hook detected",
+   "description": "An ArtMethod entry point, JNIEnv table, inline prologue, or ACC_NATIVE bit was tampered (Xposed/LSPosed/frida-family hook engine)."
+  },
+  {
+   "id": "INTEL_0002",
+   "detector": "native",
+   "kind": "native_integrity_critical",
+   "severity": "CRITICAL",
+   "title": "Native code integrity mismatch",
+   "description": "Live in-memory .text of the native core diverged from the build-baked hash (patched or replaced native library)."
+  },
+  {
+   "id": "INTEL_0003",
+   "detector": "self_hook",
+   "kind": "native_function_hooked",
+   "severity": "CRITICAL",
+   "title": "Native function prologue hooked",
+   "description": "A monitored native function's prologue was overwritten with a trampoline (inline hook)."
+  },
+  {
+   "id": "INTEL_0004",
+   "detector": "seccomp",
+   "kind": "seccomp_kill_filtered",
+   "severity": "CRITICAL",
+   "title": "seccomp kill-filter present",
+   "description": "A seccomp filter configured to kill the process on syscalls was detected (anti-instrumentation / sandbox tamper)."
+  },
+  {
+   "id": "INTEL_0005",
+   "detector": "environment",
+   "kind": "debugger_attached",
+   "severity": "CRITICAL",
+   "title": "Debugger attached",
+   "description": "A tracer/debugger is attached to the process (non-zero TracerPid / ptrace)."
+  },
+  {
+   "id": "INTEL_0006",
+   "detector": "environment",
+   "kind": "frida_server_port",
+   "severity": "CRITICAL",
+   "title": "Frida server port open",
+   "description": "A frida-server listening port was found."
+  },
+  {
+   "id": "INTEL_0007",
+   "detector": "environment",
+   "kind": "frida_worker_thread",
+   "severity": "CRITICAL",
+   "title": "Frida worker thread present",
+   "description": "A frida worker thread (pool-frida) was found in the process."
+  },
+  {
+   "id": "INTEL_0008",
+   "detector": "environment",
+   "kind": "hook_framework_present",
+   "severity": "CRITICAL",
+   "title": "Hook framework mapped",
+   "description": "A known hook-framework library (dobby/whale/yahfa/substrate/...) was mapped into the process."
+  },
+  {
+   "id": "INTEL_0009",
+   "detector": "environment",
+   "kind": "rwx_memory_mapping",
+   "severity": "CRITICAL",
+   "title": "RWX memory mapping",
+   "description": "A simultaneously writable+executable mapping was found \u2014 proof-positive on API >= 29 where W^X is enforced. Read-write-executable memory mapping detected. On API 28+ the loader and the ART JIT do not leave a persistent RWX page, so one is a strong hooker signature \u2014 but RWX alone is ambiguous (a JIT code cache is RWX too), so each region is characterized: a region whose trampoline stubs branch into legit system code or a foreign module (tramp=legit/foreign, hook_stub_regions>0) is a hook redirecting real code; a self-referential or empty region (tramp=self/none) is a benign cache."
+  },
+  {
+   "id": "INTEL_0010",
+   "detector": "environment",
+   "kind": "frida_memfd_jit_present",
+   "severity": "CRITICAL",
+   "title": "Frida memfd JIT present",
+   "description": "A frida memfd-backed JIT mapping was found. Frida 16+ Gum JIT signature: rwxp-mapped /memfd:jit-cache region(s) > 8 MB. ART legitimately maps the same path but only with r-xp/r--p perms; the rwxp combination is unambiguous on Android."
+  },
+  {
+   "id": "INTEL_0011",
+   "detector": "root",
+   "kind": "su_binary_present",
+   "severity": "CRITICAL",
+   "title": "su binary present",
+   "description": "An su binary was found on PATH or a common location."
+  },
+  {
+   "id": "INTEL_0012",
+   "detector": "root",
+   "kind": "su_binary_system_path",
+   "severity": "CRITICAL",
+   "title": "su binary in system path",
+   "description": "An su binary was found in a protected system path (strong root indicator)."
+  },
+  {
+   "id": "INTEL_0013",
+   "detector": "root",
+   "kind": "magisk_artifact_present",
+   "severity": "CRITICAL",
+   "title": "Magisk artifact present",
+   "description": "A Magisk file or artifact was found on the device."
+  },
+  {
+   "id": "INTEL_0014",
+   "detector": "root",
+   "kind": "magisk_in_init_mountinfo",
+   "severity": "CRITICAL",
+   "title": "Magisk in init mountinfo",
+   "description": "Magisk mount traces were found in init's mountinfo."
+  },
+  {
+   "id": "INTEL_0015",
+   "detector": "root",
+   "kind": "magisk_daemon_socket_present",
+   "severity": "CRITICAL",
+   "title": "Magisk daemon socket present",
+   "description": "The Magisk daemon (magiskd) abstract socket was found."
+  },
+  {
+   "id": "INTEL_0016",
+   "detector": "root",
+   "kind": "kernelsu_present",
+   "severity": "CRITICAL",
+   "title": "KernelSU present",
+   "description": "KernelSU (kernel-level root) was detected."
+  },
+  {
+   "id": "INTEL_0017",
+   "detector": "root",
+   "kind": "tls_trust_store_tampered",
+   "severity": "CRITICAL",
+   "title": "TLS trust store tampered",
+   "description": "A tmpfs bind-mount was found over the conscrypt trust-store apex (TLS interception / MITM setup)."
+  },
+  {
+   "id": "INTEL_0018",
+   "detector": "root",
+   "kind": "selinux_permissive",
+   "severity": "CRITICAL",
+   "title": "SELinux permissive",
+   "description": "SELinux is not enforcing (enforce=0)."
+  },
+  {
+   "id": "INTEL_0019",
+   "detector": "root",
+   "kind": "test_keys_build",
+   "severity": "CRITICAL",
+   "title": "Test-keys build",
+   "description": "The build is signed with Android test-keys (non-production / engineering build)."
+  },
+  {
+   "id": "INTEL_0020",
+   "detector": "apk",
+   "kind": "apk_signer_mismatch",
+   "severity": "CRITICAL",
+   "title": "APK signer mismatch",
+   "description": "The running APK's signing certificate does not match the expected signer (repackaged / re-signed)."
+  },
+  {
+   "id": "INTEL_0021",
+   "detector": "apk",
+   "kind": "apk_entry_modified",
+   "severity": "CRITICAL",
+   "title": "APK entry modified",
+   "description": "A protected APK entry's bytes differ from the baked fingerprint (tampered package)."
+  },
+  {
+   "id": "INTEL_0022",
+   "detector": "apk",
+   "kind": "apk_entry_added",
+   "severity": "CRITICAL",
+   "title": "APK entry added",
+   "description": "An unexpected entry was added to the APK."
+  },
+  {
+   "id": "INTEL_0023",
+   "detector": "apk",
+   "kind": "apk_entry_removed",
+   "severity": "CRITICAL",
+   "title": "APK entry removed",
+   "description": "An expected APK entry is missing."
+  },
+  {
+   "id": "INTEL_0024",
+   "detector": "apk",
+   "kind": "fingerprint_corrupt",
+   "severity": "CRITICAL",
+   "title": "APK fingerprint corrupt",
+   "description": "The baked APK fingerprint asset could not be parsed or validated."
+  },
+  {
+   "id": "INTEL_0025",
+   "detector": "apk",
+   "kind": "fingerprint_bad_magic",
+   "severity": "CRITICAL",
+   "title": "APK fingerprint bad magic",
+   "description": "The baked APK fingerprint asset has an invalid magic header (tampered asset)."
+  },
+  {
+   "id": "INTEL_0026",
+   "detector": "apk",
+   "kind": "apk_source_dir_unexpected",
+   "severity": "MEDIUM",
+   "title": "APK source dir unexpected",
+   "description": "The APK source directory is not the expected install location."
+  },
+  {
+   "id": "INTEL_0027",
+   "detector": "apk",
+   "kind": "installer_not_whitelisted",
+   "severity": "MEDIUM",
+   "title": "Installer not whitelisted",
+   "description": "The installing package is not an approved app store."
+  },
+  {
+   "id": "INTEL_0028",
+   "detector": "dex",
+   "kind": "foreign_dex_loaded",
+   "severity": "CRITICAL",
+   "title": "Foreign DEX loaded",
+   "description": "A DEX was loaded from an attacker-writable path (runtime code injection)."
+  },
+  {
+   "id": "INTEL_0029",
+   "detector": "seccomp",
+   "kind": "seccomp_user_notif_listener",
+   "severity": "CRITICAL",
+   "title": "seccomp user-notif interceptor",
+   "description": "The process holds a SECCOMP_RET_USER_NOTIF listener fd \u2014 an in-process syscall interceptor used to spoof /proc reads below libc (maps/status/mounts). A benign seccomp-bpf policy leaves no such fd."
+  },
+  {
+   "id": "INTEL_0030",
+   "detector": "attestation",
+   "kind": "verified_boot_prop_spoof",
+   "severity": "CRITICAL",
+   "title": "Verified-boot property spoof",
+   "description": "The device self-reports a clean, locked boot (ro.boot.verifiedbootstate=green with flash.locked=1 or vbmeta.device_state=locked) while its hardware attestation RootOfTrust says otherwise \u2014 a prop-spoofing Play-Integrity-Fix (e.g. IntegrityBox/TrickyStore) forcing the boot-state props while the TEE reports the truth."
+  },
+  {
+   "id": "INTEL_0031",
+   "detector": "attestation",
+   "kind": "keybox_injection",
+   "severity": "CRITICAL",
+   "status": "retired",
+   "title": "Keybox injection (retired)",
+   "description": "RETIRED: the leaf-notBefore-precedes-issuer heuristic false-positives on genuine StrongBox/TEE devices, whose attestation leaf legitimately carries notBefore=epoch-0 (1970) while the per-attestation issuer intermediate is freshly minted \u2014 so leaf.notBefore < issuer.notBefore is the normal genuine case, not a spoof tell. Code reserved so wire ids never shift. Keybox injection is covered by INTEL_0030 (boot-state self-report vs hardware RootOfTrust) plus CRL revocation and cross-level batch-key-reuse checks."
+  },
+  {
+   "id": "INTEL_0032",
+   "detector": "attestation",
+   "kind": "keybox_cross_level_reuse",
+   "severity": "CRITICAL",
+   "title": "Keybox cross-level reuse",
+   "description": "The StrongBox and TEE attestation chains were signed by the SAME batch key. Genuine hardware provisions physically-separate, distinct batch keys per security level; a single leaked keybox can only sign with one key, so identical batch keys across levels prove keybox injection. Live-confirmed: spoofed rig reused one TEE keybox for both levels (identical batch pubkey) while a genuine StrongBox device presented distinct O=StrongBox / O=TEE batch keys."
+  },
+  {
+   "id": "INTEL_0033",
+   "detector": "attestation",
+   "kind": "strongbox_chain_unavailable",
+   "severity": "VERY_LOW",
+   "title": "StrongBox attestation chain unavailable",
+   "description": "No StrongBox attestation chain was produced even though StrongBox appears to be available, so the cross-level keybox-reuse defense (INTEL_0032) could not run (fail-closed). Two routes reach this: (a) the leaf claims StrongBox assurance but no StrongBox cross-level chain was produced; (b) the device reports StrongBox hardware (FEATURE_STRONGBOX_KEYSTORE) yet enrollment fell back to TEE. Route (b) applies ONLY to models absent from the StrongBox capability list \u2014 a capable model presenting TEE-only is the CRITICAL INTEL_0034 downgrade instead, regardless of what the device reports, because that self-report is app-visible and hookable. Lower confidence than INTEL_0032: a transient StrongBox attestation failure on a GENUINE device causes both routes, so this is a candidate for observe-only / retry rather than a hard block."
+  },
+  {
+   "id": "INTEL_0034",
+   "detector": "attestation",
+   "kind": "strongbox_downgrade_suspected",
+   "severity": "CRITICAL",
+   "title": "StrongBox downgrade suspected",
+   "description": "RETIRED. The StrongBox-capability interlock: a TEE-only presentation whose ATTESTED brand/model was a device known to ship StrongBox. Retired with its backing data, verifier/src/main/resources/strongbox-devices.json \u2014 a hand-curated device list that FAILED OPEN on every unlisted model (it held four rules: Pixel 3-19, SM-S9xx, SM-F9xx, one Xiaomi), carried an unbounded maintenance cost, and whose own documented production path ('back this with a maintained device-capability source') had no API: StrongBoxCapability was a singleton with a hardcoded resource path and no injection point, unlike the injectable pinnedRoots and CRL. COVERAGE LOST, recorded deliberately: INTEL_0032 (keybox_cross_level_reuse) CANNOT fire on a TEE-only presentation \u2014 crossLevelCheck returns early when the StrongBox chain is absent \u2014 so nothing now structurally catches a pure attestation downgrade carried by a fresh, unrevoked leaked keybox with consistent properties. A per-device assurance high-water mark (issue #9) would restore the capability without any device list. Code reserved as a tombstone; never reuse this id.",
+   "status": "retired"
+  },
+  {
+   "id": "INTEL_0035",
+   "detector": "environment",
+   "kind": "foreign_text_mapped",
+   "severity": "HIGH",
+   "title": "Injected code mapped (provenance)",
+   "description": "Executable code is mapped from outside the legitimate code roots (system/apex/vendor/product/app) \u2014 an injected native library such as a Zygisk/Magisk/KernelSU module. Provenance-based and name-independent: unlike the fixed hook-framework name-list (INTEL_0008), this catches ANY injected .so by where it came from. Live-verified catching hma/lsposed-vector/playintegrityfix/zygisksu + a custom module by /data/adb path alone."
+  },
+  {
+   "id": "INTEL_0036",
+   "detector": "environment",
+   "kind": "got_ptr_hijack",
+   "severity": "CRITICAL",
+   "title": "GOT/function-pointer hijack",
+   "description": "A pointer inside a system/app library's data or GOT points into injected foreign executable code \u2014 a hooked function pointer. False-positive-free: no legitimate library ever references an injected module. Complements INTEL_0035; catches a hook whose module hides its .so but still redirects a GOT slot into foreign code."
+  },
+  {
+   "id": "INTEL_0037",
+   "detector": "environment",
+   "kind": "hook_library_linked",
+   "severity": "CRITICAL",
+   "status": "retired",
+   "title": "Injected module links a hooking library (retired)",
+   "description": "A foreign (injected) native library declares a DT_NEEDED dependency on a DEDICATED inline-hooking library (dobby/whale/yahfa/lsplant/substrate/shadowhook/bytehook/xhook). These libraries exist only to rewrite other code, so a foreign module linking one is a confirmed hooking framework. Parsed from the already-mapped ELF in memory (no root file access); zero generic-import heuristics, so no false positives on ordinary vendor libraries. RETIRED: reworked into fail-open ENRICHMENT on INTEL_0035 (module_id + soname + DT_NEEDED read from the mapped image) rather than a separate verdict-driving detection \u2014 the raw DT_STRTAB deref was a crash/DoS vector on malformed ELF and strstr matching risked substring false positives; enrichment describes the already-flagged module instead of condemning it."
+  },
+  {
+   "id": "INTEL_0038",
+   "detector": "environment",
+   "kind": "libc_inline_hook",
+   "severity": "CRITICAL",
+   "title": "Inline hook on a libc function (prologue rewrite)",
+   "description": "A hot libc function's prologue is overwritten with a branch into injected foreign code (directly into a foreign .so, or via an anon trampoline that references a foreign module) \u2014 an inline hook (Dobby/ShadowHook/bytehook/whale). Unlike INTEL_0036 (GOT/function-pointer hijack), an inline hook leaves the GOT intact and patches the function body, so the pointer scan cannot see it; this decodes the first instruction of a fixed hot-set (openat/access/__system_property_get/ioctl/ptrace/fork/\u2026) and flags one only when it is an unconditional branch (direct B, or LDR x16/x17 + BR absolute trampoline). False-positive-safe via the INTEL_0036 discipline: the branch target must resolve to injected code OUTSIDE the legit roots (a direct foreign .so, or an anon trampoline that references one), so a legitimately app-bundled inline hooker \u2014 whose trampoline routes to its own /data/app .so \u2014 is NOT flagged; a normal libc prologue (never an unconditional branch) and an intra-legit ifunc/tail branch are also ignored. Enriches with the hooked symbol and, via the anon-trampoline hop, the hooking module."
+  },
+  {
+   "id": "INTEL_0039",
+   "detector": "environment",
+   "kind": "libc_inline_stub",
+   "severity": "CRITICAL",
+   "title": "libc inline-hook trampoline stub (opcode shape)",
+   "description": "A hot libc function's prologue is an absolute-jump trampoline stub (arm64 LDR x16/x17 + BR; x86_64 jmp rel32 / jmp [rip] / movabs+jmp / push+ret; arm LDR pc) that inline-hooking engines (Dobby/ShadowHook/bytehook/Frida Gum/Substrate) splice over a function entry. Detected by OPCODE SHAPE alone \u2014 no baseline, no baked hash, no on-disk comparison \u2014 so it is immune to per-device/per-version libc drift and fires even on a function hooked before JNI_OnLoad. Complements INTEL_0038 (which anchors on provenance: the branch must target injected foreign/anon code): INTEL_0039 catches the SAME inline hook when every file-backed trace has been scrubbed and the trampoline references only legit code (Shamiko-grade cleanup), because the stub must remain in place for the hook to function. False-positive-safe by construction: a legitimately-compiled prologue is stack setup or a BTI landing pad, never an absolute-jump stub, and benign code drift never produces one. Promoted to CRITICAL after clean-device FP validation on three OEMs (Pixel 6 Pro, Pixel 9 Pro, Xiaomi 2512BPNDAG); a legit app-bundled inline hooker also splices a stub, which is a policy call rather than a benign-drift false positive."
+  },
+  {
+   "id": "INTEL_0040",
+   "detector": "environment",
+   "kind": "syscall_divergence",
+   "severity": "CRITICAL",
+   "title": "Behavioral syscall divergence (userspace hook lies)",
+   "description": "a libc file-query (faccessat or the stat family) reports an existing system file (e.g. /system/bin/sh, /apex/com.android.runtime) as absent while a raw `svc` faccessat syscall \u2014 which bypasses libc entirely \u2014 confirms it exists. The only cause is a userspace hook (inline / GOT / PLT / LD_PRELOAD) lying about the filesystem to hide root or tamper artifacts. Unlike INTEL_0036/0038/0039 which detect a hook STRUCTURALLY (GOT pointer / inline prologue stub), this is BEHAVIORAL and mechanism-independent: it catches any hooking method as long as the observable result diverges from kernel truth, including hooks those structural signals miss (a GOT hook with an intact prologue, a handler in anon-legit memory, a preload interposer). False-positive-free by construction: libc and the raw syscall issue the same call with the same args, so they agree on a clean device; only a kernel-confirmed existence (raw==0) is trusted as ground truth, and a failed/unavailable raw call is never flagged. Carries hooked_symbol=faccessat so the verdict can CORRELATE it with a structural hook on the same symbol (structural + behavioral agreement = definitive). Boundary: catches userspace hooks only; a kernel/seccomp-level filter intercepts the raw svc too and is covered by the proc-consistency signal instead."
+  },
+  {
+   "id": "INTEL_0041",
+   "detector": "environment",
+   "kind": "linker_maps_divergence",
+   "severity": "CRITICAL",
+   "title": "Linker/maps divergence (map-anonymized module)",
+   "description": "The dynamic linker (dl_iterate_phdr) names a loaded .so whose executable segment maps, in /proc/self/maps, to an ANONYMOUS empty-path VMA. This is the file->anon map spoof performed by NeoZygisk's spoof_virtual_maps() (and ZygiskNext-class cleanup): after modules unload it mremaps the injected loader's file-backed VMA into an anonymous region to erase the foreign-code provenance that INTEL_0035 keys on \u2014 but the linker's soinfo still names the object, so the two views split. This is the residue that survives the cleanup specifically designed to blind file-provenance detection. False-positive-free by construction: a legitimately loaded .so always has BOTH a linker record AND a file-backed VMA at its base; a memfd-loaded library keeps its /memfd: name (not empty), and JIT / trampoline anonymous code is never linker-tracked so it does not appear in dl_iterate_phdr. Complements INTEL_0035 (pre-cleanup file provenance) and INTEL_0040 (behavioral backstop). Validated: 0 divergences across 349 legitimate linker objects on a clean device; fires on a spoof_virtual_maps-style anonymization."
+  },
+  {
+   "id": "INTEL_0042",
+   "detector": "environment",
+   "kind": "sealed_exec_memfd",
+   "severity": "CRITICAL",
+   "title": "Sealed executable memfd (injected module)",
+   "description": "A sealed (F_SEAL_WRITE|F_SEAL_SEAL) EXECUTABLE memfd is mapped into the process. Root injectors (NeoZygisk / zygiskd) hand each Zygisk module .so to the app as a sealed read-only memfd received over a unix socket and dlopen it (DlopenMem) \u2014 so the module never appears at a /data/adb path that INTEL_0035's file provenance keys on. Detection reads /proc/self/fd for memfd symlinks, fcntl(F_GET_SEALS), and cross-checks /proc/self/maps for a matching executable /memfd: region. Name-independent: it keys on the SEAL BITS, so a module whose memfd is named 'jit-cache' to masquerade as ART's JIT cache is still caught \u2014 because ART's JIT memfd is executable but WRITABLE (never F_SEAL_WRITE). False-positive-safe: ordinary apps do not map sealed executable memfds. Complements INTEL_0041 (the anonymized loader) \u2014 together they cover both provenance-evasion mechanisms (anon loader + memfd modules) that a /data/adb-centric provenance scan misses. Validated: 0 on a clean app; caught a sealed exec memfd named 'jit-cache'."
+  },
+  {
+   "id": "INTEL_0043",
+   "detector": "environment",
+   "kind": "property_divergence",
+   "severity": "CRITICAL",
+   "title": "Behavioral property divergence (property-get hooked)",
+   "description": "A boot-state / root-indicator property (ro.boot.verifiedbootstate, ro.boot.flash.locked, ro.boot.vbmeta.device_state, ro.build.tags, ro.debuggable, ...) read via libc __system_property_get returns a DIFFERENT value than the same property read from the property area via __system_property_find + __system_property_read_callback. The only cause is a userspace hook on __system_property_get lying about the property \u2014 in-process boot-state / verified-boot spoofing (the behavioral, provenance-independent analog of INTEL_0030's attestation-vs-self-report check). Mechanism-independent: it survives injectors that hide their module's provenance (NeoZygisk-class) because it tests the RESULT of the property read, not the hook's origin. False-positive-free by construction: both entry points read the same property trie, so they agree on a clean device (boot-state properties are static); only a selective hook on the legacy __system_property_get entry point diverges. (A resetprop-style edit of the trie itself changes BOTH reads and is caught by the attestation layer, not here.) Complements INTEL_0040 (syscall divergence)."
+  },
+  {
+   "id": "INTEL_0044",
+   "detector": "attestation",
+   "kind": "software_attested_environment",
+   "severity": "CRITICAL",
+   "title": "Software-attested environment (no hardware root of trust)",
+   "description": "The attestation's KeyDescription explicitly reports securityLevel=Software(0): the key was generated by the AOSP software keystore, not a TEE or StrongBox, so this environment has NO hardware root of trust. Emulators (AVD, Genymotion, BlueStacks, cloud farms) and devices without a hardware keystore land here. Unlike environment probes \u2014 build properties, sensors, telephony, graphics libraries \u2014 this cannot be neutralised by an anti-emulation layer: evading it requires possessing a Google-signed hardware attestation key, i.e. actually being real hardware. Fires ONLY on an explicitly parsed securityLevel of 0; a missing or unparseable level grades to Assurance.SOFTWARE for the integrity gate but does NOT raise this signal, so the label never states more than the attestation proved. Note the precise claim is 'no hardware root of trust', not 'is an emulator' \u2014 a genuine device with a broken or non-Google keystore also lands here."
+  },
+  {
+   "id": "INTEL_0045",
+   "detector": "attestation",
+   "kind": "app_identity_mismatch",
+   "severity": "CRITICAL",
+   "title": "Reported app identity disagrees with the attested identity",
+   "description": "The scan's self-reported package name or signing-certificate digest does not match the attestationApplicationId (tag 709) recorded from the hardware attestation at bootstrap. The self-report is app-visible and trivially patchable; the attested value is written by the platform keystore and signed over by the TEE. A disagreement means the running code is not the code the attested key was issued to - repackaging, a cloned or rehosted APK, or a patched core reporting a licensed identity it does not have. The self-report alone proves nothing: this signal is the CROSS-CHECK, and only the disagreement is evidence. Trustworthy exactly when the boot state is, since tag 709 lives in the softwareEnforced list."
+  },
+  {
+   "id": "INTEL_0046",
+   "detector": "attestation",
+   "kind": "app_not_licensed",
+   "severity": "HIGH",
+   "title": "App identity is self-consistent but not licensed",
+   "description": "The self-reported and attested app identities agree, but the signing-certificate digest is not in the licensed set for this deployment. This is a LICENSING finding, not a tampering one: the app is what it claims to be, it is simply not entitled to enroll. Kept separate from INTEL_0045 so a stale licence table cannot be mistaken for an integrity compromise."
+  },
+  {
+   "id": "INTEL_0047",
+   "detector": "attestation",
+   "kind": "security_patch_stale",
+   "severity": "MEDIUM",
+   "title": "Attested security patch level is older than policy allows",
+   "description": "The oldest of the TEE-attested osPatchLevel, vendorPatchLevel and bootPatchLevel is older than the backend's policy window (default 365 days), modelled on the recent-security-update requirement of Play Integrity's MEETS_STRONG_INTEGRITY. The threshold lives on the BACKEND, not the device: a device-side constant would be frozen at build time, would itself go stale, and could be patched out. Evaluated against the OLDEST of the three because a current framework patch on a two-year-old bootloader is still exposed. Note leaked keyboxes tend to originate from older handsets and the source handset's patch level rides along in the replayed certificate, so this partially correlates with INTEL_0032."
+  },
+  {
+   "id": "INTEL_0048",
+   "detector": "attestation",
+   "kind": "patch_level_self_report_mismatch",
+   "severity": "HIGH",
+   "title": "Self-reported security patch contradicts the attested one",
+   "description": "Build.VERSION.SECURITY_PATCH, truncated to YYYY-MM, does not match the TEE-attested osPatchLevel. Both are the FRAMEWORK patch, which is the only apples-to-apples pair: vendorPatchLevel and bootPatchLevel are the SoC and bootloader patches and legitimately diverge on non-Pixel OEMs. A prop spoofer that fakes a current patch level to look healthy trips this, in the same family as INTEL_0030. Fails open: a missing or unparseable value on either side emits nothing."
+  },
+  {
+   "id": "INTEL_0049",
+   "detector": "dex",
+   "kind": "dex_foreign_loader",
+   "severity": "HIGH",
+   "title": "In-memory DEX loaded by a foreign class loader",
+   "description": "A dex was loaded from memory by a class loader whose parent chain does not include the app's own loader, so the app's classes are invisible to it. A legitimate dynamic-feature or DI loader is parented into the app loader precisely so its code can call back into the app; code that cannot see the app it was loaded into is not a feature module."
+  },
+  {
+   "id": "INTEL_0050",
+   "detector": "dex",
+   "kind": "dex_unaccounted_in_memory",
+   "severity": "HIGH",
+   "title": "In-memory DEX mapping no class loader accounts for",
+   "description": "/proc/self/maps shows more in-memory dex mappings than any reachable class loader claims. A detached loader \u2014 held by an injector and referenced by nothing in the app \u2014 leaves exactly this trace. Compared one-directionally: ART dedupes identical dex bytes, so the mapped count can under-report, which fails safe."
+  },
+  {
+   "id": "INTEL_0051",
+   "detector": "native",
+   "kind": "libart_text_patched",
+   "severity": "CRITICAL",
+   "title": "libart .text patched (ART runtime code rewritten after load)",
+   "description": "libart.so's executable segment differs from the pristine on-disk file, i.e. code inside the ART runtime was rewritten after load. This is where Frida-Java's `implementation=` hook lands when the target method is already native: it patches ART's dispatch trampolines (art_quick_resolution_trampoline / art_quick_generic_jni_trampoline / art_quick_to_interpreter_bridge) and leaves the ArtMethod untouched, so the ART method registry cannot see it. Symbol-free and version-independent (bytes vs file; the art_quick_* stubs are hidden and absent from .dynsym, so no symbol-based check can reach them). The on-disk read uses raw syscalls, so a libc hook cannot serve a clean copy. CRITICAL requires an absolute-jump stub branching outside libart; any other drift is reported HIGH."
+  },
+  {
+   "id": "INTEL_0052",
+   "detector": "attestation",
+   "kind": "session_attestation_unavailable",
+   "severity": "CRITICAL",
+   "title": "Session attestation unavailable",
+   "description": "setSession() could not produce a hardware-attested key \u2014 the TEE/StrongBox keygen failed or was hooked \u2014 so the scan carries no attestation chain and cannot be bound to the session. The token is emitted anyway, degraded, rather than suppressed."
+  },
+  {
+   "id": "INTEL_0053",
+   "detector": "attestation",
+   "kind": "scan_without_session",
+   "severity": "CRITICAL",
+   "title": "Scan issued with no prepared session",
+   "description": "scan() ran with no session id prepared: setSession() was never called, failed, or named a different session. Nothing binds this scan to a session, so the token is degraded rather than suppressed."
+  },
+  {
+   "id": "INTEL_0054",
+   "detector": "attestation",
+   "kind": "licence_rejected_at_scan",
+   "severity": "HIGH",
+   "title": "Licence rejected at scan time",
+   "description": "The licence blob parsed but was rejected at scan time (expired, or bound to a different package). Has a benign cause \u2014 a genuinely expired blob \u2014 as well as a hostile one, so it grades below the other degradation codes."
+  },
+  {
+   "id": "INTEL_0055",
+   "detector": "attestation",
+   "kind": "token_emitted_unsigned",
+   "severity": "CRITICAL",
+   "title": "Token emitted unsigned",
+   "description": "No signing key was available at all \u2014 neither the attested session key nor a plain Keystore key \u2014 so the token carries an empty SIG binding. Its contents are unauthenticated and must never read as evidence of a clean device."
+  },
+  {
+   "id": "INTEL_0056",
+   "detector": "emulator",
+   "kind": "translated_environment",
+   "severity": "CRITICAL",
+   "title": "Process running under instruction-set translation (emulated environment)",
+   "description": "Definitional emulator signal, not a heuristic: the kernel's ISA (raw uname(2) syscall) does not match this process's compile-time ABI \u2014 an arm64 process on an x86 kernel (or the reverse) is executing under a binary-translation layer (libhoudini / libndk_translation), which is what LDPlayer / BlueStacks / Nox / MuMu ARM mode and Genymotion-on-x86 are; genuine silicon cannot produce this. Corroborating sub-facts: ro.dalvik.vm.native.bridge names a known translation bridge (no genuine phone ships one), or that bridge lib is mapped in /proc/self/maps (read via raw syscall, surviving a prop spoofer). All reads are raw syscalls \u2014 public emulator-bypass kits hook Build.* fields, __system_property_get and libc fopen/access, none the syscall layer. CRITICAL because the sub-facts are impossible on genuine silicon: the one sanctioned landing zone (ChromeOS/ARC ndk_translation) already trips INTEL_0044 software attestation and the pinned-root chain check, so it is no new blocking class, and CRITICAL is what keeps the on-device clean-device gate locked on an emulator \u2014 on an AVD where the attestation path degrades before the KeyDescription parse, this can be the only on-device finding. The device reports; the backend still decides. Fail-open on every input."
+  },
+  {
+   "id": "INTEL_0057",
+   "detector": "environment",
+   "kind": "injected_executable_mapping",
+   "severity": "HIGH",
+   "title": "Executable mapping with no backing file (or memfd/deleted backing)",
+   "description": "Executable mapping with no backing file (or memfd/deleted backing): covers zygisk-injected stub pools (anonymous RWX), Frida gadgets (memfd), and unloaded-but-mapped payloads ((deleted)). Kernel vdso/vvar/vectors (and vsyscall/uprobes) pages are excluded by name. Reads via raw syscall, so no libc hook can serve a doctored maps blob. The device reports, the backend decides. Fail-open on unreadable maps."
+  },
+  {
+   "id": "INTEL_0058",
+   "detector": "native_integrity",
+   "kind": "channel_sequence_anomaly",
+   "severity": "CRITICAL",
+   "title": "Scan-channel sequence/rate invariant violated",
+   "description": "Every scan carries a session-key-MACed monotonic counter \u2014 a SHA-256 chain folded over (session_key || prev_chain || be64(counter) || scan_label) \u2014 so backend replay verification detects gaps, reuse, label mismatch, or MAC forgery. The on-device rate guard caps synthetic sweep rates (the Incognia-style 60-command drive fails this). Fail-open."
+  },
+  {
+   "id": "INTEL_0059",
+   "detector": "native_integrity",
+   "kind": "text_integrity_divergence",
+   "severity": "CRITICAL",
+   "title": "Own library .text digest mismatch",
+   "description": "SHA-256 over the library's executable segment compared to the build-time digest baked at link time \u2014 catches inline hooks and stub overwrites in the SDK's own code. Per-page detail is reserved for the obfuscator pass. Fail-open: a zeroed build digest (no baseline yet) or an unreadable segment contributes nothing."
+  },
+  {
+   "id": "INTEL_0060",
+   "detector": "native_integrity",
+   "kind": "watchdog_anomaly",
+   "severity": "HIGH",
+   "title": "Watchdog child anomaly (silent or tracer reported)",
+   "description": "A fork-exec'd watchdog child (plain /system/bin/sh, only async-signal-safe calls between fork and exec) re-reads the parent's /proc/<pid>/status TracerPid every 2 s and reports a WD line over a private pipe \u2014 an independent process attesting liveness and trace state that an in-process hook cannot forge without touching the child. One kind, two causes on the detail: cause=silent when 3 consecutive beats are missed (child killed, silenced, or never started beating \u2014 the plan's kill-the-child leg) and cause=tracer when the child reports a nonzero TracerPid (something is ptrace-attached to the parent right now). Each record carries a keyed-heartbeat evidence pair (seq, mac): mac = SHA-256(session_key || be32(seq)) truncated to 8 bytes, constant-time verified, consume-once per seq \u2014 the same anti-forgery/anti-replay shape as INTEL_0058's chain, rooted at a process-local random key until the token-crypto task rebinds it. Detection-only: no kills, no respawn. Fail-open on spawn failure and every parse error (an unreadable TracerPid field degrades to a bare liveness beat, never a finding)."
+  },
+  {
+   "id": "INTEL_0061",
+   "detector": "emulator",
+   "kind": "cpu_rerouting_anomaly",
+   "severity": "CRITICAL",
+   "title": "CPU rerouting measured from inside the process",
+   "description": "Behavioural companion to INTEL_0056: catches a translation layer that renamed itself out of the provenance keys. Two sub-facts, each architecturally impossible on genuine silicon. (1) Counter coherence: CNTVCT_EL0 must advance at exactly CNTFRQ_EL0 (a fixed always-on clock domain that does not track DVFS; measured error 0.0000 on real devices) \u2014 a bridge has no guest timer and serves the counter from the host clock (measured 23,000x divergence on libndk_translation). (2) Synchronous-fault fidelity: an undefined instruction executed by the process always reports SIGILL si_code=ILL_ILLOPC on a genuine AArch64 kernel; a bridge replays the fault from its own metadata as si_code=SI_USER, the code of a user-sent signal. Fail-open: every unreadable register, short window, or missing measurement contributes nothing. Supporting spike probes (syscall toll, cold-vs-warm) deliberately do not gate \u2014 see docs/spikes/cpu-rerouting.md."
+  },
+  {
+   "id": "INTEL_0062",
+   "detector": "emulator",
+   "kind": "hypervisor_cpu",
+   "severity": "CRITICAL",
+   "title": "Hardware-virtualized CPU (x86_64 hypervisor leaf)",
+   "description": "x86_64 builds only: CPUID.1:ECX[31] (hypervisor present) is set and/or the CPUID.0x40000000 hypervisor vendor leaf answers. Detects emulators that hand guest code to the real CPU under hardware virtualization (QEMU/KVM) \u2014 no binary translation exists there, so INTEL_0056 correctly stays silent and this is the only in-process tell. A real phone CPU cannot set the architecturally reserved hypervisor leaf. Honest scope: x86_64 Android also runs on Chromebooks (ARCVM) and Windows Subsystem for Android, which set the same bit \u2014 genuine markets, so the backend may downweight per policy. A determined emulator can mask the leaf (KVM cpuid masking); default configs do not. Fail-open: without the bit or a known vendor string the probe contributes nothing. arm64 builds contribute nothing by construction."
+  },
+  {
+   "id": "INTEL_0063",
+   "detector": "emulator",
+   "kind": "arm64_vm_platform",
+   "severity": "CRITICAL",
+   "title": "ARM VM platform markers (device-tree / qemu_pipe)",
+   "description": "arm64 builds only: the device-tree model or compatible blob carries hypervisor-platform markers (qemu, dummy-virt, crosvm, cuttlefish, goldfish/ranchu), and/or /dev/qemu_pipe opens read-write. Catches full-system emulators and ARM VMs that run ARM app code natively inside an emulated ARM system \u2014 the guest ISA matches the app, so INTEL_0056 sees no divergence and INTEL_0062 (x86 CPUID) does not apply. Real devices report their SoC board and have no qemu_pipe node. Fails open on unreadable files; markers classified by a pure, host-tested header. Evasion note: a hypervisor that fabricates a plausible device-tree defeats this \u2014 fabrication cost is the deterrent, and the signals feed backend cross-checks against the claimed device model."
+  }
+ ]
+}

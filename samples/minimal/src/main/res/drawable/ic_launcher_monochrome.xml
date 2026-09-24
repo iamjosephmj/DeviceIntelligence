@@ -1,51 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Themed-icon (Android 13+) silhouette of the chip + concentric scan
-  rings. Single-colour shape; the launcher tints it to match the user's
-  Material You palette. Drawn at viewport 108x108 (adaptive-icon coords)
-  with the chip body kept inside the 66x66 safe zone.
--->
+<!-- Generated geometry: the DeviceIntelligence mark, traced from the project artwork and
+     restated in the app palette. Fitted to the adaptive-icon safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <group>
-        <path android:fillColor="#FFFFFF" android:pathData="M40,26 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M48,26 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M56,26 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M64,26 h4 v6 h-4 z" />
-
-        <path android:fillColor="#FFFFFF" android:pathData="M40,76 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M48,76 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M56,76 h4 v6 h-4 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M64,76 h4 v6 h-4 z" />
-
-        <path android:fillColor="#FFFFFF" android:pathData="M26,40 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M26,48 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M26,56 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M26,64 h6 v4 h-6 z" />
-
-        <path android:fillColor="#FFFFFF" android:pathData="M76,40 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M76,48 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M76,56 h6 v4 h-6 z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M76,64 h6 v4 h-6 z" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.12877" android:scaleY="0.12877"
+        android:translateX="20.970" android:translateY="22.579">
+        <path android:fillColor="#FFFFFF" android:pathData="M152,150 L500,470 C505,475 502,482 495,480 L152,398 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M262,398 L500,470 C505,475 502,482 495,480 L300,452 C285,436 272,418 262,398 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M8,84 C8,42 42,8 84,8 C126,8 160,42 160,84 L160,319 C160,361 126,395 84,395 C42,395 8,361 8,319 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M150,36 C202,36 243,58 260,78 C264,83 261,90 254,90 L150,90 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M100,392 L122,392 L122,464 L100,464 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M162,392 L184,392 L184,464 L162,464 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M76,452 L224,452 A14,14 0 0 1 224,480 L76,480 A14,14 0 0 1 76,452 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M82,66 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0" />
     </group>
-
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M39,42 a10,10 0 0 1 10,-10 h20 a10,10 0 0 1 10,10 v20 a10,10 0 0 1 -10,10 h-20 a10,10 0 0 1 -10,-10 z" />
-
-    <path
-        android:fillColor="#0E1029"
-        android:fillType="evenOdd"
-        android:pathData="M68,54 a14,14 0 1 1 -28,0 a14,14 0 1 1 28,0 z M65.5,54 a11.5,11.5 0 1 0 -23,0 a11.5,11.5 0 1 0 23,0 z" />
-    <path
-        android:fillColor="#0E1029"
-        android:fillType="evenOdd"
-        android:pathData="M62,54 a8,8 0 1 1 -16,0 a8,8 0 1 1 16,0 z M59.5,54 a5.5,5.5 0 1 0 -11,0 a5.5,5.5 0 1 0 11,0 z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M56,54 a2,2 0 1 1 -4,0 a2,2 0 1 1 4,0 z" />
 </vector>

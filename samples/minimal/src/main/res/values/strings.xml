@@ -1,3 +1,173 @@
 <resources>
     <string name="app_name">DeviceIntelligence</string>
+
+    <!-- ============================ scan screen ============================ -->
+    <string name="scan_title">Project DeviceIntelligence</string>
+    <string name="scan_busy">inspecting</string>
+    <string name="action_initialize">Initialize</string>
+    <string name="action_scan">Scan</string>
+    <!-- Once a scan has run, the same button repeats it. -->
+    <string name="action_rescan">Rescan</string>
+
+    <!-- Debug-only red-team control; the button itself is compiled out of release. -->
+    <string name="action_chaos">CHAOS: RWX page + 50 scans</string>
+    <string name="note_chaos_running">Chaos running: anonymous RWX page mapped, 50 synthetic scans under way. The next Rescan reports what the backend sees.</string>
+    <string name="note_chaos_done">Chaos done in %1$d ms. RWX page at 0x%2$s (leaked, never unmapped). Last sweep token signals: %3$s.</string>
+    <string name="nav_back">Back</string>
+
+    <!-- Pipeline stages. These are the three SDK calls, in order. -->
+    <string name="stage_licence">licence</string>
+    <string name="stage_session">session</string>
+    <string name="stage_scan">scan</string>
+    <string name="stage_millis">%1$d ms</string>
+
+    <!-- Measured values under the verdict. -->
+    <string name="metric_token">token</string>
+    <string name="metric_elapsed">elapsed</string>
+    <string name="metric_suffix_kb">" kB"</string>
+    <string name="metric_suffix_ms">" ms"</string>
+
+    <!-- ============================== verdicts ============================= -->
+    <string name="verdict_trustworthy">TRUSTWORTHY</string>
+    <string name="verdict_compromised">COMPROMISED</string>
+    <string name="verdict_reject">REJECT</string>
+    <string name="status_ready">READY</string>
+    <string name="status_no_licence">NO LICENCE</string>
+    <string name="status_no_attestation">NO ATTESTATION</string>
+    <string name="status_no_token">NO TOKEN</string>
+    <string name="status_verify_error">VERIFY ERROR</string>
+
+    <!-- ============================== guidance ============================= -->
+    <string name="note_idle">Tap Initialize to validate the licence and start a session.</string>
+    <string name="note_ready">Session %1$s is bound to a hardware key. Every scan from here is TEE-free.</string>
+    <string name="note_no_licence">The server.key asset is expired or bound to a different package. Scan still works — it emits a DEGRADED token that says so, instead of nothing.\n\nTap Scan to see what the backend receives.</string>
+    <string name="note_no_attestation">The licence is fine, but the TEE keygen failed. Scan still works and emits a DEGRADED token: unattested, signed with a software key if one is available, carrying the detector findings and the reason the keygen failed.\n\nTap Scan to see what the backend receives.</string>
+    <string name="note_no_token">The licence blob did not parse at all. That is the one failure that cannot emit even a degraded token, because the server public key lives inside that blob.</string>
+    <string name="note_verify_error">The scan token could not be processed.\n\n%1$s: %2$s</string>
+    <string name="note_bootstrap_scan">Bootstrap scan. Attested this session and carries the chain.</string>
+    <string name="note_steady_scan">Steady-state scan. Signed with the key bootstrap attested.</string>
+    <!-- The scan-kind sentence, then the verifier's own reason for the verdict. -->
+    <string name="note_scan_with_reason">%1$s\n%2$s</string>
+
+    <!-- ============================== evidence ============================= -->
+    <string name="evidence_attestation">Attestation</string>
+    <string name="evidence_attestation_sub">what the token says about its own binding</string>
+    <string name="evidence_attestation_summary">%1$s / %2$s</string>
+
+    <string name="evidence_checks">Checks</string>
+    <string name="evidence_checks_sub">every gate that ran, in order</string>
+    <string name="evidence_checks_all_passed">all %1$d passed</string>
+    <string name="evidence_checks_failed">%1$d of %2$d failed</string>
+    <string name="evidence_checks_tile_ok">%1$d ok</string>
+    <string name="evidence_checks_tile_bad">%1$d bad</string>
+
+    <string name="evidence_signals">Signals</string>
+    <string name="evidence_signals_sub">what the detectors found</string>
+    <string name="evidence_signals_none">none</string>
+    <string name="evidence_signals_no_blocking">%1$d, none blocking</string>
+    <string name="evidence_signals_blocking">%1$d, %2$d blocking</string>
+
+    <string name="evidence_fingerprint">Fingerprint</string>
+    <string name="evidence_fingerprint_sub">fraud-correlation inputs</string>
+    <string name="evidence_fingerprint_widevine">Widevine %1$s</string>
+    <string name="evidence_fingerprint_absent">not carried</string>
+
+    <string name="evidence_session">Session facts</string>
+    <string name="evidence_session_sub">what a backend stores per session</string>
+    <string name="evidence_session_absent">none carried</string>
+
+    <!-- Stands in for a value the device did not report. -->
+    <string name="value_absent">—</string>
+    <string name="value_unavailable">unavailable</string>
+    <string name="value_not_attested">not attested</string>
+    <string name="value_none_reported">none reported</string>
+    <!-- A value shown exactly as the device reported it. -->
+    <string name="value_raw">%1$s</string>
+    <string name="value_count">%1$d</string>
+
+    <!-- =========================== empty states =========================== -->
+    <string name="empty_no_scan">No scan in memory. Run Initialize, then Scan, and open this screen from the results.</string>
+    <string name="empty_no_session">No session established yet. A steady-state scan needs the facts the bootstrap scan returned - run Initialize, then Scan.</string>
+
+    <!-- ========================= attestation screen ======================== -->
+    <string name="attestation_degraded_intro">This token carries no hardware binding. It is unauthenticated - anyone able to encrypt to the server key could mint one naming any session - so it is never evidence of a clean device. It is evidence that something stopped this device binding itself, which is worth strictly more than the silence this case used to produce.</string>
+    <string name="attestation_bound_intro">This token is bound to a hardware-attested key. The chain is what the backend grades; the level below only says a chain exists.</string>
+    <string name="attestation_claim">The claim</string>
+    <string name="attestation_key">key</string>
+    <string name="attestation_signed_by">signed by</string>
+    <string name="attestation_reason">reason</string>
+    <string name="attestation_detail">detail</string>
+    <string name="attestation_key_hint">`key` describes the key, `signed by` what actually signed THIS token. They degrade independently: a hooked keygen gives NONE/SOFTWARE, a device that lost its keystore mid-session gives the reverse.</string>
+    <string name="attestation_bug_or_injection">Is this a bug or an injection?</string>
+    <string name="attestation_bug_or_injection_why">both look identical at a glance, so the backend classifies on two axes</string>
+    <string name="attestation_axis_reason">1. The reason. A device fault reports a known sub-code such as strongbox_unavailable:-68. An EMPTY detail means nothing threw - the binding just never appeared, which is hook-shaped.</string>
+    <string name="attestation_axis_corroboration">2. Corroboration. The detectors run first and never touch the TEE, so their findings are independent evidence about this same process. A hook that broke the attestation usually trips them; a StrongBox that was never fitted trips nothing. Check the Signals screen.</string>
+    <string name="attestation_self_reported">The detail above is self-reported and unsigned on a degraded token, so a benign-looking reason can never clear a device on its own. Degraded tokens incriminate reliably; they exonerate only in aggregate.</string>
+
+    <!-- =========================== checks screen =========================== -->
+    <string name="checks_intro">An AUTHENTICITY failure means the token is a proven forgery - nothing in it is usable, and the verdict is REJECT. A DEVICE INTEGRITY failure means the token is genuine but the device honestly reports an untrustworthy state, which is COMPROMISED rather than forged.</string>
+    <string name="checks_authenticity">Authenticity</string>
+    <string name="checks_device_integrity">Device integrity</string>
+    <string name="checks_passed_of">%1$d of %2$d passed</string>
+    <string name="checks_order_hint">The order is the order they ran. It is the audit trail for this decision.</string>
+    <string name="check_pass">PASS</string>
+    <string name="check_fail">FAIL</string>
+
+    <!-- =========================== signals screen ========================== -->
+    <string name="signals_none">No detector fired. That is NOT evidence of a clean device: every core here fails open, so a core that cannot read its input contributes nothing rather than a guess. Absence of a signal means nothing was affirmatively found, and no more than that.</string>
+    <string name="signals_intro">Each signal is an opaque code on the wire - the detector and kind are resolved here from the registry. Severity is a device HINT; the backend decides what blocks.</string>
+    <string name="signal_blocking">BLOCK</string>
+    <string name="signal_info">info</string>
+    <string name="signal_meta">%1$s / %2$s   ·   %3$s</string>
+    <string name="signal_attached_evidence">Attached evidence</string>
+    <string name="signal_reach_label">what this unlocks</string>
+    <string name="signal_retired">This code is retired and should never arrive. The registry that resolved it is out of date.</string>
+    <string name="signal_group_unknown">Unrecognised codes</string>
+    <string name="signal_group_unknown_blurb">No row in this build\'s catalogue. The registry has moved on — regenerate it.</string>
+    <string name="signal_hook_pool">Confirmed hook pool: the stubs in this region branch into real code. RWX on its own is ambiguous - an ART JIT cache is RWX too - so this is the field that separates a hook from a cache.</string>
+    <string name="signals_definitive_hook">Definitive hook - the structural and behavioural checks agree on: %1$s. Either alone is weaker; agreeing is the finding.</string>
+    <string name="signals_confirmed_pools">Confirmed RWX hook pool: %1$d region(s) whose stubs branch into real code.</string>
+
+    <!-- ========================= fingerprint screen ======================== -->
+    <string name="fingerprint_absent">This scan carried no fingerprint. Only the bootstrap scan sends the full set; a steady-state scan sends its digest alone, because an OS update cannot happen inside one session - so a digest that changes mid-session means the device changed under it.</string>
+    <string name="fingerprint_intro">These are already the peppered SHA-256 digests the backend stores. The raw Widevine id and ANDROID_ID never leave the handset, so what is shown here is the opaque form, truncated only for legibility.</string>
+    <string name="fingerprint_identifiers">Identifiers</string>
+    <string name="fingerprint_device">device</string>
+    <string name="fingerprint_app">app</string>
+    <string name="fingerprint_device_hint">device: Widevine-rooted. Survives a reinstall, and is expected to survive a flash - Widevine provisioning lives in the DRM keybox rather than /data. That expectation has not been tested on a flashed handset.</string>
+    <string name="fingerprint_app_hint">app: ANDROID_ID. Survives a reinstall, resets on a flash.</string>
+    <string name="fingerprint_platform">Platform</string>
+    <string name="fingerprint_widevine">widevine</string>
+    <string name="fingerprint_kernel">kernel</string>
+    <string name="fingerprint_build">build</string>
+    <string name="fingerprint_patch">patch</string>
+    <string name="fingerprint_patch_self_reported">%1$s  (self-reported)</string>
+    <string name="fingerprint_installer">installer</string>
+    <string name="fingerprint_sideloaded">none - sideloaded</string>
+    <string name="fingerprint_native_hint">build, kernel and patch are read NATIVELY - system properties and a raw uname syscall - not through the JVM. They feed the patch cross-check, and reading spoofer-detection evidence through the surface a spoofer hooks would defeat it.</string>
+    <string name="fingerprint_never_blocks">A missing fingerprint never blocks a scan. This is a fraud-correlation input, not an integrity gate.</string>
+
+    <!-- ======================== session facts screen ======================= -->
+    <string name="session_intro">Attestation runs ONCE, at setSession, so these facts have to outlive it. The verifier keeps no state of its own: a bootstrap scan returns them, the caller stores them on its own session record, and hands them back on every later scan. That is what keeps the backend stateless.</string>
+    <string name="session_established">Established at bootstrap</string>
+    <string name="session_assurance">assurance</string>
+    <string name="session_boot_state">boot state</string>
+    <string name="session_device_locked">device locked</string>
+    <string name="session_attested_key">attested key</string>
+    <string name="session_attested_app">attested app</string>
+    <string name="session_attested_signer">attested signer</string>
+    <string name="session_signer_none">none</string>
+    <string name="session_forensics">Carried forensics</string>
+    <string name="session_chain_trusted">chain trusted</string>
+    <string name="session_keybox_revoked">keybox revoked</string>
+    <string name="session_cross_level_reuse">cross-level reuse</string>
+    <string name="session_prop_mismatch">property mismatch</string>
+    <string name="session_boot_spoofer">boot-state spoofer</string>
+    <string name="session_software_attested">software attested</string>
+    <string name="session_strongbox_missing">strongbox chain missing</string>
+    <string name="session_patch_levels">Attested patch levels</string>
+    <string name="session_patch_os">os</string>
+    <string name="session_patch_vendor">vendor</string>
+    <string name="session_patch_boot">boot</string>
+    <string name="session_staleness_hint">Staleness is judged on the OLDEST of the three: a current framework patch on a two-year-old bootloader is still exposed.</string>
 </resources>

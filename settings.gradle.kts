@@ -8,6 +8,12 @@ pluginManagement {
     // the entire root build aborts and the runtime AAR never gets published.
     // The composite-build path also gives in-tree devs an iterate-on-plugin
     // loop without local mavenLocal publishes.
+    //
+    // build-logic is the convention-plugin build for THIS build's modules
+    // (:deviceintelligence, :samples:minimal) — shared JVM/Android config.
+    // The consumer-facing plugin below is a separate composite build and
+    // intentionally does not use it.
+    includeBuild("build-logic")
     includeBuild("deviceintelligence-gradle")
     repositories {
         google()
@@ -35,13 +41,11 @@ if (!System.getenv("JITPACK").isNullOrEmpty()) {
 
 // In-tree library module. The Gradle plugin auto-detects this via
 // `rootProject.findProject(":deviceintelligence")` and substitutes
-// `project(":deviceintelligence")` for the otherwise-fetched JitPack AAR
+// `project(":deviceintelligence")` for the otherwise-fetched published AAR
 // (see DeviceIntelligencePlugin.addRuntimeDep). External consumers without
 // this module get the published AAR instead — same one-line consumer DSL.
 include(":deviceintelligence")
+// Backend verifier — pure Kotlin/JVM library. The sample app bundles it for the
+// on-device demo loop and the SDK androidTests decode tokens with it.
+include(":verifier")
 include(":samples:minimal")
-// Test-only artefacts used to verify the G5/G6 anti-hooking
-// detectors. These are NOT shipped to consumers — they live
-// alongside the sample app purely for in-tree CTF verification.
-include(":samples:xposed-api-stubs")
-include(":samples:lsposed-tester")

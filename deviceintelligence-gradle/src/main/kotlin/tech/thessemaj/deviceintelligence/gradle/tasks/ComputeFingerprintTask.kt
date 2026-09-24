@@ -98,7 +98,7 @@ abstract class ComputeFingerprintTask : DefaultTask() {
     @TaskAction
     fun compute() {
         val apk = resolveApk()
-        logger.lifecycle("tech.thessemaj: computing fingerprint for ${apk.name}")
+        logger.lifecycle("deviceintelligence: computing fingerprint for ${apk.name}")
 
         val ignoredEntries = Fingerprint.DEFAULT_IGNORED_ENTRIES.toSet()
         val ignoredPrefixes = Fingerprint.DEFAULT_IGNORED_ENTRY_PREFIXES
@@ -108,7 +108,7 @@ abstract class ComputeFingerprintTask : DefaultTask() {
             ignoredEntryPrefixes = ignoredPrefixes,
         )
         val entries = hasher.walk(apk)
-        logger.lifecycle("tech.thessemaj: hashed ${entries.size} entries (skipped META-INF/* + ${Fingerprint.ASSET_PATH})")
+        logger.lifecycle("deviceintelligence: hashed ${entries.size} entries (skipped META-INF/* + ${Fingerprint.ASSET_PATH})")
 
         val certs = CertHasher.digestChain(
             keystore = keystoreFile.get().asFile,
@@ -116,7 +116,7 @@ abstract class ComputeFingerprintTask : DefaultTask() {
             keystorePassword = keystorePassword.get(),
             alias = keyAlias.get(),
         )
-        logger.lifecycle("tech.thessemaj: cert chain size=${certs.size}, leaf=${certs.firstOrNull()}")
+        logger.lifecycle("deviceintelligence: cert chain size=${certs.size}, leaf=${certs.firstOrNull()}")
 
         // F19/G0 — compute build-time native-library fingerprint:
         // per-ABI .so inventory, per-file SHA-256, and libdicore.so
@@ -125,7 +125,7 @@ abstract class ComputeFingerprintTask : DefaultTask() {
         // self-integrity check (Component 3).
         val nativeFp = NativeLibInventory.walkApk(apk)
         logger.lifecycle(
-            "tech.thessemaj: native libs: abis=${nativeFp.inventoryByAbi.keys}, " +
+            "deviceintelligence: native libs: abis=${nativeFp.inventoryByAbi.keys}, " +
                 "dicoreText=${nativeFp.dicoreTextSha256ByAbi.mapValues { it.value.take(16) + "..." }}"
         )
 
@@ -149,23 +149,23 @@ abstract class ComputeFingerprintTask : DefaultTask() {
         val jsonOut = fingerprintFile.get().asFile
         jsonOut.parentFile.mkdirs()
         jsonOut.writeText(FingerprintJson.encode(fp))
-        logger.lifecycle("tech.thessemaj: wrote ${jsonOut.relativeTo(project.rootDir)}")
+        logger.lifecycle("deviceintelligence: wrote ${jsonOut.relativeTo(project.rootDir)}")
 
         val cboOut = fingerprintBinaryFile.get().asFile
         cboOut.parentFile.mkdirs()
         cboOut.outputStream().use { FingerprintCodec.encode(fp, it) }
-        logger.lifecycle("tech.thessemaj: wrote ${cboOut.relativeTo(project.rootDir)} (${cboOut.length()}B)")
+        logger.lifecycle("deviceintelligence: wrote ${cboOut.relativeTo(project.rootDir)} (${cboOut.length()}B)")
     }
 
     private fun resolveApk(): File {
         val dir = apkDirectory.get()
         val loader = builtArtifactsLoader.get()
         val artifacts = loader.load(dir)
-            ?: error("tech.thessemaj: AGP listing JSON missing in ${dir.asFile}")
+            ?: error("deviceintelligence: AGP listing JSON missing in ${dir.asFile}")
         val outputs = artifacts.elements
-        require(outputs.isNotEmpty()) { "tech.thessemaj: no APK outputs in ${dir.asFile}" }
+        require(outputs.isNotEmpty()) { "deviceintelligence: no APK outputs in ${dir.asFile}" }
         if (outputs.size > 1) {
-            logger.warn("tech.thessemaj: multiple APK outputs (${outputs.size}); using the first one (${outputs.first().outputFile})")
+            logger.warn("deviceintelligence: multiple APK outputs (${outputs.size}); using the first one (${outputs.first().outputFile})")
         }
         return File(outputs.first().outputFile)
     }

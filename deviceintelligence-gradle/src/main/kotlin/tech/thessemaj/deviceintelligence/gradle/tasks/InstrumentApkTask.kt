@@ -3,6 +3,7 @@ package tech.thessemaj.deviceintelligence.gradle.tasks
 import com.android.apksig.ApkSigner
 import com.android.build.api.artifact.ArtifactTransformationRequest
 import tech.thessemaj.deviceintelligence.gradle.internal.ApkHasher
+import tech.thessemaj.deviceintelligence.gradle.internal.ApkRepack
 import tech.thessemaj.deviceintelligence.gradle.internal.Fingerprint
 import tech.thessemaj.deviceintelligence.gradle.internal.FingerprintCodec
 import tech.thessemaj.deviceintelligence.gradle.internal.KeystoreSigning
@@ -22,14 +23,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
-import java.io.FilterOutputStream
-import java.io.OutputStream
-import java.util.zip.CRC32
-import java.util.zip.Deflater
-import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
-import java.util.zip.ZipOutputStream
+import java.security.SecureRandom
 
 /**
  * F8 — replaces AGP's signed APK with an instrumented + re-signed APK that
@@ -50,7 +44,7 @@ import java.util.zip.ZipOutputStream
  *
  * To break it, this task re-implements compute+bake INLINE, calling the
  * same [tech.thessemaj.deviceintelligence.gradle.internal.ApkHasher] / [FingerprintCodec] /
- * [tech.thessemaj.deviceintelligence.gradle.internal.CertHasher]-equivalent logic so the bytes baked
+ * [tech.thessemaj.deviceintelligence.gradle.internal.KeystoreSigning] logic so the bytes baked
  * into the APK match what the runtime will recompute. The standalone Compute
  * and Bake tasks are kept as on-demand diagnostics that hash the FINAL
  * (post-instrumentation) APK and produce identical hashes (since they apply
@@ -74,6 +68,10 @@ import java.util.zip.ZipOutputStream
  *      we care about, the hashes baked from pass 1 remain valid for pass 2.
  *   4. Re-sign pass-2 APK with apksig (v1 + v2 + v3).
  *
+ * (The deterministic ZIP read/write machinery — including 16 KB page
+ * alignment of STORED `.so` entries — lives in
+ * [tech.thessemaj.deviceintelligence.gradle.internal.ApkRepack].)
+ *
  * # Limitations (TODO for a later flag)
  *
  * - Native library alignment is not preserved. ZipOutputStream has no
@@ -95,11 +93,6 @@ abstract class InstrumentApkTask : DefaultTask() {
 
     @get:Internal
     abstract val transformationRequest: Property<ArtifactTransformationRequest<InstrumentApkTask>>
-
-    /** Per-build XOR key from [GenerateKeyChunksTask]. Build-private. */
-    @get:InputFile
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val keyFile: RegularFileProperty
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -137,11 +130,6 @@ abstract class InstrumentApkTask : DefaultTask() {
 
     @TaskAction
     fun instrument() {
-        val key = keyFile.get().asFile.readBytes()
-        require(key.size == KEY_SIZE) {
-            "key.bin is the wrong size: ${key.size} (expected $KEY_SIZE)"
-        }
-
         val signing = KeystoreSigning.load(
             keystoreFile = keystoreFile.get().asFile,
             configuredType = keystoreType.orNull,
@@ -150,14 +138,14 @@ abstract class InstrumentApkTask : DefaultTask() {
             entryPassword = keyPassword.orNull,
         )
         logger.lifecycle(
-            "tech.thessemaj: instrument: signer leafCertSha256=${signing.certHashes.firstOrNull()}, chainSize=${signing.certs.size}"
+            "deviceintelligence: instrument: signer leafCertSha256=${signing.certHashes.firstOrNull()}, chainSize=${signing.certs.size}"
         )
 
         val outDir = outputApkDirectory.get().asFile.apply { mkdirs() }
         transformationRequest.get().submit(this) { builtArtifact ->
             val inputApk = File(builtArtifact.outputFile)
             val outputApk = File(outDir, inputApk.name)
-            instrumentOne(inputApk, outputApk, key, signing)
+            instrumentOne(inputApk, outputApk, signing)
             outputApk
         }
     }
@@ -165,21 +153,20 @@ abstract class InstrumentApkTask : DefaultTask() {
     private fun instrumentOne(
         input: File,
         output: File,
-        key: ByteArray,
-        signing: KeystoreSigning.Material,
+        signing: KeystoreSigning.SigningMaterial,
     ) {
         // 1. Read input APK entries (decompressed) into memory. Strip META-INF/*
         //    (apksig will regenerate the v1 manifest+signatures during sign()),
         //    and defensively drop any pre-existing fingerprint asset (shouldn't
         //    happen on a clean build, but matters for incremental rebuilds).
-        val entries = readInputEntries(input)
+        val entries = ApkRepack.readInputEntries(input)
         logger.lifecycle(
-            "tech.thessemaj: instrument ${input.name}: read ${entries.size} entries (META-INF/* stripped)"
+            "deviceintelligence: instrument ${input.name}: read ${entries.size} entries (META-INF/* stripped)"
         )
 
         // 2. Pass 1: write APK with all entries, no fingerprint asset.
         val pass1Apk = File(temporaryDir, "${input.nameWithoutExtension}.pass1.apk")
-        writeApk(entries, additional = null, output = pass1Apk)
+        ApkRepack.writeApk(entries, additional = null, output = pass1Apk)
 
         // 3. Hash pass1 with the same algorithm the runtime + diagnostic
         //    Compute task use (ApkHasher: SHA-256 over compressed body bytes,
@@ -188,7 +175,7 @@ abstract class InstrumentApkTask : DefaultTask() {
         val ignoredPrefixes = Fingerprint.DEFAULT_IGNORED_ENTRY_PREFIXES
         val hashedEntries = ApkHasher(ignoredEntries, ignoredPrefixes).walk(pass1Apk)
         logger.lifecycle(
-            "tech.thessemaj: instrument ${input.name}: hashed ${hashedEntries.size} entries (post-repack pass-1)"
+            "deviceintelligence: instrument ${input.name}: hashed ${hashedEntries.size} entries (post-repack pass-1)"
         )
 
         // F19/G0 — compute build-time native-library fingerprint
@@ -205,7 +192,7 @@ abstract class InstrumentApkTask : DefaultTask() {
             entries.asSequence().map { (name, data) -> name to data.decompressed }
         )
         logger.lifecycle(
-            "tech.thessemaj: instrument ${input.name}: native libs abis=${nativeFp.inventoryByAbi.keys}, " +
+            "deviceintelligence: instrument ${input.name}: native libs abis=${nativeFp.inventoryByAbi.keys}, " +
                 "dicoreText=${nativeFp.dicoreTextSha256ByAbi.mapValues { it.value.take(16) + "..." }}"
         )
 
@@ -227,13 +214,22 @@ abstract class InstrumentApkTask : DefaultTask() {
             dicoreTextSha256ByAbi = nativeFp.dicoreTextSha256ByAbi,
         )
         val cbo = ByteArrayOutputStream().apply { FingerprintCodec.encode(fp, this) }.toByteArray()
-        val encrypted = ByteArray(cbo.size).also {
-            for (i in cbo.indices) {
-                it[i] = (cbo[i].toInt() xor key[i % key.size].toInt()).toByte()
-            }
+        // Spec 04 — the XOR key is NOT shipped. We draw a per-build random seed,
+        // derive the key via env-KEK (K = SHA256(seed XOR SHA256(phrase))) where
+        // the phrase is embedded only in libdicore.so, and prepend the seed to the
+        // blob. The native decoder re-derives K from the seed + its embedded phrase
+        // (apk_integrity_jni.cpp::fp_derive_key). No key material lives in the dex
+        // anymore — this replaces the old KeyChunks/KeyAssembler codegen.
+        val seed = ByteArray(KEY_SIZE).also { SecureRandom().nextBytes(it) }
+        val key = deriveFpKey(seed)
+        val encrypted = ByteArray(KEY_SIZE + cbo.size)
+        System.arraycopy(seed, 0, encrypted, 0, KEY_SIZE)
+        for (i in cbo.indices) {
+            encrypted[KEY_SIZE + i] = (cbo[i].toInt() xor key[i % KEY_SIZE].toInt()).toByte()
         }
         logger.lifecycle(
-            "tech.thessemaj: instrument ${input.name}: encrypted blob (${cbo.size}B plaintext, ${encrypted.size}B encrypted)"
+            "deviceintelligence: instrument ${input.name}: encrypted blob (${cbo.size}B plaintext, " +
+                "${encrypted.size}B = ${KEY_SIZE}B seed + ciphertext; key env-KEK-derived, not shipped)"
         )
 
         // 5. Pass 2: same entries (byte-identical compressed bodies due to
@@ -241,7 +237,7 @@ abstract class InstrumentApkTask : DefaultTask() {
         //    Because the asset is in the ignore set, pass-1's hashes still
         //    describe pass-2's non-ignored entries.
         val pass2Apk = File(temporaryDir, "${input.nameWithoutExtension}.pass2.apk")
-        writeApk(
+        ApkRepack.writeApk(
             entries = entries,
             additional = Fingerprint.ASSET_PATH to encrypted,
             output = pass2Apk,
@@ -269,181 +265,24 @@ abstract class InstrumentApkTask : DefaultTask() {
         pass2Apk.delete()
 
         logger.lifecycle(
-            "tech.thessemaj: instrument ${input.name} → ${output.relativeTo(project.rootDir)} " +
+            "deviceintelligence: instrument ${input.name} → ${output.relativeTo(project.rootDir)} " +
                 "(asset injected, re-signed v1+v2+v3)"
         )
     }
 
-    // ---- ZIP I/O ----------------------------------------------------------
-
-    private data class EntryData(
-        val method: Int,
-        val time: Long,
-        val decompressed: ByteArray,
-    )
-
-    private fun readInputEntries(input: File): LinkedHashMap<String, EntryData> {
-        val out = LinkedHashMap<String, EntryData>()
-        ZipFile(input).use { zf ->
-            val it = zf.entries()
-            while (it.hasMoreElements()) {
-                val e = it.nextElement()
-                if (e.isDirectory) continue
-                if (e.name.startsWith(META_INF_PREFIX)) continue
-                if (e.name == Fingerprint.ASSET_PATH) continue
-                val bytes = zf.getInputStream(e).use { it.readBytes() }
-                out[e.name] = EntryData(
-                    method = if (e.method == ZipEntry.STORED) ZipEntry.STORED else ZipEntry.DEFLATED,
-                    time = e.time,
-                    decompressed = bytes,
-                )
-            }
-        }
-        return out
-    }
-
-    private fun writeApk(
-        entries: Map<String, EntryData>,
-        additional: Pair<String, ByteArray>?,
-        output: File,
-    ) {
-        // Always level 6 (DEFAULT_COMPRESSION) + DEFAULT_STRATEGY. Determinism
-        // here is what makes pass-1 and pass-2 produce identical body bytes
-        // for non-fingerprint entries.
-        //
-        // The CountingOutputStream wrapper lets us know the exact byte
-        // offset of the next local-file-header before we hand the entry
-        // to ZipOutputStream — required for 16 KB page-alignment of
-        // STORED .so entries (see writeEntry).
-        val counting = CountingOutputStream(FileOutputStream(output))
-        ZipOutputStream(counting).use { zip ->
-            zip.setLevel(Deflater.DEFAULT_COMPRESSION)
-            for ((name, data) in entries) {
-                writeEntry(zip, counting, name, data.decompressed, data.method, data.time)
-            }
-            if (additional != null) {
-                val (name, bytes) = additional
-                writeEntry(zip, counting, name, bytes, ZipEntry.STORED, time = FIXED_EPOCH_MS)
-            }
-        }
-    }
-
-    private fun writeEntry(
-        zip: ZipOutputStream,
-        counting: CountingOutputStream,
-        name: String,
-        data: ByteArray,
-        method: Int,
-        time: Long,
-    ) {
-        val entry = ZipEntry(name).apply {
-            this.method = method
-            this.time = time
-            if (method == ZipEntry.STORED) {
-                size = data.size.toLong()
-                compressedSize = data.size.toLong()
-                crc = CRC32().apply { update(data) }.value
-            }
-        }
-
-        // 16 KB page-align uncompressed shared libraries so Android 15+
-        // on 16 KB-page-size devices (Pixel 8a/9, API 35/36 emulators
-        // with the 16 KB system image) accepts the .so for direct mmap.
-        // The padding goes into the local-file-header's extra field —
-        // it does NOT touch the entry body, so the post-instrumentation
-        // hash that integrity.apk baked at compute time still matches the runtime
-        // ZIP-entry body byte-for-byte.
-        //
-        // Skipped entirely for DEFLATED entries (those are decompressed
-        // before mmap so per-entry alignment doesn't matter) and for
-        // anything that isn't a .so (resources.arsc has its own much
-        // looser alignment rules).
-        if (method == ZipEntry.STORED && name.endsWith(".so")) {
-            val nameBytes = name.toByteArray(Charsets.UTF_8)
-            val headerSizeBeforeExtra = LOCAL_FILE_HEADER_FIXED_SIZE + nameBytes.size
-            val nextDataOffsetWithoutPad = counting.count + headerSizeBeforeExtra
-            val rem = (nextDataOffsetWithoutPad % SO_ALIGNMENT).toInt()
-            if (rem != 0) {
-                // Standard 4-byte extra-field record header (id + size)
-                // takes 4 bytes minimum. If the natural padding gap is
-                // 1..3 bytes we can't fit the header → bump up to the
-                // next page. Worst case wastes 16 KB once per .so;
-                // negligible for any real APK.
-                var padding = SO_ALIGNMENT - rem
-                if (padding < EXTRA_RECORD_HEADER_BYTES) padding += SO_ALIGNMENT
-                entry.extra = buildPaddingExtra(padding.toInt())
-            }
-        }
-
-        zip.putNextEntry(entry)
-        zip.write(data)
-        zip.closeEntry()
-    }
+    // ---- env-KEK key derivation ------------------------------------------
 
     /**
-     * Builds a single well-formed extra-field record of total size
-     * [totalBytes]. Uses an unassigned header id (0xCAFE) so well-behaved
-     * ZIP readers (Android's PackageManager, apksig, the JDK) skip it
-     * cleanly as an unknown record.
+     * env-KEK key derivation, delegated to the closed baker (spec 08) so the
+     * env-KEK phrase doesn't ship in the open-source plugin. Byte-identical to the
+     * native `apk_integrity_jni.cpp::fp_derive_key`: K = SHA256(seed XOR SHA256(phrase)).
+     * The phrase now lives only in libdicore.so + the closed baker JAR; the seed is
+     * per-build random and shipped in the blob, so the dex carries no key material.
      */
-    private fun buildPaddingExtra(totalBytes: Int): ByteArray {
-        require(totalBytes >= EXTRA_RECORD_HEADER_BYTES) {
-            "padding $totalBytes < minimum extra-record header size $EXTRA_RECORD_HEADER_BYTES"
-        }
-        val out = ByteArray(totalBytes)
-        // Header id 0xCAFE, little-endian.
-        out[0] = 0xFE.toByte()
-        out[1] = 0xCA.toByte()
-        // Data size (= totalBytes - 4), little-endian.
-        val dataSize = totalBytes - EXTRA_RECORD_HEADER_BYTES
-        out[2] = (dataSize and 0xFF).toByte()
-        out[3] = ((dataSize ushr 8) and 0xFF).toByte()
-        // Body bytes are already zero from ByteArray init.
-        return out
-    }
-
-    /**
-     * Tracks total bytes written through the wrapped stream. Required
-     * for computing the byte offset of the next ZIP local-file-header
-     * before ZipOutputStream commits it to disk.
-     */
-    private class CountingOutputStream(out: OutputStream) : FilterOutputStream(out) {
-        var count: Long = 0L
-            private set
-
-        override fun write(b: Int) {
-            out.write(b)
-            count++
-        }
-
-        override fun write(b: ByteArray, off: Int, len: Int) {
-            out.write(b, off, len)
-            count += len
-        }
-    }
+    private fun deriveFpKey(seed: ByteArray): ByteArray =
+        tech.thessemaj.deviceintelligence.baker.DeviceIntelligenceBaker.fpKey(seed)
 
     private companion object {
         const val KEY_SIZE: Int = 32
-        const val META_INF_PREFIX: String = "META-INF/"
-        // A constant epoch for the fingerprint asset. The on-disk LFH stores
-        // this as DOS time, which doesn't affect ApkHasher (it hashes body
-        // bytes, not LFH bytes), but using a constant keeps the asset's LFH
-        // stable across builds — useful for diffing.
-        const val FIXED_EPOCH_MS: Long = 0L
-
-        // ZIP local-file-header layout: 30 bytes of fixed fields, followed
-        // by `name_length` bytes of filename, followed by `extra_length`
-        // bytes of extra data, followed by the entry body. The extra
-        // field is where 16 KB padding lives.
-        const val LOCAL_FILE_HEADER_FIXED_SIZE: Int = 30
-
-        // Each extra-field record carries a 4-byte header (2-byte id +
-        // 2-byte data length) followed by `data length` bytes of body.
-        const val EXTRA_RECORD_HEADER_BYTES: Int = 4
-
-        // Page size we align uncompressed shared libraries to. Android
-        // 15+ on devices booted with 16 KB pages requires this; 4 KB-page
-        // devices tolerate the extra padding silently.
-        const val SO_ALIGNMENT: Long = 16384L
     }
 }

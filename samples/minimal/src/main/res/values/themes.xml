@@ -1,16 +1,19 @@
 <resources>
     <!--
-      Light theme. Window background matches Ui.Palette.LIGHT.pageBg so
-      the launch splash and the activity bg agree (no "white flash"
-      between cold start and the first frame). NoActionBar because the
-      sample draws its own header in the hero card.
+      Dark theme, matching IntelColors. The window background agrees with the
+      Compose background so the launcher-to-app handoff shows no white flash.
+      NoActionBar because every screen draws its own pinned header.
+
+      The bar colours are set to the page background rather than transparent:
+      enableEdgeToEdge() takes over the system bars at runtime, and these only
+      cover the frames before it runs.
     -->
-    <style name="Theme.Sample" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+    <style name="Theme.Sample" parent="@android:style/Theme.DeviceDefault.NoActionBar">
         <item name="android:windowBackground">@color/sample_page_bg</item>
         <item name="android:statusBarColor">@color/sample_page_bg</item>
         <item name="android:navigationBarColor">@color/sample_page_bg</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <!--
           Default activity transition: a quick cross-fade in / out so
           the launcher-to-app handoff doesn't feel abrupt. The fade

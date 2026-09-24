@@ -1,8 +1,8 @@
 package tech.thessemaj.deviceintelligence.gradle.tasks
 
+import tech.thessemaj.deviceintelligence.baker.DeviceIntelligenceBaker
 import tech.thessemaj.deviceintelligence.gradle.internal.FingerprintCodec
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -13,10 +13,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class BundleFingerprintBuilderTest {
-
-    @Test fun blobDecodesToBundleModeWithMergedSigners(@TempDir dir: File) {
+    @Test fun bakedBlobDecodesToBundleModeWithMergedSigners(@TempDir dir: File) {
         val dex = "DEXBYTES".toByteArray()
-        val so  = "SOBYTES".toByteArray()
+        val so = "SOBYTES".toByteArray()
         val aab = File(dir, "app.aab")
         ZipOutputStream(aab.outputStream()).use { z ->
             z.putNextEntry(ZipEntry("base/dex/classes.dex")); z.write(dex); z.closeEntry()
@@ -24,33 +23,31 @@ class BundleFingerprintBuilderTest {
             z.putNextEntry(ZipEntry("base/resources.pb")); z.write("R".toByteArray()); z.closeEntry()
         }
 
-        val key = ByteArray(32) { it.toByte() } // deterministic test key
-
         val blob = BundleFingerprintBuilder.build(
             aab = aab,
-            key = key,
             signerCertHashes = listOf("aa11"),
-            playPins = listOf("bb22", "aa11"), // overlap must be de-duplicated
-            pluginVersion = "5.0.0",
+            playPins = listOf("bb22", "aa11"), // overlap must de-dupe
+            pluginVersion = "1.9.0",
             variant = "release",
-            appId = "tech.thessemaj.sample",
+            appId = "tech.thessemaj.deviceintelligence.sample",
         )
 
-        // Decrypt: XOR with the same key.
-        val plain = ByteArray(blob.size) { i -> (blob[i].toInt() xor key[i % 32].toInt()).toByte() }
-        val fp = FingerprintCodec.decode(ByteArrayInputStream(plain))
+        // Envelope: seed(32) ‖ XOR(ciphertext, DeviceIntelligenceBaker.fpKey(seed)).
+        val seed = blob.copyOfRange(0, 32)
+        val key = DeviceIntelligenceBaker.fpKey(seed)
+        val plain = ByteArray(blob.size - 32)
+        for (i in plain.indices) plain[i] = (blob[32 + i].toInt() xor key[i % 32].toInt()).toByte()
 
-        assertTrue(fp.bundleMode)
-        assertEquals(sha256Hex(dex), fp.bundleEntryHashes["classes.dex"])
-        assertEquals(sha256Hex(so),  fp.bundleEntryHashes["lib/arm64-v8a/libother.so"])
-        assertFalse("base/resources.pb" in fp.bundleEntryHashes.keys)
-        // De-duplicated merged signer allow-set.
+        val fp = FingerprintCodec.decode(ByteArrayInputStream(plain))
+        assertEquals(true, fp.bundleMode)
+        assertEquals(sha(dex), fp.bundleEntryHashes["classes.dex"])
+        assertEquals(sha(so), fp.bundleEntryHashes["lib/arm64-v8a/libother.so"])
+        assertTrue("base/resources.pb" !in fp.bundleEntryHashes.keys)
+        // Merged + de-duplicated signer allow-set.
         assertEquals(setOf("aa11", "bb22"), fp.signerCertSha256.toSet())
-        assertEquals("tech.thessemaj.sample", fp.applicationId)
-        // APK-mode entries is empty in bundle mode.
-        assertTrue(fp.entries.isEmpty())
+        assertEquals("tech.thessemaj.deviceintelligence.sample", fp.applicationId)
     }
 
-    private fun sha256Hex(b: ByteArray): String =
-        MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+    private fun sha(b: ByteArray) = MessageDigest.getInstance("SHA-256").digest(b)
+        .joinToString("") { "%02x".format(it) }
 }

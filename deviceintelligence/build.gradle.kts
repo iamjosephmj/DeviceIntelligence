@@ -1,10 +1,9 @@
-import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import tech.thessemaj.deviceintelligence.buildtools.BaselineBlob
+import java.security.MessageDigest
 
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    id("deviceintelligence.android.library")
     `maven-publish`
-    id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
 // Read coordinates from gradle.properties so JitPack (which sets
@@ -17,9 +16,60 @@ val libraryArtifactId: String = providers.gradleProperty("LIBRARY_ARTIFACT_ID").
 group = publishGroup
 version = publishVersion
 
+// Hardening gate: a release .so SHOULD go through the Arkari obfuscating
+// toolchain. An unobfuscated libdicore.so hands a static analyst every detector
+// string (INTEL_* IDs, Frida/Magisk/KernelSU artifacts), readable control
+// flow and ~900 function boundaries. This guard makes a local release build
+// fail fast instead of silently shipping readable native code.
+// Dev escape hatch: -Pdeviceintelligence.allowUnobfuscatedRelease=true.
+//
+// Launcher resolution order:
+//   1. Explicit -Pdeviceintelligence.obfuscate=<launcher> wins (CI passes it in release.yml).
+//      Relative paths are canonicalized against the ROOT project — CMake/Ninja
+//      execute from deviceintelligence/.cxx/<variant>/<abi>, where a bare relative path is
+//      "not found".
+//   2. Otherwise the in-repo launcher (tools/obfuscator/arkari-launch.sh) is used
+//      automatically when present. It routes compile steps through the Arkari
+//      clang (an LLVM/Clang fork at ~/AndroidStudioProjects/_ollvm/Arkari, run
+//      inside the ddk bwrap chroot) with the -mllvm -irobf-* pass flags; link
+//      steps fall through to the NDK compiler. Arkari is a prebuilt fork —
+//      there is no pass to compile (the old self-owned pass build step is gone).
+//   3. -Pdeviceintelligence.allowUnobfuscatedRelease=true skips auto-detection (a plain
+//      NDK toolchain build) and disarms the gate.
+val diObfuscateProperty = project.findProperty("deviceintelligence.obfuscate") as String?
+val allowUnobfuscatedRelease =
+        (project.findProperty("deviceintelligence.allowUnobfuscatedRelease") as String?) == "true"
+val obfRoot = rootProject.projectDir.resolve("tools/obfuscator")
+val arkariLauncher: File? =
+        diObfuscateProperty?.let { rootProject.file(it) }
+                ?: obfRoot.resolve("arkari-launch.sh").takeIf { launcher ->
+                    !allowUnobfuscatedRelease && launcher.exists()
+                }
+if (!allowUnobfuscatedRelease) {
+    gradle.taskGraph.whenReady {
+        val releasesDeviceIntelligence = allTasks.any {
+            // "Clean" tasks are pure deletion — they can't ship an
+            // unhardened artifact, so only compiling/packaging tasks gate.
+            it.project.path == ":deviceintelligence" && it.name.contains("Release") &&
+                    !it.name.contains("Clean", ignoreCase = true)
+        }
+        if (releasesDeviceIntelligence && arkariLauncher == null) {
+            throw GradleException(
+                "deviceintelligence: release build without the Arkari launcher would ship an " +
+                        "unobfuscated libdicore.so (plaintext detector strings, recoverable " +
+                        "control flow). tools/obfuscator/arkari-launch.sh is missing — restore it " +
+                        "and ensure the Arkari clang exists at " +
+                        "~/AndroidStudioProjects/_ollvm/Arkari/build/bin/clang (see " +
+                        "tools/obfuscator/README.md), or pass " +
+                        "-Pdeviceintelligence.obfuscate=<launcher> / " +
+                        "-Pdeviceintelligence.allowUnobfuscatedRelease=true to opt out explicitly.",
+            )
+        }
+    }
+}
+
 android {
     namespace = "tech.thessemaj.deviceintelligence"
-    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
@@ -46,10 +96,58 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags("-std=c++17", "-fno-exceptions", "-fno-rtti")
+                // v2 ECIES tokens are now the DEFAULT: the scan API's backend
+                // (ScanVerifier) refuses a v1 token outright rather than accept one
+                // on the strength of a baked constant, so a v1 build cannot enroll.
+                // -Pdeviceintelligence.tokenV2=0 opts out, and exists only for bisecting the native
+                // envelope against a v3 backend — it produces tokens the scan path
+                // will reject.
+                if ((project.findProperty("deviceintelligence.tokenV2") as String?) != "0") {
+                    cppFlags("-DDICORE_TOKEN_V2=1")
+                }
+                // DIAGNOSTIC builds only: -Pdeviceintelligence.nativeLog=1 keeps DICORE_LOG
+                // on in release (RLOG lines under the "dicore" logcat tag).
+                // NEVER ship a nativeLog build: logcat becomes a live detector
+                // feed and the format strings document the .so.
+                if ((project.findProperty("deviceintelligence.nativeLog") as String?) == "1") {
+                    cppFlags("-DDICORE_LOG=1")
+                }
+                // Spec 04 — env-derived-KEK protection of the signer baseline.
+                // No stored key: ship only { per-build random seed, ciphertext }; the
+                // KEK is re-derived at runtime inside the native core. Input:
+                // -Pdeviceintelligence.expectedSigner=<hex>. The crypto lives in build-logic
+                // (tech.thessemaj.deviceintelligence.buildtools.BaselineBlob) so this script stays
+                // declarative.
+                run {
+                    val genDir = project.layout.buildDirectory.dir("generated/dicore").get().asFile
+                    BaselineBlob.writeHeader(genDir, project.findProperty("deviceintelligence.expectedSigner") as String?)
+                    cppFlags("-I${genDir.absolutePath}")
+                }
+                // Enforcement is UNCONDITIONAL — there is no advisory mode (the
+                // same stance as the removed OBSERVE/QUARANTINE: an advisory switch
+                // is a loophole an integrator could ship to neuter the RASP). The
+                // device-intelligence-lab — detection-only. The enforcement
+                // subsystem (watchdog/detonate/kill) has been REMOVED from the
+                // source entirely; detectors run and their findings are returned
+                // to the caller via the single JNI verdict entry point. No
+                // DICORE_*_ENFORCE flags remain.
                 arguments(
                     "-DANDROID_STL=c++_static",
                     "-DANDROID_PLATFORM=android-28",
                 )
+                // Obfuscation: when the Arkari launcher is resolved (explicit
+                // -Pdeviceintelligence.obfuscate=<launcher>, or auto-detected in-repo — see the
+                // resolution block at the top of this file), route compile steps
+                // through it (tools/obfuscator/arkari-launch.sh), which hops into the
+                // ddk chroot and compiles with the Arkari clang (links stay on NDK
+                // clang). Off when unresolvable so ordinary builds use the plain NDK
+                // toolchain.
+                arkariLauncher?.let { launcher ->
+                    arguments(
+                        "-DCMAKE_C_COMPILER_LAUNCHER=${launcher.absolutePath}",
+                        "-DCMAKE_CXX_COMPILER_LAUNCHER=${launcher.absolutePath}",
+                    )
+                }
             }
         }
 
@@ -60,6 +158,23 @@ android {
         // means a backend correlating reports has a single version
         // identifier across plugin, library, and report payload.
         buildConfigField("String", "LIBRARY_VERSION", "\"$publishVersion\"")
+
+        // Enforcement is unconditional (see the cppFlags above) — native is the
+        // sole verdict + killer, there is no advisory/observe mode and no flag that
+        // weakens it. A build always crashes the host on a confirmed CRITICAL.
+        // NOTE: this means any build (incl. dev/CI/the sample) terminates on a
+        // tampered/rooted device; that is intended for a RASP. Genuine devices are
+        // never CRITICAL, so they run normally.
+        //
+        // The native↔Kotlin differential parity gate (run-parity.sh /
+        // AttestationParityTest) is RETIRED: it diffed the native parser against
+        // KeyDescriptionParser, which no longer exists. Native-parser changes are
+        // (the libFuzzer/ASAN harness was removed in the revamp).
+
+        // RASP enforcement is UNCONDITIONAL: a build always crashes on any
+        // CRITICAL finding. There is deliberately no enforcement-ceiling flag
+        // (no `-Pdi.enforce`) — an observe/quarantine switch would be a loophole
+        // an integrator could ship to neuter the RASP, so it does not exist.
 
         // AndroidJUnitRunner powers the instrumented smoke tests under
         // src/androidTest/. The suite validates `DeviceIntelligence.collect()`
@@ -84,14 +199,6 @@ android {
             isMinifyEnabled = false
             consumerProguardFiles("consumer-rules.pro")
         }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     externalNativeBuild {
@@ -174,92 +281,99 @@ android {
         }
     }
 
-    // Variant selection + sources/javadoc jars are handled by the
-    // vanniktech AndroidSingleVariantLibrary config below.
+    // First-class AGP publishing hook (8.0+). Tells AGP which variant
+    // becomes the published `release` artifact, and asks it to also
+    // produce the sources + javadoc jars expected by Maven Central
+    // / Sonatype tooling. JitPack doesn't strictly require these but
+    // shipping them makes IDE source-attachment work for consumers
+    // (and costs nothing).
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
 dependencies {
-    // Coroutines is the lone runtime dep. Exposed as `api` because
-    // the public surface (`suspend collect()`, `Flow<TelemetryReport>
-    // observe()`) returns coroutines types — consumers that touch
-    // them need the symbols on their compile classpath without
-    // having to repeat the dependency themselves. Adds ~80 KB to a
-    // consumer APK; if the consumer already depends on coroutines
-    // (95%+ of modern Android apps), Gradle dedupes.
-    api(libs.kotlinx.coroutines.android)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-
-    // Instrumented smoke-test stack. JUnit4 is the on-device runtime
-    // (Android still ships JUnit4 in androidx.test.ext); androidx.test.core
-    // gives us ApplicationProvider.getApplicationContext() for the suite.
+    // Instrumented smoke suite (src/androidTest): exercises the env-bound native
+    // path (orchestrate + framework_shim + every detector) on a real device/emulator
+    // via the K JNI entry, and decodes the produced tokens in-process with :verifier.
     androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(project(":verifier"))
+
+    // tech.thessemaj.deviceintelligence.api.DeviceIntelligence exposes the three calls as suspend functions and
+    // serialises them on a Mutex. Only Dispatchers/Mutex/withContext are used, all
+    // INTERNAL to the facade — no coroutine type appears in a public signature (a
+    // suspend function's Continuation is kotlin-stdlib) — so this is
+    // `implementation`, not `api`, and consumers are not pinned to this version.
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Beyond that facade the core has NO runtime dependencies — detection, verdict, and
+    // kill all live in libdicore.so, and the surviving JVM shims use only Android
+    // framework APIs + JNI. The old `api(kotlinx-coroutines)` was here to expose
+    // the public `suspend collect()` / `Flow observe()` types, but the public API
+    // was deleted in the rearchitecture and the lone background dispatch is now a
+    // plain daemon Thread. The JVM test trees were removed (the native cores are
+    // covered by the libFuzzer harness + on-device verification), so there are no
+    // test dependencies either.
 }
 
-// Maven Central (Sonatype Central Portal) + signing, via vanniktech.
-// Coordinates come from gradle.properties: tech.thessemaj:deviceintelligence.
-mavenPublishing {
-    configure(
-        AndroidSingleVariantLibrary(
-            variant = "release",
-            sourcesJar = true,
-            publishJavadocJar = true,
-        )
-    )
-    publishToMavenCentral(automaticRelease = true)
-    // Sign only when a key is supplied (CI). JitPack's keyless
-    // publishToMavenLocal must keep working.
-    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
-        signAllPublications()
-    }
-    coordinates(publishGroup, libraryArtifactId, publishVersion)
-    pom {
-        name.set("DeviceIntelligence")
-        description.set(
-            "Android device-intelligence telemetry SDK: hardware-backed " +
-                "key attestation, bootloader integrity, root indicators, " +
-                "in-process tampering, emulator probe, app-cloner signals " +
-                "— emitted as a single deterministic JSON report."
-        )
-        url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-        licenses {
-            license {
-                name.set("Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)")
-                url.set("https://creativecommons.org/licenses/by-nd/4.0/legalcode")
-                distribution.set("repo")
-            }
-        }
-        developers {
-            developer {
-                id.set("iamjosephmj")
-                name.set("Joseph James")
-                url.set("https://github.com/iamjosephmj")
-            }
-        }
-        scm {
-            url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-            connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
-            developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
-        }
-    }
-}
+// AGP creates the `release` software component lazily during evaluation
+// of the android {} block, so the publishing block has to run after the
+// android {} block has materialised it.
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                groupId = publishGroup
+                artifactId = libraryArtifactId
+                version = publishVersion
 
-// Keep publishing the AAR to GitHub Packages too (CI only — GITHUB_REPOSITORY
-// + GITHUB_TOKEN are set by the runner). vanniktech owns the publications;
-// this only adds a second repository target.
-publishing {
-    repositories {
-        System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
-            maven {
-                name = "GitHubPackages"
-                url = uri("https://maven.pkg.github.com/$gpr")
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR").orEmpty()
-                    password = System.getenv("GITHUB_TOKEN").orEmpty()
+                pom {
+                    name.set("DeviceIntelligence")
+                    description.set(
+                        "Android deviceintelligence telemetry SDK: hardware-backed " +
+                            "key attestation, bootloader integrity, root indicators, " +
+                            "in-process tampering, emulator probe, app-cloner signals " +
+                            "— emitted as a single deterministic JSON report."
+                    )
+                    url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+                    licenses {
+                        license {
+                            name.set("The Apache License, Version 2.0")
+                            url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                            distribution.set("repo")
+                        }
+                    }
+                    developers {
+                        developer {
+                            id.set("iamjosephmj")
+                            name.set("Joseph James")
+                            url.set("https://github.com/iamjosephmj")
+                        }
+                    }
+                    scm {
+                        url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+                        connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
+                        developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
+                    }
+                }
+            }
+        }
+        // GitHub Actions only (GITHUB_REPOSITORY + GITHUB_TOKEN set by the runner).
+        repositories {
+            System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
+                maven {
+                    name = "GitHubPackages"
+                    url = uri("https://maven.pkg.github.com/$gpr")
+                    credentials {
+                        username = System.getenv("GITHUB_ACTOR").orEmpty()
+                        password = System.getenv("GITHUB_TOKEN").orEmpty()
+                    }
                 }
             }
         }
@@ -277,3 +391,87 @@ if (!System.getenv("JITPACK").isNullOrEmpty()) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// signal_ids.gen.h freshness guard.
+//
+// signals-registry.json is the source of truth for SIG codes; the native emitter
+// resolves (detector, kind) -> code through the GENERATED header. Edit the registry,
+// forget to regenerate, and the build still succeeds — the finding then serializes as
+// INTEL_UNKNOWN at runtime, which the backend cannot resolve. The header calls that
+// "a loud signal that the registry is stale", but nothing was listening (issue #12).
+//
+// The generator embeds `registry-sha256:` (the digest of the registry it read). This
+// task recomputes that digest and fails on a mismatch. Deliberately implemented with
+// JDK crypto rather than by shelling out to the generator, so the build gains NO
+// python dependency — JitPack and CI publish through this path.
+val checkSignalRegistryFresh by tasks.registering {
+    group = "verification"
+    description = "Fails if signal_ids.gen.h is stale w.r.t. signals-registry.json."
+
+    val registry = rootProject.file("tools/registry/signals-registry.json")
+    val header = file("src/main/cpp/dicore/orchestrator/signal_ids.gen.h")
+    inputs.file(registry)
+    inputs.file(header)
+    // Declaring an output lets Gradle mark the task UP-TO-DATE instead of rerunning
+    // it on every build; the stamp itself is not consumed by anything.
+    val stamp = layout.buildDirectory.file("tmp/signal-registry-fresh.txt")
+    outputs.file(stamp)
+
+    doLast {
+        if (!registry.exists()) throw GradleException("missing ${registry.path}")
+        if (!header.exists()) throw GradleException("missing ${header.path}")
+
+        val actual = MessageDigest.getInstance("SHA-256")
+            .digest(registry.readBytes())
+            .joinToString("") { b -> "%02x".format(b) }
+
+        val recorded = Regex("registry-sha256:\\s*([0-9a-f]{64})")
+            .find(header.readText())?.groupValues?.get(1)
+            ?: throw GradleException(
+                "signal_ids.gen.h has no `registry-sha256:` marker — it predates the " +
+                "freshness guard. Regenerate:\n" +
+                "    python3 tools/registry/gen-signal-ids.py")
+
+        if (recorded != actual) throw GradleException(
+            "signal_ids.gen.h is STALE.\n" +
+            "  signals-registry.json sha256 = $actual\n" +
+            "  signal_ids.gen.h    recorded = $recorded\n" +
+            "The registry changed without regenerating the native lookup table; findings " +
+            "for the affected codes would serialize as INTEL_UNKNOWN. Fix with:\n" +
+            "    python3 tools/registry/gen-signal-ids.py")
+
+        stamp.get().asFile.apply { parentFile.mkdirs() }.writeText(actual)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FrameworkShim op-code contract guard.
+//
+// FrameworkShim.q(op) (Kotlin) <-> fw_q/jvm_asset(op) (framework_shim.cpp) are a
+// two-sided literal-int contract with no single source of truth. When they drift,
+// native calls an op the `when` no longer handles, gets null back, and every
+// up-call degrades FAIL-OPEN — detectors run blind with no error anywhere.
+// The scanner (build-logic: tech.thessemaj.deviceintelligence.buildtools.ShimOpContract) fails the
+// build when the native side calls an op Kotlin does not handle, same spirit as
+// the registry freshness guard above. Pure JDK: no python/shell dependency.
+val checkFrameworkShimOps by tasks.registering {
+    group = "verification"
+    description = "Fails if native calls a FrameworkShim op the Kotlin when() does not handle."
+
+    val shimKt = file("src/main/kotlin/tech/thessemaj/deviceintelligence/internal/FrameworkShim.kt")
+    val cppRoot = file("src/main/cpp")
+    inputs.file(shimKt)
+    inputs.dir(cppRoot)
+    val stamp = layout.buildDirectory.file("tmp/framework-shim-ops.txt")
+    outputs.file(stamp)
+
+    doLast {
+        tech.thessemaj.deviceintelligence.buildtools.ShimOpContract.check(shimKt, cppRoot)
+        val r = tech.thessemaj.deviceintelligence.buildtools.ShimOpContract.scan(shimKt, cppRoot)
+        stamp.get().asFile.apply { parentFile.mkdirs() }
+            .writeText("kotlin=${r.kotlinOps.sorted()} native=${r.nativeOps.sorted()}\n")
+    }
+}
+
+tasks.named("preBuild") { dependsOn(checkSignalRegistryFresh, checkFrameworkShimOps) }

@@ -1,7 +1,7 @@
-// deviceintelligence-gradle/src/main/kotlin/tech/thessemaj/deviceintelligence/gradle/tasks/BundleIntegrityTask.kt
 package tech.thessemaj.deviceintelligence.gradle.tasks
 
 import tech.thessemaj.deviceintelligence.gradle.internal.AabSigner
+import tech.thessemaj.deviceintelligence.gradle.internal.Fingerprint
 import tech.thessemaj.deviceintelligence.gradle.internal.KeystoreSigning
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -21,20 +21,17 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 /**
- * App Bundle ("bundle mode") integrity transform over [SingleArtifact.BUNDLE].
+ * App Bundle ("bundle mode") integrity transform over [com.android.build.api.artifact.SingleArtifact.BUNDLE].
  *
  * AGP hands us the just-built, AGP-signed `.aab`; we:
- *   1. Bake the v3 bundle-mode fingerprint blob (decompressed dex/`.so` hashes +
- *      signer allow-set) with [BundleFingerprintBuilder].
- *   2. Repack the AAB with `base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin`
- *      injected as a STORED entry, stripping the old `META-INF/` signature and any
- *      pre-existing fingerprint. ONLY file entries are emitted — bundletool rejects
- *      directory entries in a re-packed AAB.
+ *   1. bake the v3 bundle-mode fingerprint blob (decompressed dex/`.so` hashes +
+ *      signer allow-set) with [BundleFingerprintBuilder],
+ *   2. repack the AAB with `base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin`
+ *      injected (STORED), stripping the old `META-INF/` signature and emitting
+ *      ONLY file entries (the Task 0 spike: bundletool rejects directory entries),
  *   3. JAR-re-sign the result with [AabSigner].
  *
- * Encryption: `XOR(encode(fp), key)` using the per-build `key.bin` from
- * [GenerateKeyChunksTask]. At runtime [FingerprintDecoder] decrypts with the
- * same key recovered via [KeyResolver.assembleKey].
+ * Downstream consumers (the `bundle*` outputs, `bundletool`) then see OUR AAB.
  */
 abstract class BundleIntegrityTask : DefaultTask() {
 
@@ -44,11 +41,6 @@ abstract class BundleIntegrityTask : DefaultTask() {
 
     @get:OutputFile
     abstract val outputAab: RegularFileProperty
-
-    /** Per-build XOR key from [GenerateKeyChunksTask]. */
-    @get:InputFile
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val keyFile: RegularFileProperty
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
@@ -68,7 +60,7 @@ abstract class BundleIntegrityTask : DefaultTask() {
     @get:Optional
     abstract val keyPassword: Property<String>
 
-    /** Play App Signing cert SHA-256 pins to include in the signer allow-set. */
+    /** Play App Signing cert SHA-256 pins to add to the membership allow-set. */
     @get:Input
     abstract val playSigningCertSha256: SetProperty<String>
 
@@ -83,11 +75,6 @@ abstract class BundleIntegrityTask : DefaultTask() {
 
     @TaskAction
     fun run() {
-        val key = keyFile.get().asFile.readBytes()
-        require(key.size == KEY_SIZE) {
-            "key.bin is wrong size: ${key.size}B (expected $KEY_SIZE)"
-        }
-
         val signing = KeystoreSigning.load(
             keystoreFile = keystoreFile.get().asFile,
             configuredType = keystoreType.orNull,
@@ -101,7 +88,6 @@ abstract class BundleIntegrityTask : DefaultTask() {
 
         val blob = BundleFingerprintBuilder.build(
             aab = input,
-            key = key,
             signerCertHashes = signing.certHashes,
             playPins = playSigningCertSha256.getOrElse(emptySet()),
             pluginVersion = pluginVersion.get(),
@@ -109,25 +95,25 @@ abstract class BundleIntegrityTask : DefaultTask() {
             appId = applicationId.get(),
         )
         logger.lifecycle(
-            "tech.thessemaj: bundle-mode fingerprint '${variantName.get()}': " +
-                "signerLeaf=${signing.certHashes.firstOrNull()}, " +
-                "playPins=${playSigningCertSha256.getOrElse(emptySet()).size}, " +
-                "bundleEntries=${blob.size}B"
+            "deviceintelligence: bundle-mode fingerprint for '${variantName.get()}': " +
+                "signer leaf=${signing.certHashes.firstOrNull()}, " +
+                "playPins=${playSigningCertSha256.getOrElse(emptySet()).size}, blob=${blob.size}B"
         )
 
         injectAsset(input, output, BUNDLE_ASSET_PATH to blob)
         AabSigner.sign(output, signing.privateKey, signing.certs)
 
         logger.lifecycle(
-            "tech.thessemaj: bundle-mode integrity → ${output.relativeTo(project.rootDir)} (asset injected, re-signed)"
+            "deviceintelligence: bundle-mode integrity → ${output.relativeTo(project.rootDir)} (asset injected, AAB re-signed v1)"
         )
     }
 
     /**
-     * Copies every file entry from [input] to [output], DROPPING `META-INF/`
-     * (old signature), any pre-existing fingerprint asset, and all directory
-     * entries (bundletool rejects them in a re-packed AAB); then appends
-     * [additional] as a STORED entry.
+     * Copies every file entry from [input] to [output] (decompressed bodies,
+     * original method preserved), DROPPING `META-INF/` (the old signature),
+     * any pre-existing fingerprint asset, and all directory entries; then
+     * appends [additional] as a STORED entry. No directory entries are emitted —
+     * bundletool rejects them on a re-packed AAB.
      */
     private fun injectAsset(input: File, output: File, additional: Pair<String, ByteArray>) {
         if (output.exists()) output.delete()
@@ -165,7 +151,6 @@ abstract class BundleIntegrityTask : DefaultTask() {
 
     private companion object {
         /** Fingerprint asset path inside the AAB's base module. */
-        const val BUNDLE_ASSET_PATH = "base/assets/tech.thessemaj.deviceintelligence/fingerprint.bin"
-        const val KEY_SIZE: Int = 32
+        val BUNDLE_ASSET_PATH: String = "base/" + Fingerprint.ASSET_PATH
     }
 }

@@ -1,0 +1,19 @@
+# Native (dicore) C++ style — operationalises the project's existing conventions
+# per the cpp-best-practices guidance ("implement a .clang-format"). Tuned to the
+# code already in tree (4-space indent, left-aligned pointers, attached braces,
+# 100-col) rather than imposing a foreign style, so it is non-churning.
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Left
+DerivePointerAlignment: false
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+SpacesBeforeTrailingComments: 2
+IncludeBlocks: Preserve
+SortIncludes: false

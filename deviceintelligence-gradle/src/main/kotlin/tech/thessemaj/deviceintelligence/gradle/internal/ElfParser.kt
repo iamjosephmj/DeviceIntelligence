@@ -9,8 +9,7 @@ import java.security.MessageDigest
  * fingerprint pipeline to compute a deterministic SHA-256 of
  * `libdicore.so`'s **executable PT_LOAD segment** at build time.
  * The runtime later compares this against the live in-memory bytes
- * of that same segment (see `NATIVE_INTEGRITY_DESIGN.md` Component
- * 3, "G2 .text self-integrity").
+ * of that same segment (the G2 `.text` self-integrity check).
  *
  * Why segment-level (PT_LOAD with PF_X) instead of a single section
  * (`.text`):
@@ -354,15 +353,5 @@ internal object ElfParser {
         val lo = readIntLE().toLong() and 0xFFFFFFFFL
         val hi = readIntLE().toLong() and 0xFFFFFFFFL
         return lo or (hi shl 32)
-    }
-
-    private fun ByteArray.toHex(): String {
-        val hex = "0123456789abcdef".toCharArray()
-        val out = CharArray(size * 2)
-        for (i in indices) {
-            out[i * 2] = hex[(this[i].toInt() shr 4) and 0xF]
-            out[i * 2 + 1] = hex[this[i].toInt() and 0xF]
-        }
-        return String(out)
     }
 }

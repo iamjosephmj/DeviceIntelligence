@@ -1,45 +1,31 @@
-# DeviceIntelligence public API surface kept across consumer R8/ProGuard.
+# DeviceIntelligence — consumer R8/ProGuard rules.
+#
+# The SDK is detection-only: detectors + token crypto live in libdicore.so
+# and the decision is made server-side (there is no on-device enforcement or
+# kill). The JVM side is a thin suspend facade (tech.thessemaj.deviceintelligence.api.DeviceIntelligence) over
+# logic-free up-call shims. So the only things consumers' R8 must NOT strip or
+# rename are the JNI surfaces — the class + method names form the JNI symbol /
+# up-call targets.
 
-# Top-level entry point. `*;` keeps the const VERSION + methods + the
-# auto-generated companion that hosts the @JvmStatic delegators.
--keep class tech.thessemaj.deviceintelligence.DeviceIntelligence { *; }
+# The bootstrap entry points (provider + AppComponentFactory) are no longer in
+# the AAR — the Gradle plugin generates them into the consumer with per-build
+# random names (spec 08 Stage A). AGP auto-keeps manifest-referenced components,
+# so no -keep is needed here for them.
 
-# Telemetry data classes — backends may reflect over them (e.g. via
-# Gson / Moshi when receiving a parsed copy server-side). Keep all
-# fields and synthetic accessors.
--keep class tech.thessemaj.deviceintelligence.TelemetryReport { *; }
--keep class tech.thessemaj.deviceintelligence.DeviceContext { *; }
--keep class tech.thessemaj.deviceintelligence.AppContext { *; }
--keep class tech.thessemaj.deviceintelligence.DetectorReport { *; }
--keep class tech.thessemaj.deviceintelligence.Finding { *; }
--keep class tech.thessemaj.deviceintelligence.ReportSummary { *; }
--keep class tech.thessemaj.deviceintelligence.Severity { *; }
--keep class tech.thessemaj.deviceintelligence.DetectorStatus { *; }
-
-# Manifest-merged auto-init provider; Android instantiates it via
-# reflection from the merged manifest, so R8 must not strip / rename it.
--keep class tech.thessemaj.deviceintelligence.internal.DeviceIntelligenceInitProvider { *; }
-
-# Native-bound JNI methods must keep their declared signatures so the
-# C++ entry points can resolve them at runtime. The class names
-# themselves form half of each JNI symbol — they MUST not be renamed.
--keep class tech.thessemaj.deviceintelligence.internal.NativeBridge {
+# The single fixed JNI anchor (spec 08 Stage B). The prebuilt .so binds its
+# native methods implicitly by `Java_tech_thessemaj_deviceintelligence_dx_K_<m>`, so the class name + the
+# native method names (e/p/c/r/g/s) MUST survive obfuscation. This is the ONLY
+# fixed-named JVM surface the AAR exposes.
+-keep class tech.thessemaj.deviceintelligence.dx.NativeBridge {
     public static native <methods>;
 }
--keepclasseswithmembernames class tech.thessemaj.deviceintelligence.internal.EmulatorProbe {
-    native <methods>;
-}
--keepclasseswithmembernames class tech.thessemaj.deviceintelligence.internal.ClonerDetector {
-    native <methods>;
+
+# FrameworkShim is the native up-call surface, reached through a SINGLE obfuscated
+# dispatch method `q(int,Object)` (native resolves only `q` by GetStaticMethodID).
+# The class name AND every real getter are free to be R8-renamed; we pin just `q`.
+# (native no longer FindClass'es the class either — the bootstrap hands its Class
+# to the anchor via NativeBridge.s.)
+-keepclassmembers class tech.thessemaj.deviceintelligence.internal.FrameworkShim {
+    public static java.lang.Object q(int, java.lang.Object);
 }
 
-# F9 FingerprintDecoder reflects on the build-time-generated key assembler
-# at this fixed FQN. R8 must not rename or strip it (or the assemble()
-# entry point), or runtime decryption falls over with KeyMissingException.
-# The KeyChunkN.* sub-package classes can be freely renamed: KeyAssembler's
-# bytecode references them directly, so R8 rewrites those references in
-# lockstep.
--keep class tech.thessemaj.deviceintelligence.gen.internal.KeyAssembler {
-    public static tech.thessemaj.deviceintelligence.gen.internal.KeyAssembler INSTANCE;
-    public byte[] assemble();
-}

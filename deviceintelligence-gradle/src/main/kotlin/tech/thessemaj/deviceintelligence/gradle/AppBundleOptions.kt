@@ -12,18 +12,19 @@ import org.gradle.api.provider.SetProperty
  * decompressed bodies across `sourceDir ∪ splitSourceDirs` and checks the
  * installed signer is a member of the baked allow-set.
  *
- * APK mode and bundle mode are mutually exclusive per variant.
+ * APK mode and bundle mode are mutually exclusive per variant; turning this on
+ * skips the APK integrity transform (see DeviceIntelligencePlugin).
  */
 abstract class AppBundleOptions {
     /** Enable bundle mode for AAB builds. Default `false`. */
     abstract val enabled: Property<Boolean>
 
     /**
-     * Play App Signing certificate SHA-256(s) to include in the signer
-     * allow-set, normalized to lowercase hex with `:` separators stripped.
-     * Under Play App Signing, Google re-signs delivered APKs with the app
-     * signing key, so the runtime must accept that signer in addition to the
-     * upload key. Empty = only the upload-key cert is in the allow-set.
+     * Play App Signing certificate SHA-256(s) to pin, normalized to lowercase
+     * hex with any `:` separators stripped. Under Play App Signing, Google
+     * re-signs the delivered APKs with the app signing key, so the runtime must
+     * accept that signer in addition to (or instead of) the upload key. Empty =
+     * no signer membership check is baked.
      */
     abstract val playSigningCertSha256: SetProperty<String>
 

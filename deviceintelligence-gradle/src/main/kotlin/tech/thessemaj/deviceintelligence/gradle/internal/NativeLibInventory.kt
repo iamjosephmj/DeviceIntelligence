@@ -1,12 +1,11 @@
 package tech.thessemaj.deviceintelligence.gradle.internal
 
 import java.io.File
-import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 /**
  * Walks an APK's `lib/<abi>/<file>.so` entries and builds the build-time
- * native-library fingerprint that NATIVE_INTEGRITY_DESIGN.md
+ * native-library fingerprint that the native-integrity design
  * Component 1 bakes into `Fingerprint.bin`:
  *
  *   - inventory of every shipped `.so` filename, grouped by ABI
@@ -166,20 +165,5 @@ internal object NativeLibInventory {
             fileHashesByAbi = frozenFileHashes,
             dicoreTextSha256ByAbi = frozenTextHashes,
         )
-    }
-
-    private fun sha256Hex(bytes: ByteArray): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        return md.digest(bytes).toHex()
-    }
-
-    private fun ByteArray.toHex(): String {
-        val hex = "0123456789abcdef".toCharArray()
-        val out = CharArray(size * 2)
-        for (i in indices) {
-            out[i * 2] = hex[(this[i].toInt() shr 4) and 0xF]
-            out[i * 2 + 1] = hex[this[i].toInt() and 0xF]
-        }
-        return String(out)
     }
 }
