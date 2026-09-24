@@ -1,400 +1,83 @@
-# Project DeviceIntelligence — deviceintelligence
+# DeviceIntelligence
 
-A **detection-only** Android device-integrity library, built **attest-once**: the expensive
-hardware key attestation is paid a single time, when you hand the SDK your session, and every
-scan after that is a cheap signature + runtime sweep. **There is no on-device enforcement and
-no on-device verdict — the device *reports*, the *backend decides*.**
+DeviceIntelligence is an Android library that answers one question for your backend: can this phone be trusted?
 
-There is **no SDK-owned network endpoint** and nothing to fetch before `initialize()`.
+It runs a set of on-device detectors — hardware attestation, verified boot, hook frameworks, root artifacts, emulators, app cloning, APK tampering — and reports what it finds as opaque `INTEL_XXXX` codes inside a signed, encrypted token. The library never enforces anything on the device and never contacts a server on its own. Your backend opens the token, grades what it sees, and decides.
 
-This README is the integration guide. It walks the whole system end to end:
+Two decisions shaped the design:
 
-1. [Provision the keys](#1-provision-the-keys) — one keypair, two halves, two owners
-2. [Integrate — Frontend (Android)](#integrate--frontend-android) — one plugin, three calls
-3. [How a token is generated](#how-a-token-is-generated) — what `scan()` actually produces
-4. [Integrate — Backend (server)](#integrate--backend-server) — verify and decide
+**Detection only.** Nothing is killed, blocked, or degraded on-device. The device reports; the backend decides. Anything the app could enforce, a rooted attacker can remove, so enforcement lives where the attacker isn't.
 
-## Architecture at a glance
+**Attest once.** Hardware attestation costs 150–200 ms, so it runs exactly once, when you hand the library a session id after your own login. The session id becomes the attestation challenge, which binds the attested key to that session — a captured token is useless anywhere else. Every scan after that is cheap: one detector sweep plus one TEE signature.
 
-```mermaid
-sequenceDiagram
-    participant App as 📱 App (deviceintelligence)
-    participant BE as 🖥️ Your backend (:verifier)
+## Integration
 
-    note over App,BE: INITIALIZE — local. No network, no TEE, no keystore.
-    App->>App: NativeBridge.initialize() — validate the signed,<br/>package-bound licence blob (~3 ms)
-
-    note over App,BE: SET SESSION — the one expensive call. Off the UI thread.
-    BE-->>App: sessionId (from YOUR login — opaque, unpredictable, per-session)
-    App->>App: NativeBridge.setSession(id) — attest a hardware key<br/>bound to that sessionId, cache it natively (~175 ms)
-
-    note over App,BE: SCAN — every request. No attestation, just one TEE signature.
-    App->>App: NativeBridge.scan("checkout") — runtime sweep<br/>(each finding = opaque SIG_xxxx), sign, encrypt
-    App->>BE: one encrypted token
-    BE->>BE: open envelope · sessionId matches · chain → Google root ·<br/>attestation challenge == sessionId · signature by the bound key
-    alt AUTH fails — a proven forgery
-        BE-->>App: ❌ REJECT
-    else authentic, but the device honestly reports a bad state
-        BE-->>App: ⚠️ COMPROMISED
-    else authentic + clean
-        BE-->>App: ✅ TRUSTWORTHY
-    end
-```
-
----
-
-## 1. Provision the keys
-
-DeviceIntelligence needs exactly one keypair (X25519), generated **on your machine at provisioning time** —
-never in a consumer build, never on a device. Two halves:
-
-| Output | Where it lives | Secrecy |
-|---|---|---|
-| `server.key` | the **app**, as an asset at `assets/tech.thessemaj.deviceintelligence/server.key` | **PUBLIC** — safe to embed |
-| `server-priv-<epoch>.pem` | the **backend** | **SECRET** — never ship, never commit; production keeps it in an HSM/KSM |
-
-The device holds only the *public* half (inside the licence blob), so there is no
-extractable transport secret on the phone. The private half is what opens scan tokens.
-
-Generate with the tools flow (also mints an RVN2 blob bound to your application id —
-set the application id and your publisher signing key there):
+Provision one X25519 keypair on your machine — never in a build, never on a device:
 
 ```sh
-python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>   # dev flow
-# or: tools/keys/gen-licence-key.sh                                # standalone flow
+python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
 ```
 
-Then copy `server.key` into your app's `assets/tech.thessemaj.deviceintelligence/`.
-A signed **RVN2** blob binds the licence to one application id + signing cert; the
-runtime fails fast on a repackaged or re-signed APK.
+`server.key` is the public half. Ship it as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key`; it is the key the runtime encrypts tokens to. The private half (`server-priv-<epoch>.pem`) belongs to your backend and never ships. A signed RVN2 blob is bound to one application id and signing cert, so a repackaged APK fails licence validation at startup.
 
-## Integrate — Frontend (Android)
-
-Three calls, one Gradle plugin, no network on the device side. The complete working
-wiring is in [`samples/minimal`).
-
-### 1. Make the plugin resolvable
-
-The plugin and the runtime AAR ship as **GitHub release assets**, not from Maven
-Central, so Gradle has to be told where to look. This is the step that is easy to
-miss — without it, `id("tech.thessemaj.deviceintelligence")` fails to resolve.
+Apply the Gradle plugin:
 
 ```kotlin
-// settings.gradle.kts
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        google()
-        mavenCentral()
-        maven("https://your-internal-mirror/releases")   // where you host the plugin jar
-    }
-}
-dependencyResolutionManagement {
-    repositories {
-        google()
-        mavenCentral()
-        maven("https://your-internal-mirror/releases")   // and the deviceintelligence AAR + per-ABI .so
-    }
-}
-```
-
-Assets are `deviceintelligence-<version>.aar`, the plugin jar, `libdicore-<abi>.so` for
-`arm64-v8a` / `armeabi-v7a` / `x86_64`, and `SHA256SUMS`. Mirror them, or point at
-the AAR directly — see [deviceintelligence/README) for the offline options.
-
-### 2. Apply the plugin
-
-```kotlin
-// app/build.gradle.kts
 plugins {
-    id("com.android.application")
     id("tech.thessemaj.deviceintelligence") version "0.5.2"
 }
 ```
 
-That is the whole integration. The plugin adds the matching runtime AAR at **its own
-version**, so plugin and runtime cannot drift, and it hashes your APK at build time
-and bakes the baseline in. **You do not need a `deviceintelligence { }` block** — every option is
-opt-in and defaults to off. If you want one:
+This adds the runtime AAR at a matching version, hashes your APK at build time, and bakes the baseline into it. It re-signs the APK after packaging, so every build type you ship needs a resolved signing config. There is a `deviceintelligence { }` block, but everything in it is optional.
+
+Then call three methods:
 
 ```kotlin
-deviceintelligence {
-    verbose.set(true)                        // log what the plugin registers, at configuration time
-    disableAutoRuntimeDependency.set(true)   // ONLY if you pin the AAR version yourself
-    appBundle { enabled.set(true) }          // bake into the AAB instead of the APK
-}
+DeviceIntelligence.initialize(application)      // once, local, ~3 ms
+DeviceIntelligence.setSession(sessionId)        // once per session, ~175 ms, off the UI thread
+val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
+myBackend.submit(token)
 ```
 
-> The plugin **re-signs your APK after packaging**, so every build type you ship needs
-> a fully resolved `signingConfig`. A build type without one fails the build with an
-> explicit message rather than shipping an app whose baseline does not match itself.
+All three are suspend functions. The session id must come from your backend, be unpredictable, and be at least 128 bits — the attestation binds to it, so a guessable id quietly removes replay protection. If you can't meet that bar, use `scan(name, nonce)` with a fresh server nonce instead.
 
-### 3. Install the licence asset
+Send the token even when `initialize()` or `setSession()` returns false. A failed licence check or keygen still produces a degraded token that names the failure, and your backend grades it. An empty token only happens when the licence never parsed, so there is nothing to encrypt to — treat that as a signal in its own right. From the backend's point of view, missing tokens are indistinguishable from network errors, and silence helps nobody but the attacker.
 
-Copy the PUBLIC half from [step 1](#1-provision-the-keys) into your app:
+If you're not on coroutines, `tech.thessemaj.deviceintelligence.dx.NativeBridge` is the blocking core underneath. Same three methods, plus `NativeBridge.s(FrameworkShim::class.java)`, which must run once before anything else. `setSession` still has to stay off the UI thread.
 
-```
-app/src/main/assets/tech.thessemaj.deviceintelligence/server.deviceintelligence
-```
+## Backend
 
-`initialize()` reads that exact path. A missing or unparseable blob is the one failure
-`scan()` cannot recover from — there is no key to encrypt tokens to.
-
-### 4. Call three methods
-
-`tech.thessemaj.deviceintelligence.api.DeviceIntelligence` is the API to use. All three are `suspend` and hop to
-`Dispatchers.IO` themselves, so none of them blocks your UI thread.
+Your backend issues session ids, opens tokens, and decides. The `verifier` module is a zero-dependency Kotlin/JVM library for exactly that:
 
 ```kotlin
-import tech.thessemaj.deviceintelligence.api.DeviceIntelligence
-
-// (a) ONCE at startup, e.g. Application.onCreate in a coroutine.
-//     Local only: no network, no TEE, no keystore. Cheap (~3 ms).
-DeviceIntelligence.initialize(application)
-
-// (b) ONCE per session, right after YOUR login returns.
-//     This is the expensive call: one TEE/StrongBox keygen, attested to sessionId.
-DeviceIntelligence.setSession(sessionId)
-
-// (c) PER REQUEST you want to protect. Cheap — no keygen, no attestation.
-val token = DeviceIntelligence.scan("checkout")
-if (token.isNotEmpty()) {
-    myBackend.submit(token)   // opaque to the app; only your backend can open it
-}
-```
-
-**Do not bail out when (a) or (b) returns `false`.** That is the most common
-integration mistake. A rejected licence or a failed keygen still lets `scan()` emit a
-**degraded** token — one that names the failure and carries the detector findings —
-and your backend grades it. Silence is what an attacker wants: at the backend, no
-token is indistinguishable from a network error or an app with no SDK at all. Send
-the token and let the server decide.
-
-| Call | Returns `false` when | What you do |
-|---|---|---|
-| `initialize` | the licence blob is missing, unparseable, bound to another package, or expired | carry on; scan reports it as `SIG_0054` |
-| `setSession` | the TEE/StrongBox keygen failed or was hooked | carry on; scan reports it as `SIG_0052` |
-| `scan` | returns `""` only when the blob never parsed — the server public key lives inside it, so there is nothing to encrypt to | nothing to send |
-
-> **`sessionId` is load-bearing.** It MUST be opaque, unpredictable, at least 128 bits,
-> issued per session by your backend, and never derived from a stable identifier (user
-> id, device id, email). It is the value the hardware attestation binds to, so a
-> guessable or shared id **silently removes replay protection** — there is no error and
-> no signal, because the SDK cannot detect it. If yours cannot meet that bar, pass a
-> fresh per-request server nonce instead: `DeviceIntelligence.scan(name, nonce)`.
-
-### Calling from Java, or managing your own threads
-
-`tech.thessemaj.deviceintelligence.dx.NativeBridge` is the blocking core underneath the facade — same three methods,
-no coroutines, and `NativeBridge.initialize()` takes no `Application` (the shim is registered
-separately, via `NativeBridge.s(FrameworkShim::class.java)`, once before anything else).
-**`NativeBridge.setSession` must not run on the UI thread.** Use it only when the facade does
-not fit; otherwise prefer `DeviceIntelligence`.
-
-### What you never do
-
-You never inspect, parse or branch on a token in the app. It is encrypted to your
-server key and opaque by design; anything the app could read, an attacker can rewrite.
-
----
-
-## How a token is generated
-
-Understanding the lifecycle makes every integration decision obvious. Three phases,
-only the third runs more than once:
-
-**INITIALIZE (once, local).** Validate the licence blob and cache the server public
-key from it. No network, no TEE, no keystore — milliseconds.
-
-**SET SESSION (once per session).** Your backend's `sessionId` becomes the
-**attestation challenge** of a fresh TEE/StrongBox key: Android bakes the challenge
-*inside* the certificate the device mints, so the key is now cryptographically bound
-to that session. The chain is cached in native process memory. This is the one
-expensive call (~175 ms), deliberately kept off the request path.
-
-**SCAN (every request).** In one call the native core:
-
-1. runs the detector sweep — every finding becomes an **opaque code** (`SIG_xxxx`);
-   the app never learns what they mean,
-2. builds a compact JSON `scan` document (schemaVersion 4) with the findings,
-   self-reported device properties and the app identity,
-3. **signs** it with the attested TEE key — an ECDSA signature a captured token
-   cannot forge, because the key cannot leave the TEE,
-4. **encrypts** to the server public key from the licence blob (v2 ECIES), and
-   returns the token string: `"2:"` + hex of
-
-   ```
-   version(1) || epoch(1) || eph_pub(32) || nonce(12) || ct || tag(16)
-   ```
-
-   opened server-side with `X25519(server_priv, eph_pub)` → `HKDF-SHA256` →
-   `AES-256-GCM`. The full wire contract — envelope, document, binding — is
-   [`tools/server/SCHEMA.md`).
-
-**Bootstrap vs steady-state.** The **first** scan of a cold start additionally
-carries the full attestation certificate chain (`bootstrap: true`) so the backend can
-pin the key to the session. Every later scan carries only `fpHash` and signs with the
-attested key — cheaper, and legitimately carrying less. Your backend must expect both.
-
----
-
-## Integrate — Backend (server)
-
-Your backend issues the session ids, verifies the tokens, and decides. Two drop-in
-options, identical logic:
-
-### Option A — JVM (`:verifier`, recommended for a JVM backend)
-
-Zero runtime dependencies (JDK crypto + a tiny hand-rolled JSON/DER reader); never shipped to
-the app. Full guide: [verifier/README).
-
-```kotlin
-import tech.thessemaj.deviceintelligence.verifier.*
-
-// Construct once and reuse — it caches parsed server keys.
 val verifier = ScanVerifier()
-
-// One entry point for every scan.
-//   token             — the "2:…" string the app posted
-//   issuedSessionId   — the session id YOUR backend issued for this session
-//   serverPrivateKey  — server-priv-<epoch>.pem, as a stream (PEM or raw DER)
-//   savedSession      — the ScanSession you stored at bootstrap; null on the
-//                       FIRST scan of a cold start (that scan carries the
-//                       attestation chain and hands you a fresh ScanSession).
-val result = verifier.verifyScan(
-    token = token,
-    issuedSessionId = sessionId,
-    serverPriv = serverPrivateKey,
-    session = savedSession,
-)
-
-// A successful bootstrap pins the session: store it on YOUR session record
-// and pass it back on every later scan. This is what keeps the verifier
-// stateless — it owns no per-device storage.
-if (result.bootstrap && result.ok) {
-    savedSession = result.session
-}
-
-// The decision. `decision` applies the documented default policy; see the
-// table below for the two graded axes behind it.
-when (result.decision) {
-    Decision.TRUSTWORTHY -> allow()                       // authentic + clean device + no blocking signal
-    Decision.COMPROMISED -> stepUp(result.blockingSignals) // authentic, but untrustworthy device or findings
-    Decision.REJECT      -> deny(result.reason)            // a proven forgery — do not trust the contents
-}
-```
-
-Custom policy (tolerate a signal, require StrongBox, step up on HIGH) does not go
-through `decision` — read the graded axes directly and decide yourself:
-
-```kotlin
 val result = verifier.verifyScan(token, sessionId, serverPrivateKey, savedSession)
-
-if (!result.ok)                          deny()                   // AUTH: proven forgery
-else if (!result.deviceIntegrityOk)      stepUp()                 // INTEGRITY: bad boot state
-else if (result.signals.any { it.blocking }) stepUp(result.signals) // policy: blocking findings
-else                                     allow()
 ```
 
-`ScanVerifier` **grades, it does not decide**, and the two axes are deliberately separate:
+A successful bootstrap scan returns a `ScanSession`; store it against your session record and pass it back on every later scan. That keeps the verifier stateless. The first scan of a cold start carries the full attestation chain, later scans carry only a fingerprint hash and sign with the attested key — your backend has to expect both.
 
-| | meaning | typical response |
-|---|---|---|
-| `ok == false` | AUTH — a proven forgery: untrusted chain, revoked keybox, one keybox across both security levels, attested properties contradicting the self-report, props claiming a boot the TEE denies | REJECT |
-| `deviceIntegrityOk == false` | INTEGRITY — an honest report of an untrustworthy device: no hardware backing, unverified boot, unlocked | COMPROMISED |
+There are three outcomes. REJECT means the token is not a genuine, fresh, hardware-signed binding — forged, replayed, or re-signed. COMPROMISED means the token is authentic but the device honestly reports an untrustworthy state: rooted, unlocked, spoofed. TRUSTWORTHY means authentic and clean. `ok` (authenticity) and `deviceIntegrityOk` (integrity) are kept separate on purpose; collapsing them into one flag is how a rooted prop-spoofer reads as clean.
 
-Collapsing them into one boolean is how a rooted, prop-spoofing device reads as clean.
-
-### Option B — Python reference (`tools/server/verify_token.py`)
+## Building and testing this repo
 
 ```sh
-python3 tools/server/verify_token.py --scan @scan.token --session-id @session-id.txt --key server-priv-0.pem
+./gradlew :deviceintelligence:assembleDebug        # SDK
+./gradlew :samples:minimal:assembleDebug           # end-to-end sample, device and backend in one process
+bash tools/qa/native-unit-tests.sh                 # native unit tests
+python3 tools/registry/gen-signal-ids.py --check   # signal registry drift gate
 ```
 
-**The contract** (envelope, the scan document, the carried `ScanSession`, the decision rules)
-is specified in [`tools/server/SCHEMA.md`). The
-backend owns three things the device does not: the **server key**, the
-**`signals-registry`** (code→meaning), and the **policy** (which signals block, at what
-severity).
+Release builds route the native compile through the Arkari obfuscator when `tools/obfuscator/arkari-launch.sh` is present, and fail fast if a release would ship unobfuscated; `-Pdeviceintelligence.allowUnobfuscatedRelease=true` opts out. The `verifier` module is plain Kotlin/JVM and drops into any JVM backend.
 
-### The three decisions
+## Repo layout
 
-- **REJECT** — not a genuine, fresh, hardware-signed binding (forged/replayed/unbound token).
-- **COMPROMISED** — authentic token, but the TEE reports a bad boot state or a blocking signal fired.
-- **TRUSTWORTHY** — authentic *and* the TEE reports a clean device *and* no blocking signal.
+- `deviceintelligence/` — the runtime AAR and `libdicore.so`. What your app depends on.
+- `deviceintelligence-gradle/` — the consumer Gradle plugin.
+- `verifier/` — the JVM token verifier for your backend.
+- `samples/minimal/` — a working end-to-end integration.
+- `tools/` — key generation, QA, the signal registry, the obfuscator launcher.
 
----
-
-## Operating it
-
-**Threading.** `initialize()` is cheap and local; call it on startup wherever you like.
-`setSession(id)` blocks on the TEE and **must not run on the UI thread**. `scan(name)` is
-fast but still does one TEE-resident signature, so keep it off the main thread on a request
-path you care about.
-
-**Cost.** Measured on a Pixel 6 Pro, release build:
-
-| Call | Typical | Notes |
-|---|---|---|
-| `initialize()` | ~3 ms | Licence blob only. No network, no TEE, no keystore. |
-| `setSession(id)` | ~150–175 ms | One hardware attestation. Up to a couple of seconds where StrongBox is backed by a slow secure element. |
-| `scan(name)`, first of a cold start | ~400 ms | Carries the attestation chain (`bootstrap`). |
-| `scan(name)`, thereafter | ~130–170 ms | Signature + runtime sweep. |
-
-**Failure modes worth handling.** `initialize()` returns `false` when the licence blob is
-missing, unsigned, expired, or bound to a different package — a build/packaging problem, not
-an attack. `setSession()` returns `false` when TEE key generation fails, and `scan()` will
-still return a degraded token naming it. An empty token (`""`) is not a clean device: treat
-"no token" as a signal in its own right, because a genuine device almost always returns one.
-
-**Compatibility.** `minSdk` 28; hardware attestation uses StrongBox where available and
-falls back to TEE. The backend grades the assurance level it actually got rather than
-requiring StrongBox.
-
-## The design — why the attestation binds to your session
-
-An Android key-attestation challenge is baked *inside* a certificate the device mints
-locally, so it can only bind to a server value that already exists on the device — which is
-why the SDK cannot attest during `initialize()`, and why it does not need a round-trip of
-its own either: your login already produced exactly such a value, the session id. Binding
-the attestation to it is what makes a captured token useless against any other session.
-Two earlier designs were tried and withdrawn — a blocking pre-call round-trip, and a
-device-generated nonce plus a stateful seen-keys table on the backend.
-
-## Repo layout — who uses what
-
-| Path | Side | What it is |
-|------|------|-----------|
-| [`deviceintelligence/`) | **device** | The runtime AAR + `libdicore.so`. Exports `tech.thessemaj.deviceintelligence.dx.NativeBridge` (`initialize`/`setSession`/`scan`). This is what your **app** depends on. |
-| [`deviceintelligence-gradle/`) | **device** | The Gradle plugin (`id("tech.thessemaj.deviceintelligence")`) that wires the AAR + native libs into a consumer app. |
-| [`deviceintelligence-whitebox/`) | **build** | Mints the licence keypair: `server.deviceintelligence` for the app, the private half for your backend. |
-| [`verifier/`) | **backend** | The **token verifier** (Kotlin/JVM, zero-dep). Drop-in for *your server*: token + session id → decision. |
-| [`tools/server/`) | **backend** | Python reference verifier + [`SCHEMA.md`) — the full device↔backend wire contract. |
-| [`tools/registry/`) | **backend** | `signals-registry.json` — the `SIG_xxxx` → meaning source of truth (copied into `:verifier` at build). |
-| [`samples/minimal/`) | **both** | The **device testbed** — folds device + backend into one process so the loop closes on-device. What QA drives, and what the red-team catalogue attacks. |
-| [`tools/`) | tooling | Build, release and QA: `qa/` `registry/` `keys/` `crl/` `release/` `obfuscator/`. |
-
-## Build, test & release
-
-| | |
-|---|---|
-| [`tools/qa/`) | Clean-device false-positive harness, native unit tests, and the naming-drift gate. |
-| [`tools/registry/`) | The signal registry and its generator; `gen-signal-ids.py --check` is the drift gate. |
-| [`tools/keys/`), [`tools/crl/`) | Licence key generation and the revocation list baked into the AAR. |
-| [`tools/obfuscator/`) | The `deviceintelligence-obf` LLVM pass used for release builds. |
-
-Releases are built locally and published as GitHub release assets — the obfuscated AAR, the
-plugin and baker jars, per-ABI `libdicore.so`, and `SHA256SUMS`. See
-`.github/workflows/release.yml` for the exact steps and the obfuscation verification gate.
-
-## Reference
-
-| | |
-|---|---|
-| [`deviceintelligence/README`) | The device runtime AAR and the `K` API. |
-| [`verifier/README`) | The JVM backend verifier. |
-| [`tools/server/SCHEMA.md`) | The full device↔backend wire contract. |
-| [`samples/minimal/README`) | The reference end-to-end integration. |
+Licensed under CC BY-ND 4.0 — see [LICENSE](LICENSE).
 
 ---
 
