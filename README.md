@@ -41,7 +41,9 @@ val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
 myBackend.submit(token)
 ```
 
-All three are suspend functions. The session id must come from your backend, be unpredictable, and be at least 128 bits — the attestation binds to it, so a guessable id quietly removes replay protection. If you can't meet that bar, use `scan(name, nonce)` with a fresh server nonce instead.
+All three are suspend functions.
+
+The session id deserves a word of its own: it is completely your convenience. The library treats it as an opaque string — it never parses it, stores it, or sends it anywhere. It only becomes the challenge the hardware attestation binds to, which means you can use whatever your backend already hands out at login, in whatever shape you like. The one property that matters is unpredictability: a token can only be replayed within its own session, so a guessable id quietly removes replay protection and nothing on the device will tell you. If your ids can't meet that bar, skip sessions entirely and call `scan(name, nonce)` with a fresh server nonce per request.
 
 Send the token even when `initialize()` or `setSession()` returns false. A failed licence check or keygen still produces a degraded token that names the failure, and your backend grades it. An empty token only happens when the licence never parsed, so there is nothing to encrypt to — treat that as a signal in its own right. From the backend's point of view, missing tokens are indistinguishable from network errors, and silence helps nobody but the attacker.
 
