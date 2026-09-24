@@ -13,6 +13,7 @@
   <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF.svg?logo=kotlin&logoColor=white">
   <a href="#privacy--gdpr"><img alt="GDPR-friendly" src="https://img.shields.io/badge/GDPR-friendly-2E7D32.svg"></a>
+  <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=flat&logo=githubsponsors"></a>
 </p>
 
 ---
