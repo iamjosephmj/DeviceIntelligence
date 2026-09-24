@@ -5,4 +5,5 @@
       value here flashes white before a dark app. It used to.
     -->
     <color name="sample_page_bg">#0B0E13</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
