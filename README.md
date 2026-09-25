@@ -13,13 +13,17 @@ Device-integrity detection for Android. On-device detectors grade the environmen
 
 ## Install
 
-Apply the Gradle plugin — it adds the runtime AAR, hashes your APK at build time, and re-signs:
+**Android** — add the plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
 
 ```kotlin
 plugins {
     id("tech.thessemaj.deviceintelligence") version "3.0.0"
 }
 ```
+
+**Backend** — the `verifier` module is plain Kotlin/JVM: copy the [`verifier/`](verifier) directory into your project (or publish it to your private artifact repo) and add it as a dependency. It has zero external dependencies.
+
+Both publish under the `tech.thessemaj` group (3.0.0+). Pre-3.0 releases resolve from JitPack under `com.github.iamjosephmj`.
 
 Provision one X25519 keypair on your machine — never in a build, never on a device:
 
