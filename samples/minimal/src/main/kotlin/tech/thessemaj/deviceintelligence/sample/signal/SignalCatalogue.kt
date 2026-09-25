@@ -25,7 +25,7 @@ enum class SignalGroup(@StringRes val title: Int, @StringRes val blurb: Int) {
  * The wire carries only the opaque code; `:verifier` resolves the detector, kind,
  * severity and title from the registry. What it does NOT carry is the explanation —
  * the meaning of the finding and the capability it implies — so that lives here,
- * generated from the same registry and the signal catalogue in docs/signals.md.
+ * generated from the same registry.
  *
  * [reach] is null for codes the docs have not described yet.
  */

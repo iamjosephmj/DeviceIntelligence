@@ -1,7 +1,7 @@
 #pragma once
 // AUTO-GENERATED from tools/registry/signals-registry.json by
 // tools/registry/gen-signal-ids.py.
-// registry-sha256: b34622fae2330b390a2311964ba7830e6b8f4bb14af497d86bf5211f93e47587
+// registry-sha256: 6ecaac842ee19ad240edceb6e4262ef9a81b2292a98e9fd1ddf214458badf936
 //
 // The digest above is of signals-registry.json. :deviceintelligence's
 // checkSignalRegistryFresh task recomputes it and FAILS THE BUILD on a mismatch,

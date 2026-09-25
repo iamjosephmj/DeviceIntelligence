@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Generate the sample app's signal catalogue from the registry + the README catalogue section.
+"""Generate the sample app's signal catalogue and the docs-site catalogue page
+from the registry (the single source of truth for codes, meanings and reach).
 
-The registry is the source of truth and is append-only, so this is generated
-rather than hand-written: a hand-kept copy in the app would drift the moment a
-signal is added, and the drift would be invisible (a missing explanation reads
-exactly like a signal that has none).
+    python3 tools/registry/gen-signal-catalogue.py           # regenerate
+    python3 tools/registry/gen-signal-catalogue.py --check   # fail if stale
 
-Emits, both fully overwritten each run:
+Emits, fully overwritten each run:
   samples/minimal/src/main/res/values/signals.xml
   samples/minimal/src/main/kotlin/tech/thessemaj/deviceintelligence/sample/signal/SignalCatalogue.kt
-
-  python3 tools/registry/gen-signal-catalogue.py [--check]
+  docs/signal-catalogue.md
 """
 import collections
 import json
@@ -21,12 +19,10 @@ from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / "tools/registry/signals-registry.json"
-DOCS = ROOT / "README.md"  # the "Signal catalogue" section of the main README
 XML_OUT = ROOT / "samples/minimal/src/main/res/values/signals.xml"
 KT_OUT = ROOT / "samples/minimal/src/main/kotlin/tech/thessemaj/deviceintelligence/sample/signal/SignalCatalogue.kt"
+DOCS_OUT = ROOT / "docs/signal-catalogue.md"
 
-# The five families the catalogue documents, in docs order. Keyed by the "### "
-# heading so a renamed heading fails loudly here rather than silently regrouping.
 GROUPS = {
     "Attestation — hardware identity & verified boot": (
         "Attestation", "Attestation",
@@ -54,56 +50,41 @@ GROUPS = {
     ),
 }
 
+DETECTOR_GROUPS = {
+    "attestation": "Attestation — hardware identity & verified boot",
+    "art": "Runtime instrumentation — hooks, debuggers, injected code",
+    "dex": "Runtime instrumentation — hooks, debuggers, injected code",
+    "environment": "Runtime instrumentation — hooks, debuggers, injected code",
+    "native": "Runtime instrumentation — hooks, debuggers, injected code",
+    "native_integrity": "Runtime instrumentation — hooks, debuggers, injected code",
+    "self_hook": "Runtime instrumentation — hooks, debuggers, injected code",
+    "seccomp": "Anti-analysis — syscall filtering",
+    "root": "Root & system integrity",
+    "apk": "Package integrity — repackaging & tamper",
+    "emulator": "Virtual environments — emulators & translation",
+}
+
 
 def demarkdown(text):
-    """Docs prose carries markdown emphasis and inline code that a TextView shows raw."""
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"`(.+?)`", r"\1", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
 def android_escape(text):
-    return escape(text).replace("'", "\\'").replace('"', "\\\"")
-
-
-def parse_docs():
-    """code -> (group_key, reach), plus detector -> group_key for undocumented codes."""
-    reach, group_of, by_detector = {}, {}, collections.Counter()
-    heading = None
-    in_catalogue = False
-    for line in DOCS.read_text().splitlines():
-        if line.startswith("## Signal catalogue"):
-            in_catalogue = True
-            continue
-        if not in_catalogue:
-            continue
-        if line.startswith("### "):
-            heading = line[4:].strip()
-            if heading not in GROUPS:
-                sys.exit(f"unknown docs section {heading!r} — update GROUPS in {__file__}")
-        m = re.match(r"\|\s*`(INTEL_\d+)`\s*\|(.*)\|\s*$", line)
-        if m and heading:
-            code = m.group(1)
-            cells = [c.strip() for c in m.group(2).split("|")]
-            reach[code] = demarkdown(cells[-1])
-            group_of[code] = heading
-    return reach, group_of
+    return escape(text).replace("'", "\\'").replace('"', '\\"')
 
 
 def main():
     rows = json.load(REGISTRY.open())["signals"]
-    reach, group_of = parse_docs()
+    active = [r for r in rows if r.get("status") != "retired"]
 
-    # Codes the docs never listed still need a family; take the one their detector
-    # is used for elsewhere. Their reach stays absent rather than invented.
-    detector_group = {}
+    group_of = {}
     for r in rows:
-        if r["id"] in group_of:
-            detector_group.setdefault(r["detector"], collections.Counter())[group_of[r["id"]]] += 1
-    fallback = {d: c.most_common(1)[0][0] for d, c in detector_group.items()}
-
-    undocumented = [r["id"] for r in rows
-                    if r["id"] not in reach and r.get("status") != "retired"]
+        heading = DETECTOR_GROUPS.get(r["detector"])
+        if heading is None:
+            sys.exit(f"{r['id']}: detector {r['detector']!r} has no family — update DETECTOR_GROUPS")
+        group_of[r["id"]] = heading
 
     strings = ['<?xml version="1.0" encoding="utf-8"?>',
                "<!-- GENERATED by tools/registry/gen-signal-catalogue.py — do not edit. -->",
@@ -121,16 +102,15 @@ def main():
     for r in sorted(rows, key=lambda r: r["id"]):
         code = r["id"]
         low = code.lower()
-        heading = group_of.get(code) or fallback.get(r["detector"])
-        if heading is None:
-            sys.exit(f"{code}: no group and no detector fallback")
+        heading = group_of[code]
         const = GROUPS[heading][0]
         retired = r.get("status") == "retired"
+        reach = r.get("reach")
 
         strings.append(f'    <string name="{low}_meaning">{android_escape(r["description"])}</string>')
         reach_ref = "null"
-        if code in reach:
-            strings.append(f'    <string name="{low}_reach">{android_escape(reach[code])}</string>')
+        if reach:
+            strings.append(f'    <string name="{low}_reach">{android_escape(reach)}</string>')
             reach_ref = f"R.string.{low}_reach"
 
         entries.append(
@@ -138,8 +118,8 @@ def main():
             f"        group = SignalGroup.{const},\n"
             f"        meaning = R.string.{low}_meaning,\n"
             f"        reach = {reach_ref},\n"
-            + (f"        retired = true,\n" if retired else "")
-            + f"    ),"
+            + ("        retired = true,\n" if retired else "")
+            + "    ),"
         )
     strings.append("</resources>")
 
@@ -148,7 +128,7 @@ def main():
         for const, _, _ in GROUPS.values()
     )
 
-    kt = f'''// GENERATED by tools/registry/gen-signal-catalogue.py — do not edit.
+    kt = f"""// GENERATED by tools/registry/gen-signal-catalogue.py — do not edit.
 //
 // TESTBED ONLY (worst-case narrative 2026-09-10, R8): this catalogue and its
 // resources bake the FULL detector prose into the app. Fine for this lab app;
@@ -170,7 +150,7 @@ enum class SignalGroup(@StringRes val title: Int, @StringRes val blurb: Int) {{
  * The wire carries only the opaque code; `:verifier` resolves the detector, kind,
  * severity and title from the registry. What it does NOT carry is the explanation —
  * the meaning of the finding and the capability it implies — so that lives here,
- * generated from the same registry and the signal catalogue in docs/signals.md.
+ * generated from the same registry.
  *
  * [reach] is null for codes the docs have not described yet.
  */
@@ -191,23 +171,42 @@ enum class SignalCatalogue(
         fun of(code: String): SignalCatalogue? = byCode[code]
     }}
 }}
-'''
+"""
+
+    docs = ["# Signal catalogue", "",
+            "Every `INTEL_XXXX` code the SDK can emit. The wire carries only the code;",
+            "this page is what each one means and what it unlocks for whoever writes",
+            "backend policy. Source of truth:",
+            "[`tools/registry/signals-registry.json`](https://github.com/iamjosephmj/DeviceIntelligence/blob/main/tools/registry/signals-registry.json).",
+            ""]
+    undocumented = [r["id"] for r in active if not r.get("reach")]
+    for heading, (const, title, blurb) in GROUPS.items():
+        docs.append(f"## {heading}")
+        docs.append("")
+        docs.append(blurb)
+        docs.append("")
+        docs.append("| Code | detector | kind | Sev | Meaning | Reach — what it unlocks |")
+        docs.append("|---|---|---|---|---|---|")
+        for r in sorted((r for r in active if group_of[r["id"]] == heading), key=lambda r: r["id"]):
+            reach = re.sub(r"\s+", " ", r.get("reach", "")).strip()
+            docs.append(f"| `{r['id']}` | {r['detector']} | `{r['kind']}` | {r['severity']} | {r['description']} | {reach} |")
+        docs.append("")
+    if undocumented:
+        docs.append("Codes without reach prose yet: " + ", ".join(f"`{c}`" for c in undocumented) + ".")
+        docs.append("")
 
     if "--check" in sys.argv:
-        stale = [p for p, want in ((XML_OUT, "\n".join(strings) + "\n"), (KT_OUT, kt))
-                 if not p.exists() or p.read_text() != want]
+        want = {"\n".join(strings) + "\n": XML_OUT, kt: KT_OUT, "\n".join(docs) + "\n": DOCS_OUT}
+        stale = [str(p) for text, p in want.items() if not p.exists() or p.read_text() != text]
         if stale:
-            sys.exit("stale generated files: " + ", ".join(str(p) for p in stale))
+            sys.exit("stale generated files: " + ", ".join(stale))
         print("signal catalogue up to date")
         return
 
-    KT_OUT.parent.mkdir(parents=True, exist_ok=True)
-    XML_OUT.write_text("\n".join(strings) + "\n")
-    KT_OUT.write_text(kt)
+    for p, text in ((XML_OUT, "\n".join(strings) + "\n"), (KT_OUT, kt), (DOCS_OUT, "\n".join(docs) + "\n")):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
     print(f"wrote {len(rows)} signals across {len(GROUPS)} groups")
-    if undocumented:
-        print("NOTE: active but absent from docs/signals.md, so no reach text: "
-              + ", ".join(undocumented))
 
 
 main()

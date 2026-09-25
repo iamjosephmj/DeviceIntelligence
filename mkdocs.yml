@@ -1,0 +1,40 @@
+site_name: DeviceIntelligence
+site_description: Device-integrity detection for Android — hardware-attested, signed, and encrypted.
+repo_url: https://github.com/iamjosephmj/DeviceIntelligence
+repo_name: iamjosephmj/DeviceIntelligence
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: lime
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: lime
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Home: index.md
+  - Android: android.md
+  - Backend: backend.md
+  - Keys & licences: keys.md
+  - Signal catalogue: signal-catalogue.md
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
