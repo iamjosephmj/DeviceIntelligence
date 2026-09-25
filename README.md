@@ -55,6 +55,18 @@ plugins {
 }
 ```
 
+Builds using the legacy `buildscript` style instead take the plugin as an explicit classpath dependency — same artifact the marker above resolves:
+
+```kotlin
+// root build.gradle.kts
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath("tech.thessemaj:deviceintelligence-gradle:3.0.0") }
+}
+// and in the app module:
+apply(plugin = "tech.thessemaj.deviceintelligence")
+```
+
 No plugin? Add the AAR directly and handle the fingerprint baking yourself:
 
 ```kotlin
