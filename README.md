@@ -1,8 +1,6 @@
 # DeviceIntelligence 🐍
 
-Device-integrity detection for Android. On-device detectors report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token; your backend decides. Nothing is enforced or sent anywhere by the library itself.
-
-### [samples/minimal](samples/minimal) — a working end-to-end integration
+Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
 
 🙏 If you like DeviceIntelligence you can show support by starring ⭐ this repository.
 
@@ -16,18 +14,18 @@ plugins {
 }
 ```
 
-Provision one X25519 keypair on your machine (never in a build, never on a device):
+Provision one X25519 keypair on your machine — never in a build, never on a device:
 
 ```sh
 python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
 ```
 
-Ship `server.key` as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key`; the private half belongs to your backend. Then:
+Ship `server.key` as an app asset; the private half belongs to your backend. Then three calls:
 
 ```kotlin
-DeviceIntelligence.initialize(application)      // once, local, ~3 ms
-DeviceIntelligence.setSession(sessionId)        // once per session, ~175 ms, off the UI thread
-val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
+DeviceIntelligence.initialize(application)      // once, local
+DeviceIntelligence.setSession(sessionId)        // once per session, off the UI thread
+val token = DeviceIntelligence.scan("checkout") // per request
 myBackend.submit(token)
 ```
 
@@ -37,13 +35,13 @@ All three are suspend functions. Send the token even when the first two return f
 
 Your backend opens tokens with the [`verifier`](verifier) module (zero-dependency Kotlin/JVM):
 
-```kotlin
-val result = ScanVerifier().verifyScan(token, sessionId, serverPrivateKey, savedSession)
-```
-
-- **REJECT** — forged, replayed, or re-signed.
-- **COMPROMISED** — authentic, but the device reports an untrustworthy state.
 - **TRUSTWORTHY** — authentic and clean.
+- **COMPROMISED** — authentic, but the device reports an untrustworthy state.
+- **REJECT** — forged, replayed, or re-signed.
+
+## Sample
+
+[`samples/minimal`](samples/minimal) is a working end-to-end integration — device and backend in one process.
 
 ## Building this repo
 
