@@ -1,4 +1,8 @@
-## Quick start
+# DeviceIntelligence 🐍
+
+Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
+
+## Install
 
 Apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
 
@@ -31,25 +35,9 @@ All three are suspend functions. Send the token even when the first two return f
 - **COMPROMISED** — authentic, but the device reports an untrustworthy state.
 - **REJECT** — forged, replayed, or re-signed.
 
-## Documentation
+## Where next
 
-Full documentation lives on the [docs site](https://iamjosephmj.github.io/DeviceIntelligence/):
-
-- [Android integration](https://iamjosephmj.github.io/DeviceIntelligence/android/) — repositories, plugin styles, per-call contracts.
-- [Backend verification](https://iamjosephmj.github.io/DeviceIntelligence/backend/) — the `verifier` module and the decision flow.
-- [Keys & licences](https://iamjosephmj.github.io/DeviceIntelligence/keys/) — the two files, rotation, dev vs release.
-- [Signal catalogue](https://iamjosephmj.github.io/DeviceIntelligence/signal-catalogue/) — every `INTEL_XXXX` code, decoded.
-
-## Building this repo
-
-```sh
-./gradlew :samples:minimal:assembleRelease         # SDK + sample
-bash tools/qa/native-unit-tests.sh                 # native unit tests
-python3 tools/registry/gen-signal-ids.py --check   # signal registry drift gate
-```
-
-## License
-
-    DeviceIntelligence — Copyright (c) 2026 Joseph James (github.com/iamjosephmj)
-
-Licensed under [CC BY-ND 4.0](LICENSE).
+- [Android integration](android.md) — repositories, plugin styles, per-call contracts.
+- [Backend verification](backend.md) — the `verifier` module and the decision flow.
+- [Keys & licences](keys.md) — what the two files are, rotation, dev vs release.
+- [Signal catalogue](signal-catalogue.md) — every `INTEL_XXXX` code, decoded.
