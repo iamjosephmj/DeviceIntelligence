@@ -11,9 +11,33 @@ Device-integrity detection for Android. On-device detectors grade the environmen
 
 🙏 If you like DeviceIntelligence you can show support by starring ⭐ this repository.
 
+## Keys
+
+One X25519 keypair per app. Generate it on your machine — never in a build, never on a device:
+
+```sh
+python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
+```
+
+That produces two files from one keypair:
+
+| File | What it is | Where it goes |
+|---|---|---|
+| `server.key` (144 bytes) | The public half plus your licence: an `RVN2` blob carrying the X25519 public key, a SHA-256 hash of your `applicationId`, an expiry timestamp, and the epoch — all signed by the SDK publisher key. | Shipped in the APK at `assets/tech.thessemaj.deviceintelligence/server.key`. That exact path is where the runtime looks. |
+| `server-priv-<epoch>.pem` | The X25519 private half. | Your backend only. It decrypts every token the device emits; anyone holding it can read tokens, so it never ships. |
+
+What each side does with them:
+
+- The device **encrypts every token to `server.key`** — only your backend private key opens it.
+- `initialize()` **validates the licence** inside the same file: right package, not expired. A repackaged APK (different signer or id) fails this check at startup and reports `INTEL_0038`.
+- The **epoch** (0–255) is a rotation counter: bump it, regenerate, ship the new `server.key` — and keep the old private PEMs around to decrypt tokens still in flight.
+- `--not-after <epoch-seconds>` sets an optional expiry; `0` means never.
+
+Dev vs release: the script signs with a publisher key compiled into the SDK, which is public by assumption — fine for development and the sample. For release builds, mint your key material with the `deviceintelligenceGenerateKey` Gradle task and keep the publisher key in your release pipeline instead.
+
 ## Install
 
-**Android** — add the plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
+**Android** — apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
 
 ```kotlin
 plugins {
@@ -21,38 +45,52 @@ plugins {
 }
 ```
 
-**Backend** — the `verifier` module is plain Kotlin/JVM: copy the [`verifier/`](verifier) directory into your project (or publish it to your private artifact repo) and add it as a dependency. It has zero external dependencies.
-
-Both publish under the `tech.thessemaj` group (3.0.0+). Pre-3.0 releases resolve from JitPack under `com.github.iamjosephmj`.
-
-Provision one X25519 keypair on your machine — never in a build, never on a device:
-
-```sh
-python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
-```
-
-Ship `server.key` as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key` — that path is where the runtime looks; the private half belongs to your backend. Then three calls:
+Drop `server.key` into `app/src/main/assets/tech.thessemaj.deviceintelligence/`. Then three calls:
 
 ```kotlin
-DeviceIntelligence.initialize(application)      // once, local
-DeviceIntelligence.setSession(sessionId)        // once per session, off the UI thread
-val token = DeviceIntelligence.scan("checkout") // per request
+DeviceIntelligence.initialize(application)      // once, local, ~3 ms
+DeviceIntelligence.setSession(sessionId)        // once per session, ~175 ms, off the UI thread
+val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
 myBackend.submit(token)
 ```
 
-All three are suspend functions. Send the token even when the first two return false — a degraded token names the failure, and your backend grades it.
+All three are suspend functions. What each one returns and what it means:
 
-`setSession(sessionId)` is what ties a scan to a user. Your backend already knows who is logged in at login time — pass that same id here, and every token from this device names it, so the verifier can correlate the verdict with the user on the backend. It also becomes the challenge the hardware attestation binds to: the key is attested *for that session*, so a captured token cannot be replayed under another session or another user.
+- **`initialize(application): Boolean`** — loads the native core and validates the licence. `false` is not a stop signal: if the blob parsed but was rejected (expired, wrong package), the key inside it is still usable and `scan()` emits a degraded token that names the rejection (`INTEL_0038`). Send it — at the backend, no token is indistinguishable from a network error, and silence helps nobody but the attacker. The one hard case: the asset missing or unparseable — then there is nothing to encrypt to and `scan()` returns `""`.
+- **`setSession(sessionId): Boolean`** — the id must come from your backend and be opaque, unpredictable and per-session: it is the challenge the hardware attestation binds to, so a guessable or reused value quietly removes replay protection. This call performs the one TEE/StrongBox keygen (why it is slow and off the UI thread). `false` still leaves `scan()` usable — it emits a degraded token naming the missing binding.
+- **`scan(scenarioName, nonce = ""): String`** — the first scan after `setSession` carries the full attestation certificate chain; every later scan signs with the attested key and is cheap. Pass a fresh server `nonce` per request if your session ids cannot be made unpredictable. Returns `""` only in the one case above.
+
+Not on coroutines: `tech.thessemaj.deviceintelligence.dx.NativeBridge` is the blocking core underneath — same three calls, and `NativeBridge.s(FrameworkShim::class.java)` must run once before anything else.
 
 ## Backend
 
-Your backend opens tokens with the [`verifier`](verifier) module — zero-dependency Kotlin/JVM, drops into any JVM stack:
+The [`verifier`](verifier) module is plain Kotlin/JVM with zero external dependencies — copy it into your project and add it as a module.
 
 ```kotlin
-val result = ScanVerifier().verifyScan(token, sessionId, serverPrivateKey, savedSession)
+val verifier = ScanVerifier()
+val result = verifier.verifyScan(
+    token,                                  // the token string from the device
+    sessionId,                              // the session id you issued
+    serverPrivateKeyStream,                 // server-priv-<epoch>.pem — PEM or raw DER PKCS#8
+    storedSession,                          // the ScanSession you stored, null on first contact
+)
 ```
 
-A bootstrap scan returns a `ScanSession` — store it against your session record and pass it back on every later scan. That keeps the verifier stateless. Expect two token shapes: the first scan of a cold start carries the full attestation chain, later scans only a fingerprint hash.
+The private key is parsed once and cached, so per-request verification does not re-parse. There is also an overload taking a `java.security.PrivateKey` for keys from an HSM or platform keystore.
+
+Every scan is one of two shapes, handled by the same call:
+
+- **Bootstrap** — the first scan of a cold start. Carries the full hardware attestation chain bound to your session id. On success, `result.session` is non-null: store that `ScanSession` on your session record. It holds the attested key (hex SPKI), the attested app identity, the assurance level (StrongBox / TEE / software), boot state and lock state.
+- **Steady-state** — every later scan. Signed by the key the bootstrap attested; pass the stored `ScanSession` back in and the verifier checks the signature against it. Stateless by construction: nothing per-device is kept in the verifier itself.
+
+What you get back is a `ScanResult`:
+
+- `ok` — every authenticity check passed. `false` means REJECT: forged, replayed, or re-signed. Do not trust the contents.
+- `deviceIntegrityOk` — every integrity check passed: the device is honestly reporting *and* is in a trustworthy state. A token can be perfectly authentic while this is false — a COMPROMISED device, not a forged token.
+- `decision` — **TRUSTWORTHY** (`ok && deviceIntegrityOk`), **COMPROMISED** (authentic but untrustworthy state), or **REJECT** (not authentic).
+- `signals` — the resolved `INTEL_XXXX` findings, each with its detector family, severity and blocking flag.
+- `checks` — every auth and integrity check that ran, in order: the audit trail for the decision.
+- `fingerprint` — the device fingerprint the token carried, when present.
 
 ## Verdicts
 
