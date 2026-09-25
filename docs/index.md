@@ -2,7 +2,7 @@
 
 DeviceIntelligence answers one question for your backend: **can this phone be trusted?**
 
-A rooted, hook-laden or spoofed device lies to your app about everything — the files on disk, the values of its own properties, the provenance of the code running inside it. DeviceIntelligence sends a sensor into that minefield: on-device detectors probe hardware attestation, verified boot, hook frameworks, root, syscall filtering, package tampering and emulated environments, and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token.
+A rooted, hooked or spoofed device lies to your app about everything — the files on disk, the values of its own properties, the provenance of the code running inside it. DeviceIntelligence sends a sensor into that minefield: on-device detectors probe hardware attestation, verified boot, hook frameworks, root, syscall filtering, package tampering and emulated environments, and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token.
 
 Three principles shape everything:
 
