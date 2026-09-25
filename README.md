@@ -2,6 +2,13 @@
 
 Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
 
+<p align="left">
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg?logo=kotlin&logoColor=white">
+  <a href="#privacy--gdpr"><img alt="GDPR-friendly" src="https://img.shields.io/badge/GDPR-friendly-2E7D32.svg"></a>
+  <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=flat&logo=githubsponsors"></a>
+</p>
+
 🙏 If you like DeviceIntelligence you can show support by starring ⭐ this repository.
 
 ## Install
@@ -20,7 +27,7 @@ Provision one X25519 keypair on your machine — never in a build, never on a de
 python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
 ```
 
-Ship `server.key` as an app asset; the private half belongs to your backend. Then three calls:
+Ship `server.key` as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key` — that path is where the runtime looks; the private half belongs to your backend. Then three calls:
 
 ```kotlin
 DeviceIntelligence.initialize(application)      // once, local
