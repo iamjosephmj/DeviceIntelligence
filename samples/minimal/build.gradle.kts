@@ -131,8 +131,6 @@ dependencies {
 
     // --- unit tests (JVM) ---
     testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.kotlinx.coroutines.test)
     // tech.thessemaj.deviceintelligence.api.DeviceIntelligence exposes the SDK as suspend functions. :deviceintelligence depends
     // on coroutines with `implementation`, so a consumer that calls the facade
     // declares it too.

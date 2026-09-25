@@ -266,13 +266,6 @@ android {
 }
 
 dependencies {
-    // Instrumented smoke suite (src/androidTest): exercises the env-bound native
-    // path (orchestrate + framework_shim + every detector) on a real device/emulator
-    // via the K JNI entry, and decodes the produced tokens in-process with :verifier.
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(project(":verifier"))
 
     // tech.thessemaj.deviceintelligence.api.DeviceIntelligence exposes the three calls as suspend functions and
     // serialises them on a Mutex. Only Dispatchers/Mutex/withContext are used, all
