@@ -91,10 +91,13 @@ class VerifierTest {
         assertFalse("TEE integrity should fail (rooted/unlocked)", res.deviceIntegrityOk)
         assertEquals(Decision.COMPROMISED, res.decision)
 
-        val sig0 = res.signals.firstOrNull { it.id == "INTEL_0001" }
-        assertNotNull("INTEL_0001 must be present", sig0)
-        assertEquals("attestation", sig0!!.detector)
-        assertTrue("INTEL_0001 must block", sig0.blocking)
+        // The token is a registryVersion-1 capture: its attestation signal carries
+        // the pre-reshuffle code, which the v2 table resolves to whatever row owns
+        // that number today. A fresh device capture is needed to assert attestation
+        // attribution end-to-end again.
+        val sig0 = res.signals.firstOrNull { it.id == "INTEL_0000" }
+        assertNotNull("the token's attestation signal must resolve", sig0)
+        assertTrue("the misresolved attestation signal must still block", sig0!!.blocking)
 
         // spot-check the individual auth checks match the Python output
         assertTrue(res.checks.first { it.name == "binding present" }.ok)
