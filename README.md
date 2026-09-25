@@ -10,7 +10,7 @@ Apply the Gradle plugin — it adds the runtime AAR, hashes your APK at build ti
 
 ```kotlin
 plugins {
-    id("tech.thessemaj.deviceintelligence") version "0.5.2"
+    id("tech.thessemaj.deviceintelligence") version "3.0.0"
 }
 ```
 
