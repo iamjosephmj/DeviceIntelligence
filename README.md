@@ -33,9 +33,17 @@ All three are suspend functions. Send the token even when the first two return f
 
 `setSession(sessionId)` is what ties a scan to a user. Your backend already knows who is logged in at login time — pass that same id here, and every token from this device names it, so the verifier can correlate the verdict with the user on the backend. It also becomes the challenge the hardware attestation binds to: the key is attested *for that session*, so a captured token cannot be replayed under another session or another user.
 
-## Verdicts
+## Backend
 
-Your backend opens tokens with the [`verifier`](verifier) module (zero-dependency Kotlin/JVM):
+Your backend opens tokens with the [`verifier`](verifier) module — zero-dependency Kotlin/JVM, drops into any JVM stack:
+
+```kotlin
+val result = ScanVerifier().verifyScan(token, sessionId, serverPrivateKey, savedSession)
+```
+
+A bootstrap scan returns a `ScanSession` — store it against your session record and pass it back on every later scan. That keeps the verifier stateless. Expect two token shapes: the first scan of a cold start carries the full attestation chain, later scans only a fingerprint hash.
+
+## Verdicts
 
 - **TRUSTWORTHY** — authentic and clean.
 - **COMPROMISED** — authentic, but the device reports an untrustworthy state.
