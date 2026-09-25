@@ -1,4 +1,4 @@
-// INTEL_0042 — sealed anonymous memfd stimulus.
+// INTEL_0028 — sealed anonymous memfd stimulus.
 //
 // Code loaded from a sealed memfd leaves a mapping with no file behind it that is
 // nonetheless not ordinary anonymous memory. It is how an injector ships code

@@ -1,4 +1,4 @@
-// translation_classify.cpp — pure classification for INTEL_0056
+// translation_classify.cpp — pure classification for INTEL_0027
 // (translated_environment). See translation_classify.h for the contract.
 
 #include "dicore/detectors/emulator/translation/translation_classify.h"

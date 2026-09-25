@@ -41,7 +41,7 @@ class EnrollVerifierTest {
         assertNotEquals("hardware attestation reports the honest (non-Verified) boot",
             "Verified", session.bootState)
     }
-    // The gradeStrongBox truth-table tests lived here. Removed with INTEL_0034 and its
+    // The gradeStrongBox truth-table tests lived here. Removed with INTEL_0039 and its
     // strongbox-devices.json capability list — see the registry tombstone.
 
     // --- F2 (2026-09-10 spec): attested signer pin — the third enroll hard-fail ---

@@ -29,11 +29,11 @@ import javax.inject.Singleton
  * prove are detected (see corpus/red-team and docs/signals.md):
  *
  *  a. `mmap`s one anonymous `PROT_EXEC|PROT_READ|PROT_WRITE` page and never
- *     unmaps it — the zygisk-style injection footprint `INTEL_0057` flags.
+ *     unmaps it — the zygisk-style injection footprint `INTEL_0009` flags.
  *     Nothing is written to it and nothing jumps into it: the mapping itself
  *     is the attack.
  *  b. Drives `DeviceIntelligence.scan("chaos")` in a tight loop of 50 — the scripted sweep
- *     `INTEL_0058`'s rate guard exists for, through the public facade (whose
+ *     `INTEL_0029`'s rate guard exists for, through the public facade (whose
  *     mutex serializes the channel, as an honest integration sees it).
  *  c. Drives the RAW channel — `NativeBridge.scan` directly, no facade mutex — from 32
  *     concurrent threads. That is how an actual capture harness sweeps: when
@@ -120,7 +120,7 @@ class ChaosHook @Inject constructor(
         // sweep can never put 30 scan entries inside the 10 s rate window. A real
         // scripted drive does not go through the coroutine facade at all — it
         // hammers the raw channel from many threads, exactly like this. This is
-        // the leg INTEL_0058's rate guard exists for.
+        // the leg INTEL_0029's rate guard exists for.
         val dirC = File(application.filesDir, "chaos-c").apply { mkdirs() }
         val entries = AtomicInteger()
         val failures = AtomicInteger()

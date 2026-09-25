@@ -1,4 +1,4 @@
-// watchdog.cpp — INTEL_0060 watchdog engine (pure + pipe I/O, host-testable).
+// watchdog.cpp — INTEL_0018 watchdog engine (pure + pipe I/O, host-testable).
 // See watchdog.hpp for the contract. The ONLY Android-flavored piece — the
 // fork/dup2/execl production spawn — lives in watchdog_probe.cpp behind the
 // Spawn indirection. Crypto is the vendored SHA-256 every other TU uses.

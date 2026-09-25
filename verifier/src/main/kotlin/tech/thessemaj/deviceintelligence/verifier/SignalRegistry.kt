@@ -2,7 +2,7 @@ package tech.thessemaj.deviceintelligence.verifier
 
 /** One registry entry: an opaque code and the meaning the backend resolves it to. */
 data class SignalMeta(
-    /** The opaque wire code, e.g. `INTEL_0008`. */
+    /** The opaque wire code, e.g. `INTEL_0025`. */
     val id: String,
     /** Detector family, e.g. `environment`. */
     val detector: String,

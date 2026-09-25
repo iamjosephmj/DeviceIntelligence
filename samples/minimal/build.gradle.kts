@@ -26,7 +26,7 @@ android {
         // The symptom is misleading: initialize() reports licence failure (the
         // shim never registers), not a load error. Pinning the filters makes
         // such devices install the armeabi-v7a build under ARM translation
-        // instead — where INTEL_0056 translated_environment fires by design.
+        // instead — where INTEL_0027 translated_environment fires by design.
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
@@ -120,6 +120,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
+    // --- scroll feel ---
+    implementation(libs.flinger)
+    implementation(libs.squishy)
 
     // --- DI ---
     implementation(libs.hilt.android)

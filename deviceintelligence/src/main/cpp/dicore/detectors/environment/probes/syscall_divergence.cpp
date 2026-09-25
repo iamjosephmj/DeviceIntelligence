@@ -1,4 +1,4 @@
-// INTEL_0040 — behavioral syscall divergence.
+// INTEL_0059 — behavioral syscall divergence.
 //
 // Split out of the old runtime_probe_jni.cpp: it shares nothing with the maps scan
 // but the record separator, and it is the one probe whose correctness argument is
@@ -94,11 +94,11 @@ std::vector<std::string> syscall_divergence_records() {
     return out;
 }
 
-// INTEL_0043 — behavioral property divergence. A boot-state / root-indicator property read via
+// INTEL_0058 — behavioral property divergence. A boot-state / root-indicator property read via
 // libc __system_property_get (which a spoofer may hook) is compared against the SAME property
 // read straight from the property area via __system_property_find + __system_property_read_callback
 // (a different libc entry point the hook usually misses). A mismatch means __system_property_get is
-// hooked to lie about the property — the in-process behavioral analog of INTEL_0030's attestation
+// hooked to lie about the property — the in-process behavioral analog of INTEL_0055's attestation
 // check. FP-free by construction: both read the same property trie, so they agree on a clean device
 // (boot-state properties are static); only a selective hook on __system_property_get diverges.
 // (A resetprop-style edit of the trie changes BOTH and is caught by attestation, not here.)

@@ -28,6 +28,13 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.PaddingValues
+import io.iamjosephmj.flinger.behaviours.FlingPresets
+import androidx.compose.animation.core.tween
+import io.iamjosephmj.squishy.physics.OverscrollCurve
+import io.iamjosephmj.squishy.physics.OverScrollConfig
+import io.iamjosephmj.squishy.scroll.OverScrollArea
+import io.iamjosephmj.squishy.state.rememberOverScrollState
+import io.iamjosephmj.squishy.visual.OverscrollVisuals
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -230,10 +237,13 @@ private fun Evidence(
     val items = remember(result, state.boundSession) { evidenceOf(result, state.boundSession) }
     val promoted = items.filter { it.alarming }
     val quiet = items.filterNot { it.alarming }
+    val overScroll = rememberOverScrollState(visual = OverscrollVisuals.pushDown(), config = OverScrollConfig(maxOverscroll = 300f, curve = OverscrollCurve.RubberBand(), settleSpec = tween(300)))
+    OverScrollArea(overScroll, modifier) {
     LazyColumn(
-        modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
+        flingBehavior = FlingPresets.iOSStyle(),
     ) {
         itemsIndexed(promoted, key = { _, item -> item.destination.route }) { index, item ->
             // animateItem carries the card to its new slot when a rescan reorders the
@@ -261,6 +271,7 @@ private fun Evidence(
                 }
             }
         }
+    }
     }
 }
 @Composable

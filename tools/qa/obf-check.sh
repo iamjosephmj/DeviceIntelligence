@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Artifact-level check of the Arkari toolchain. Compiles tools/qa/obf/fixture.cpp
-# through the pass plugin with plain clang-18 — mirroring arkari-launch.sh's
-# -fpass-plugin injection — then:
+# Artifact-level check of the string-encryption pass plugin. Compiles
+# tools/qa/obf/fixture.cpp with plain clang-18 via -fpass-plugin — the same
+# injection shape the obfuscating toolchain used to route — then:
 #   1. strings leg: every dicoreobf registration marker (pointer-table
 #      names/sigs, char-array tables embedded by value, the FindClass-style
 #      class path, the digest-array bytes) must be ABSENT from `strings` of the
@@ -20,8 +20,8 @@
 #      nothing new.
 #   5. tamper leg: tools/qa/obf/tamper_check.cpp verifies, file-based, that
 #      flipping the exec first page turns every digest-bound string to garbage
-#      while the NEVER_BIND digest array (INTEL_0059 stand-in) still decrypts
-#      seed-only — patched .text breaks all strings, but not INTEL_0059's
+#      while the NEVER_BIND digest array (INTEL_0042 stand-in) still decrypts
+#      seed-only — patched .text breaks all strings, but not INTEL_0042's
 #      baseline.
 #   6. zip-embedded load leg (fix round 1): tools/qa/obf/zip_load_check.cpp
 #      packs the BOUND artifact as a real STORED zip entry, mmaps it from the

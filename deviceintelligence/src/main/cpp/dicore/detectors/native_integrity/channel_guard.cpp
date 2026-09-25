@@ -1,4 +1,4 @@
-// channel_guard.cpp — INTEL_0058 scan-channel sequence MAC + rate guard.
+// channel_guard.cpp — INTEL_0029 scan-channel sequence MAC + rate guard.
 // Pure host-testable logic; the only crypto dependency is the vendored
 // SHA-256 (dicore::sha), same backend every other crypto TU uses.
 #include "dicore/detectors/native_integrity/channel_guard.hpp"

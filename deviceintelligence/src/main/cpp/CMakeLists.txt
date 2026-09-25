@@ -60,7 +60,7 @@ add_library(dicore SHARED
         dicore/detectors/environment/maps/module_enrich.cpp
         dicore/detectors/environment/maps/trampoline.cpp
         dicore/detectors/environment/maps/maps_scan.cpp
-        # runtime.environment — INTEL_0057 injected_executable_mapping: pure
+        # runtime.environment — INTEL_0009 injected_executable_mapping: pure
         # classifier (host-tested) + the raw-syscall probe wired into
         # dicore_verdict().
         dicore/detectors/environment/maps/anon_exec.cpp
@@ -98,18 +98,18 @@ add_library(dicore SHARED
         # the matching emu_probe_*.cpp (which defines dicore::emu::probe()) is
         # appended per ABI below so the symbol is never multiply-defined.
         dicore/detectors/emulator/emu_verdict.cpp
-        # runtime.emulator — INTEL_0056 translated_environment (uname-vs-ABI
+        # runtime.emulator — INTEL_0027 translated_environment (uname-vs-ABI
         # divergence + native-bridge artifacts; pure classifier + probe).
         dicore/detectors/emulator/translation/translation_classify.cpp
         dicore/detectors/emulator/translation/translation_probe.cpp
-        # runtime.emulator — INTEL_0062 hypervisor_cpu (x86_64 CPU-state probe;
+        # runtime.emulator — INTEL_0033 hypervisor_cpu (x86_64 CPU-state probe;
         # ABI-guarded internally, contributes nothing on arm builds).
         dicore/detectors/emulator/arch/emu_hv_probe.cpp
-        # runtime.emulator — INTEL_0063 arm64_vm_platform (arm64 tier-2 probe;
+        # runtime.emulator — INTEL_0048 arm64_vm_platform (arm64 tier-2 probe;
         # ABI-guarded internally, contributes nothing on other ABIs).
         dicore/detectors/emulator/arch/emu_vm_platform.cpp
-        # runtime.emulator — INTEL_0061 cpu_rerouting_anomaly (behavioural
-        # companion to INTEL_0056: counter coherence + fault fidelity; pure
+        # runtime.emulator — INTEL_0047 cpu_rerouting_anomaly (behavioural
+        # companion to INTEL_0027: counter coherence + fault fidelity; pure
         # classifier + probe).
         dicore/detectors/emulator/translation/rerouting_classify.cpp
         dicore/detectors/emulator/translation/rerouting_probe.cpp
@@ -142,7 +142,7 @@ add_library(dicore SHARED
         #   text_verify.cpp     (G2)
         #   got_verify.cpp      (G4)
         # (G3 lib_inventory.cpp / inventory_util.cpp / anon_exec_scan.cpp were
-        #  deleted — dead + redundant with INTEL_0035 foreign_text_mapped; see #8.)
+        #  deleted — dead + redundant with INTEL_0044 foreign_text_mapped; see #8.)
         #   caller_verify.cpp   (G7)
         dicore/detectors/native_integrity/process/range_map.cpp
         dicore/detectors/native_integrity/process/baseline.cpp
@@ -162,8 +162,8 @@ add_library(dicore SHARED
         # self-hook — inline-hook trampoline check on our own function prologues
         # (snapshot-independent; complements G2's whole-.text hash).
         dicore/detectors/native_integrity/self/prologue_verify.cpp
-        # native_integrity — INTEL_0058 scan-channel sequence MAC + rate guard,
-        # INTEL_0059 own-.text digest verify, and INTEL_0060 fork-exec watchdog
+        # native_integrity — INTEL_0029 scan-channel sequence MAC + rate guard,
+        # INTEL_0042 own-.text digest verify, and INTEL_0018 fork-exec watchdog
         # (pure host-tested cores + the probes wired into dicore_verdict()).
         dicore/detectors/native_integrity/channel_guard.cpp
         dicore/detectors/native_integrity/channel_guard_probe.cpp
@@ -244,7 +244,7 @@ target_link_options(dicore PRIVATE
         # Force the read-only/executable segment split. AGP/NDK injects
         # -Wl,--no-rosegment, which merges .rodata AND the build-id note
         # into the single R+E LOAD — so the "executable segment" would
-        # contain the very digest array INTEL_0059 bakes into .rodata (and
+        # contain the very digest array INTEL_0042 bakes into .rodata (and
         # a build-id that changes every link), and no build-time digest
         # of it could ever converge. --rosegment restores the split
         # layout where the PF_X PT_LOAD is exactly .plt+.text: no
@@ -277,7 +277,7 @@ add_custom_command(TARGET dicore POST_BUILD
         COMMENT "dicore: stripping .comment (toolchain fingerprint)"
 )
 
-# INTEL_0059 — bake the build-time digest of our own executable segment into
+# INTEL_0042 — bake the build-time digest of our own executable segment into
 # dicore_text_digest_gen.h, consumed by text_digest_probe.cpp. The generator
 # (tools/native/gen-dicore-text-digest.py) hashes the PF_X PT_LOAD file bytes
 # of the just-linked .so and rewrites the header ONLY on change, so:
@@ -310,12 +310,12 @@ if(DICORE_PYTHON3)
                 COMMAND ${DICORE_PYTHON3}
                         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/native/gen-dicore-text-digest.py
                         $<TARGET_FILE:dicore> ${DICORE_TEXT_DIGEST_H}
-                COMMENT "dicore: generating .text digest header (INTEL_0059)")
+                COMMENT "dicore: generating .text digest header (INTEL_0042)")
         # A1 — bind the strenc keys to this linked image's exec-page digest.
         # Re-encrypts each .dicoreobf.strtab range in place with
         # key0 XOR fold128(sha256(exec first page)) and sets the BOUND flag
         # the dicore.strdec ctors honor at load. Only .data bytes change —
-        # the exec segment (and therefore the INTEL_0059 digest above) is
+        # the exec segment (and therefore the INTEL_0042 digest above) is
         # untouched, so both POST_BUILD steps are order-independent. No-op
         # when the pass did not run (debug builds: no strtab, exit 0).
         add_custom_command(TARGET dicore POST_BUILD
@@ -326,5 +326,5 @@ if(DICORE_PYTHON3)
 else()
         # No python3 on the build host: the zero seed stays and the probe
         # runs in its documented fail-open "no baseline" mode. Never fatal.
-        message(WARNING "python3 not found: DICORE_TEXT_DIGEST stays zeroed (INTEL_0059 fail-open)")
+        message(WARNING "python3 not found: DICORE_TEXT_DIGEST stays zeroed (INTEL_0042 fail-open)")
 endif()

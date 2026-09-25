@@ -7,10 +7,9 @@ agp = "8.13.2"
 # gradle.properties (the next in-development version); bump this at release
 # time to match the tag.
 deviceintelligence = "0.5.2"
-kotlin = "2.0.21"
-# kotlinx-coroutines 1.9.0 pairs with Kotlin 2.0.x. Bumping the
-# Kotlin version implies re-checking the matching coroutines line.
-kotlinx-coroutines = "1.9.0"
+kotlin = "2.2.20"
+# kotlinx-coroutines 1.10.x is the line built with/for Kotlin 2.x.
+kotlinx-coroutines = "1.10.2"
 # androidx.lifecycle 2.8.x is the latest stable line that still
 # supports the sample's compileSdk 36 / minSdk 28 floor without
 # pulling in newer AGP requirements.
@@ -28,9 +27,12 @@ androidx-test-ext-junit = "1.2.1"
 # this dep on androidTest classpath, the instrumentation start fails with
 # ClassNotFoundException at test-run time, not at build time.
 androidx-test-runner = "1.6.2"
+# Sample-app scroll feel: Flinger (fling physics) + Squishy (overscroll effects).
+flinger = "2.1.1"
+squishy = "2.2.1"
 # Compose BOM pins every androidx.compose.* artifact to one tested set, so the
 # individual UI deps below carry no version of their own. 2024.09.x is the line
-# that pairs with Kotlin 2.0.21's bundled compiler plugin.
+# that pairs with Kotlin 2.2.x's bundled compiler plugin.
 androidx-compose-bom = "2024.09.03"
 androidx-activity-compose = "1.9.3"
 androidx-navigation-compose = "2.8.4"
@@ -40,7 +42,7 @@ hilt = "2.56.2"
 androidx-hilt-navigation-compose = "1.2.0"
 # KSP is versioned against the exact Kotlin version, not a range. Bumping
 # `kotlin` above WILL break the build until this is bumped to match.
-ksp = "2.0.21-1.0.28"
+ksp = "2.2.20-2.0.4"
 mockk = "1.13.13"
 
 [libraries]
@@ -64,6 +66,8 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidx-hilt-navigation-compose" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+flinger = { group = "com.github.iamjosephmj", name = "flinger", version.ref = "flinger" }
+squishy = { group = "com.github.iamjosephmj", name = "Squishy", version.ref = "squishy" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

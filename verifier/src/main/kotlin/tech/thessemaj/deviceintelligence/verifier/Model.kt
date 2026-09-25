@@ -32,7 +32,7 @@ data class DeviceInfo(val api: Int?, val abi: String?, val model: String?)
  * (registry drift). [blocking] is the policy verdict for this signal.
  */
 data class ResolvedSignal(
-    /** The opaque wire code, e.g. `INTEL_0008`. The only part the device actually sent. */
+    /** The opaque wire code, e.g. `INTEL_0025`. The only part the device actually sent. */
     val id: String,
     /** Detector family from the registry, e.g. `environment`. `?` when the code is unknown. */
     val detector: String,
@@ -49,7 +49,7 @@ data class ResolvedSignal(
     /** Structured enrichment parsed from [detail] (key=value tokens the device attached). */
     val attributes: Map<String, String> = emptyMap(),
 ) {
-    /** Injected Magisk/KSU/Zygisk module id, when the finding names one (e.g. INTEL_0035). */
+    /** Injected Magisk/KSU/Zygisk module id, when the finding names one (e.g. INTEL_0044). */
     val moduleId: String? get() = attributes["module_id"]
     /** Mapping path of the injected/foreign code, if present. */
     val path: String? get() = attributes["path"]
@@ -58,12 +58,12 @@ data class ResolvedSignal(
         get() = attributes["needed"]?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
     /** A dedicated hooking library the injected module links (confirmed hooking framework). */
     val linksHookLib: String? get() = attributes["links_hook_lib"]
-    /** The hooked symbol/function, when a GOT hijack was resolved (INTEL_0036). */
+    /** The hooked symbol/function, when a GOT hijack was resolved (INTEL_0031). */
     val hookedSymbol: String? get() = attributes["hooked_symbol"]
-    /** The module that placed the hook, when correlated (INTEL_0036). */
+    /** The module that placed the hook, when correlated (INTEL_0031). */
     val hookedBy: String? get() = attributes["hooked_by"]
     /**
-     * INTEL_0009 enrichment: how many RWX regions hold trampoline stubs that branch into REAL
+     * INTEL_0052 enrichment: how many RWX regions hold trampoline stubs that branch into REAL
      * code (legit system code or a foreign injected module) — a hook pool, as opposed to a
      * self-referential/empty region (a benign JIT cache). Null when the device did not attach it.
      */
@@ -71,7 +71,7 @@ data class ResolvedSignal(
     /**
      * True when this is an RWX finding whose contents are a confirmed hook trampoline pool
      * (`hook_stub_regions > 0`) — RWX presence corroborated by stubs branching into real code,
-     * not merely a JIT cache. This is the FP-safe half of INTEL_0009.
+     * not merely a JIT cache. This is the FP-safe half of INTEL_0052.
      */
     val isConfirmedHookPool: Boolean get() = kind == "rwx_memory_mapping" && (hookStubRegions ?: 0) > 0
 }
@@ -103,8 +103,8 @@ data class VerificationResult(
     val blockingSignals: List<ResolvedSignal> get() = signals.filter { it.blocking }
 
     /**
-     * Symbols confirmed hooked by BOTH a structural signal (INTEL_0038 `libc_inline_hook` /
-     * INTEL_0039 `libc_inline_stub`) AND a behavioral one (INTEL_0040 `syscall_divergence`).
+     * Symbols confirmed hooked by BOTH a structural signal (INTEL_0003 `libc_inline_hook` /
+     * INTEL_0008 `libc_inline_stub`) AND a behavioral one (INTEL_0059 `syscall_divergence`).
      * Structural + behavioral agreement on the same symbol is a definitive, mechanism-confirmed
      * hook. This correlation is a BACKEND verdict decision (it lives here, in the code a real
      * server runs) — the client only displays what the verifier computed.
@@ -112,7 +112,7 @@ data class VerificationResult(
     val definitiveHooks: List<String> get() = signals.definitiveHooks()
 
     /**
-     * RWX findings (INTEL_0009) confirmed to be hook trampoline pools — their stubs branch into
+     * RWX findings (INTEL_0052) confirmed to be hook trampoline pools — their stubs branch into
      * real code (`hook_stub_regions > 0`), not a self-referential JIT cache. A confirmed hook
      * pool is a mechanism-independent corroboration of an in-process hook (Frida/LSPlant class),
      * distinct from the symbol-keyed [definitiveHooks]. Always blocking, regardless of policy tuning.

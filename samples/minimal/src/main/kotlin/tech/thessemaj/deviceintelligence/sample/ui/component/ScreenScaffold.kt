@@ -14,6 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.animation.core.tween
+import io.iamjosephmj.squishy.physics.OverscrollCurve
+import io.iamjosephmj.squishy.physics.OverScrollConfig
+import io.iamjosephmj.squishy.scroll.OverScrollArea
+import io.iamjosephmj.squishy.state.rememberOverScrollState
+import io.iamjosephmj.squishy.visual.OverscrollVisuals
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -65,9 +71,12 @@ fun ScreenScaffold(
             .padding(20.dp),
     ) {
         HeaderBar(title, subtitle, onBack, showMark, sharedKey)
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-            content()
-            VSpace(40)
+        val overScrollState = rememberOverScrollState(visual = OverscrollVisuals.pushDown(), config = OverScrollConfig(maxOverscroll = 300f, curve = OverscrollCurve.RubberBand(), settleSpec = tween(300)))
+        OverScrollArea(overScrollState) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                content()
+                VSpace(40)
+            }
         }
     }
 }

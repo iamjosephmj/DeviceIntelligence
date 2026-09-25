@@ -14,7 +14,7 @@
 //     is executing translated code right now.
 // None of these can occur on genuine silicon (the sanctioned-translation
 // exception — ChromeOS/ARC — is itself a virtual environment that already
-// trips INTEL_0044 software attestation, so it is not a new landing zone).
+// trips INTEL_0056 software attestation, so it is not a new landing zone).
 //
 // Everything here is pure string classification over attacker-influenced
 // inputs: host-testable (test/detectors/emulator/) and fuzzable

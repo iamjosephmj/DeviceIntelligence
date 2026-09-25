@@ -15,7 +15,7 @@
 //
 // An earlier version of this comment claimed "the orchestrator counts [it] toward the
 // kill". It did not. Emulators are caught by the attestation layer instead: no hardware
-// root of trust (INTEL_0044), a chain that does not reach a pinned Google root, and an
+// root of trust (INTEL_0056), a chain that does not reach a pinned Google root, and an
 // unverified boot state.
 //
 // This core is retained but dead. See issue #8 before wiring or deleting it.

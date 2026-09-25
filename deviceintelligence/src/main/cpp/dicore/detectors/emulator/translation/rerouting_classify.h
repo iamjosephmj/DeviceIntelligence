@@ -3,7 +3,7 @@
 // Pure classifier: is THIS PROCESS's CPU being rerouted by a binary-
 // translation layer, judged from measurements the process takes on itself?
 //
-// Companion to translation_classify.h (INTEL_0056), which keys on names and
+// Companion to translation_classify.h (INTEL_0027), which keys on names and
 // provenance. This one keys on *behaviour* — the two seams a CPU-virtualizing
 // layer cannot close without breaking the translation (spike:
 // docs/spikes/cpu-rerouting.md, measured 2026-09-11):

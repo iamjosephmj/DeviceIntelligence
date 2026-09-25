@@ -72,7 +72,7 @@ class ChallengeVerifyTest {
         rejectsWithSessionFlag { Session(it, Assurance.STRONGBOX, "Verified", true, NOW, crossLevelReuse = true) }
 
     // strongboxChainMissing is now OBSERVE-ONLY (transient StrongBox failures on genuine
-    // devices would otherwise false-REJECT). It surfaces as INTEL_0033 (VERY_LOW, non-blocking).
+    // devices would otherwise false-REJECT). It surfaces as INTEL_0045 (VERY_LOW, non-blocking).
     @Test fun strongbox_chain_missing_is_observe_only() {
         val kp = kp()
         val sid = signer.issue(Session(Hex.encode(kp.public.encoded), Assurance.STRONGBOX, "Verified", true, NOW,
@@ -80,15 +80,15 @@ class ChallengeVerifyTest {
         val r = TokenVerifier().verifyChallenge(makeToken(kp, sid, "abcd"), issuedChallenge = "abcd", sessionSigner = signer)
         assertNotEquals("observe-only: must not hard-REJECT", Decision.REJECT, r.decision)
         assertEquals(Decision.TRUSTWORTHY, r.decision)
-        assertFalse("INTEL_0033 is non-blocking by default", r.signals.first { it.id == "INTEL_0033" }.blocking)
+        assertFalse("INTEL_0045 is non-blocking by default", r.signals.first { it.id == "INTEL_0045" }.blocking)
     }
 
-    // But an integrator CAN make it hard via policy (block INTEL_0033).
+    // But an integrator CAN make it hard via policy (block INTEL_0045).
     @Test fun strongbox_chain_missing_blockable_by_policy() {
         val kp = kp()
         val sid = signer.issue(Session(Hex.encode(kp.public.encoded), Assurance.STRONGBOX, "Verified", true, NOW,
             chainTrusted = true, strongboxChainMissing = true))
-        val r = TokenVerifier(policy = Policy(block = setOf("INTEL_0033")))
+        val r = TokenVerifier(policy = Policy(block = setOf("INTEL_0045")))
             .verifyChallenge(makeToken(kp, sid, "abcd"), issuedChallenge = "abcd", sessionSigner = signer)
         assertEquals(Decision.COMPROMISED, r.decision)
     }
@@ -103,7 +103,7 @@ class ChallengeVerifyTest {
 
     @Test fun boot_state_spoof_surfaces_sig_0030() {
         val sig = signalsFor { Session(it, Assurance.STRONGBOX, "Verified", true, NOW, bootStateSpoofer = true) }
-            .first { it.id == "INTEL_0030" }
+            .first { it.id == "INTEL_0055" }
         assertEquals("attestation", sig.detector)
         assertEquals("verified_boot_prop_spoof", sig.kind)
         assertTrue(sig.blocking)
@@ -111,22 +111,22 @@ class ChallengeVerifyTest {
 
     @Test fun cross_level_reuse_surfaces_sig_0032() {
         val sig = signalsFor { Session(it, Assurance.STRONGBOX, "Verified", true, NOW, crossLevelReuse = true) }
-            .first { it.id == "INTEL_0032" }
+            .first { it.id == "INTEL_0016" }
         assertEquals("keybox_cross_level_reuse", sig.kind)
         assertTrue("CRITICAL cross-level reuse blocks", sig.blocking)
     }
 
     @Test fun strongbox_chain_missing_surfaces_sig_0033() {
         val sig = signalsFor { Session(it, Assurance.STRONGBOX, "Verified", true, NOW, strongboxChainMissing = true) }
-            .first { it.id == "INTEL_0033" }
+            .first { it.id == "INTEL_0045" }
         assertEquals("strongbox_chain_unavailable", sig.kind)
         assertEquals("VERY_LOW", sig.severity)
     }
 
     @Test fun clean_session_emits_no_attestation_sig() {
         val ids = signalsFor { Session(it, Assurance.STRONGBOX, "Verified", true, NOW) }.map { it.id }
-        assertFalse(ids.contains("INTEL_0030"))
-        assertFalse(ids.contains("INTEL_0032")); assertFalse(ids.contains("INTEL_0033"))
+        assertFalse(ids.contains("INTEL_0055"))
+        assertFalse(ids.contains("INTEL_0016")); assertFalse(ids.contains("INTEL_0045"))
     }
 
     private fun kp() = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
@@ -141,7 +141,7 @@ class ChallengeVerifyTest {
     }
 
     /**
-     * INTEL_0044: an explicitly software-attested environment (emulator / no hardware keystore).
+     * INTEL_0056: an explicitly software-attested environment (emulator / no hardware keystore).
      * This is the robust, generic emulator signal — it is derived from the SIGNED attestation,
      * so no anti-emulation layer that neutralises properties, sensors or telephony can hide it.
      */
@@ -150,15 +150,15 @@ class ChallengeVerifyTest {
         val sid = signer.issue(Session(Hex.encode(kp.public.encoded), Assurance.SOFTWARE, "Verified", true, NOW,
             chainTrusted = true, softwareAttested = true))
         val r = TokenVerifier().verifyChallenge(makeToken(kp, sid, "abcd"), issuedChallenge = "abcd", sessionSigner = signer)
-        val sig = r.signals.first { it.id == "INTEL_0044" }
+        val sig = r.signals.first { it.id == "INTEL_0056" }
         assertEquals("software_attested_environment", sig.kind)
-        assertTrue("INTEL_0044 blocks under default policy", sig.blocking)
+        assertTrue("INTEL_0056 blocks under default policy", sig.blocking)
         assertNotEquals(Decision.TRUSTWORTHY, r.decision)
     }
 
     /**
      * PRECISION: a missing/unparseable securityLevel grades to Assurance.SOFTWARE so the
-     * hardware gate fails safe — but it must NOT raise INTEL_0044, which asserts a software
+     * hardware gate fails safe — but it must NOT raise INTEL_0056, which asserts a software
      * keystore was actually proven. Absence of evidence is not evidence of an emulator.
      */
     @Test fun unparseable_security_level_fails_gate_but_claims_nothing() {
@@ -167,7 +167,7 @@ class ChallengeVerifyTest {
             chainTrusted = true, softwareAttested = false))
         val r = TokenVerifier().verifyChallenge(makeToken(kp, sid, "abcd"), issuedChallenge = "abcd", sessionSigner = signer)
         assertFalse("hardware gate still fails safe", r.deviceIntegrityOk)
-        assertTrue("but no software-attestation claim is made", r.signals.none { it.id == "INTEL_0044" })
+        assertTrue("but no software-attestation claim is made", r.signals.none { it.id == "INTEL_0056" })
     }
 
     /** Real hardware never raises the software-environment signal. */
@@ -176,7 +176,7 @@ class ChallengeVerifyTest {
         for (a in listOf(Assurance.TEE, Assurance.STRONGBOX)) {
             val sid = signer.issue(Session(Hex.encode(kp.public.encoded), a, "Verified", true, NOW, chainTrusted = true))
             val r = TokenVerifier().verifyChallenge(makeToken(kp, sid, "abcd"), issuedChallenge = "abcd", sessionSigner = signer)
-            assertTrue("no INTEL_0044 for $a", r.signals.none { it.id == "INTEL_0044" })
+            assertTrue("no INTEL_0056 for $a", r.signals.none { it.id == "INTEL_0056" })
         }
     }
 
@@ -194,7 +194,7 @@ class ChallengeVerifyTest {
     @Test fun compromised_when_signal_blocks() {
         val kp = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
         val sid = signer.issue(Session(Hex.encode(kp.public.encoded), Assurance.STRONGBOX, "Verified", true, NOW))
-        val token = makeToken(kp, sid, "abcd", signals = """{"id":"INTEL_0018","severity":"CRITICAL","detail":"enforce=0"}""")
+        val token = makeToken(kp, sid, "abcd", signals = """{"id":"INTEL_0006","severity":"CRITICAL","detail":"enforce=0"}""")
         val r = TokenVerifier().verifyChallenge(token, issuedChallenge = "abcd", sessionSigner = signer)
         assertEquals(Decision.COMPROMISED, r.decision)
     }

@@ -97,7 +97,7 @@ bool frida_worker_thread(std::string& which) {
         char path[64];
         // /proc/self/task/<tid>/comm — snprintf, NOT a hand-rolled copy: a
         // fixed-length byte-copy from the literal folds into constant stores
-        // before the obfuscator (Arkari) runs, and ISel re-materializes the bytes as a
+        // before the obfuscator runs, and ISel re-materializes the bytes as a
         // cleartext constant-pool entry the pass can never see (red-team F4).
         std::snprintf(path, sizeof path, "/proc/self/task/%s/comm", e->d_name);
         char comm[64];
@@ -149,13 +149,13 @@ std::vector<std::string> antidebug_verdict_records() {
     // maps scan produced these but they never reached the verdict; surface them
     // here as CRITICAL.
     for (auto& r : hook_framework_records()) out.push_back(std::move(r));
-    // INTEL_0040 — behavioral syscall divergence (a userspace hook lying about the filesystem).
+    // INTEL_0059 — behavioral syscall divergence (a userspace hook lying about the filesystem).
     for (auto& r : syscall_divergence_records()) out.push_back(std::move(r));
-    // INTEL_0041 — linker<->maps divergence (map-anonymized foreign module the linker still names).
+    // INTEL_0061 — linker<->maps divergence (map-anonymized foreign module the linker still names).
     for (auto& r : linker_maps_records()) out.push_back(std::move(r));
-    // INTEL_0042 — sealed executable memfd (NeoZygisk/zygiskd module loaded from a sealed memfd).
+    // INTEL_0028 — sealed executable memfd (NeoZygisk/zygiskd module loaded from a sealed memfd).
     for (auto& r : sealed_memfd_records()) out.push_back(std::move(r));
-    // INTEL_0043 — behavioral property divergence (__system_property_get hooked to spoof boot state).
+    // INTEL_0058 — behavioral property divergence (__system_property_get hooked to spoof boot state).
     for (auto& r : property_divergence_records()) out.push_back(std::move(r));
 
     return out;

@@ -1,4 +1,4 @@
-// channel_guard_probe.cpp — native_integrity probe for INTEL_0058
+// channel_guard_probe.cpp — native_integrity probe for INTEL_0029
 // (channel_sequence_anomaly). See channel_guard.hpp for the chain contract;
 // this TU advances the chain once per scan and enforces the on-device rate
 // guard. Runs at scan entry (dicore_verdict → here), so the counter is the

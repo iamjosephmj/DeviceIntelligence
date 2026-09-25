@@ -129,7 +129,7 @@ Status decode(const uint8_t* cipher, size_t clen,
     if (format >= 2) {
         // nativeLibInventoryByAbi: abi -> [filenames]. Parsed and carried in the meta
         // row (field 5), but no longer ENFORCED at runtime: its consumer was the
-        // lib_inventory scanner, removed in #17 as redundant with INTEL_0035. Kept on the
+        // lib_inventory scanner, removed in #17 as redundant with INTEL_0044. Kept on the
         // wire for meta/back-compat stability. Like nativeLibHashesByAbi below.
         uint32_t abi_inv = r.count();
         for (uint32_t i = 0; i < abi_inv && r.ok(); ++i) {

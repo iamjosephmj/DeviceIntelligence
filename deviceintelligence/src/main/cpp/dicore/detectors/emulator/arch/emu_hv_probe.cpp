@@ -1,7 +1,7 @@
-// emu_hv_probe.cpp — INTEL_0062 (hypervisor_cpu): x86_64-only CPU-state probe
+// emu_hv_probe.cpp — INTEL_0033 (hypervisor_cpu): x86_64-only CPU-state probe
 // for hardware-assisted virtualization.
 //
-// Why this exists: INTEL_0056 detects binary TRANSLATION (bridge libs, ISA
+// Why this exists: INTEL_0027 detects binary TRANSLATION (bridge libs, ISA
 // divergence). It is silent on emulators that hand guest code to the real
 // CPU under hardware virtualization (QEMU/KVM) — the app runs x86_64 libs
 // natively, nothing is translated, and the CPU itself "is" the emulator.

@@ -56,11 +56,11 @@ class JsonTest {
 
     @Test fun parses_a_signed_content_shaped_document() {
         val doc = Json.parseObject(
-            """{"schemaVersion":3,"type":"challenge","ts":1787,"signals":[{"id":"INTEL_0009","severity":"CRITICAL"}]}"""
+            """{"schemaVersion":3,"type":"challenge","ts":1787,"signals":[{"id":"INTEL_0052","severity":"CRITICAL"}]}"""
         )
         assertEquals(3L, doc["schemaVersion"])
         @Suppress("UNCHECKED_CAST")
         val sigs = doc["signals"] as List<Map<String, Any?>>
-        assertEquals("INTEL_0009", sigs[0]["id"])
+        assertEquals("INTEL_0052", sigs[0]["id"])
     }
 }

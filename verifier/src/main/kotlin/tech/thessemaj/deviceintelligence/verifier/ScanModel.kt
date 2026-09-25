@@ -31,13 +31,13 @@ data class Session(
     // failed integrity fact drives COMPROMISED. Defaults keep older sessions valid.
     val chainTrusted: Boolean = true,       // chain terminates at a pinned Google root
     val keyboxRevoked: Boolean = false,     // a serial on the attestation CRL
-    val crossLevelReuse: Boolean = false,   // same batch key across StrongBox & TEE (INTEL_0032)
-    val strongboxChainMissing: Boolean = false, // leaf claims StrongBox but no SB chain (INTEL_0033, fail-closed)
+    val crossLevelReuse: Boolean = false,   // same batch key across StrongBox & TEE (INTEL_0016)
+    val strongboxChainMissing: Boolean = false, // leaf claims StrongBox but no SB chain (INTEL_0045, fail-closed)
     val devicePropMismatch: Boolean = false,// TEE-attested identity != self-reported Build.*
     val bootStateSpoofer: Boolean = false,  // boot props claim clean, attestation says otherwise
     /**
      * The KeyDescription EXPLICITLY reported securityLevel=Software(0) — no hardware root
-     * of trust (INTEL_0044). Deliberately NOT the same as `assurance == SOFTWARE`: a missing
+     * of trust (INTEL_0056). Deliberately NOT the same as `assurance == SOFTWARE`: a missing
      * or unparseable securityLevel also grades to SOFTWARE so the integrity gate fails
      * safe, but it must not raise the signal, because absence of evidence is not evidence
      * of a software keystore. This flag says only what the attestation actually proved.

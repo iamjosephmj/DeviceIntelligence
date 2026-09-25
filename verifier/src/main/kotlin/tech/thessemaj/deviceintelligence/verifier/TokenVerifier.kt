@@ -169,8 +169,8 @@ class TokenVerifier(
             auth("no revoked keybox", !it.keyboxRevoked)
             auth("no cross-level keybox reuse", !it.crossLevelReuse)
             // strongboxChainMissing is NOT an auth REJECT: a genuine StrongBox device can hit a
-            // transient StrongBox failure. It surfaces as INTEL_0033 (HIGH, observe-only; block via
-            // policy if you want it hard). INTEL_0034 (capability interlock) is retired.
+            // transient StrongBox failure. It surfaces as INTEL_0045 (HIGH, observe-only; block via
+            // policy if you want it hard). INTEL_0039 (capability interlock) is retired.
             auth("device-property attestation matches self-report", !it.devicePropMismatch)
             auth("boot-state self-report matches hardware attestation", !it.bootStateSpoofer,
                  if (it.bootStateSpoofer) "self-report claims clean/locked boot but attestation says otherwise — prop spoofer" else "")
@@ -202,7 +202,7 @@ class TokenVerifier(
 
     /**
      * Surface the carried attestation forgeries as first-class registry SIGs, so a
-     * boot-state spoof appears as INTEL_0030 in the
+     * boot-state spoof appears as INTEL_0055 in the
      * verdict's signal list (the shared taxonomy), alongside the auth() gate that
      * already REJECTs it. The gate is the authority; the SIG is the named telemetry.
      */
@@ -213,10 +213,10 @@ class TokenVerifier(
             out.add(ResolvedSignal(m.id, m.detector, m.kind, m.title, m.severity, detail,
                 policy.isBlocking(m.id, m.severity)))
         }
-        if (session.bootStateSpoofer) add("INTEL_0030", "self-report=green/locked but hardware attestation disagrees")
-        if (session.crossLevelReuse) add("INTEL_0032", "same attestation batch key across StrongBox and TEE — leaked keybox")
-        if (session.strongboxChainMissing) add("INTEL_0033", "StrongBox hardware indicated but no StrongBox attestation chain produced (fail-closed)")
-        if (session.softwareAttested) add("INTEL_0044", "attestation reports securityLevel=Software — no hardware root of trust")
+        if (session.bootStateSpoofer) add("INTEL_0055", "self-report=green/locked but hardware attestation disagrees")
+        if (session.crossLevelReuse) add("INTEL_0016", "same attestation batch key across StrongBox and TEE — leaked keybox")
+        if (session.strongboxChainMissing) add("INTEL_0045", "StrongBox hardware indicated but no StrongBox attestation chain produced (fail-closed)")
+        if (session.softwareAttested) add("INTEL_0056", "attestation reports securityLevel=Software — no hardware root of trust")
         return out
     }
 

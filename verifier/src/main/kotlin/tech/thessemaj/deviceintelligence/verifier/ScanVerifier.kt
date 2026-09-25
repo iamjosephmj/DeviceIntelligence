@@ -205,7 +205,7 @@ class ScanVerifier(
             2 -> Assurance.STRONGBOX
             1 -> Assurance.TEE
             // A missing or unparseable level grades to SOFTWARE so the gate fails safe;
-            // only an EXPLICIT Software(0) raises INTEL_0044, since absence of evidence is
+            // only an EXPLICIT Software(0) raises INTEL_0056, since absence of evidence is
             // not evidence of a software keystore.
             else -> Assurance.SOFTWARE
         }
@@ -229,7 +229,7 @@ class ScanVerifier(
         val bootSpoofer = EnrollVerifier.bootStateSpoofer(reported, fields)
 
         // A device that says it HAS StrongBox hardware but produced no StrongBox chain
-        // hit a transient failure -> INTEL_0033, same as the leaf claiming StrongBox
+        // hit a transient failure -> INTEL_0045, same as the leaf claiming StrongBox
         // without one.
         val sbFeature: Boolean? = when (reported["sbFeature"] as? String) {
             "1" -> true; "0" -> false; else -> null
@@ -351,7 +351,7 @@ class ScanVerifier(
         integ("device locked", session.deviceLocked, session.deviceLocked.toString())
 
         // StrongBox-chain-missing is NOT a gate: a genuine StrongBox device can hit a
-        // transient failure. It surfaces as INTEL_0033 for policy to weigh.
+        // transient failure. It surfaces as INTEL_0045 for policy to weigh.
         val all = signals + evidence.appSignals(doc, session.attestedApp) + evidence.carriedSignals(session) +
             evidence.patchSignals(doc, session)
         val ok = checks.filter { it.kind == CheckKind.AUTH }.all { it.ok }

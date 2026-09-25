@@ -1,4 +1,4 @@
-// INTEL_0008 — a hook framework is mapped into this process.
+// INTEL_0025 — a hook framework is mapped into this process.
 //
 // A thin reader over the shared maps scan rather than a second walk of the file:
 // scan_runtime_maps() already classified everything, so this only filters.

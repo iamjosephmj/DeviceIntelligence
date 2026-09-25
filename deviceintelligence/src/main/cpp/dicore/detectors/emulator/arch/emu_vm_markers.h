@@ -1,6 +1,6 @@
 #pragma once
 
-// Pure marker classifier for the arm64 VM-platform probe (INTEL_0063).
+// Pure marker classifier for the arm64 VM-platform probe (INTEL_0048).
 // Scans a byte range (device-tree model/compatible strings are
 // NUL-separated; scanning bytes handles that) for hypervisor-platform
 // markers, case-insensitively. Host-testable: no OS dependencies.

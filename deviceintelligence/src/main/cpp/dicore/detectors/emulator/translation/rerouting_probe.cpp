@@ -1,4 +1,4 @@
-// rerouting_probe.cpp — device-side probe for INTEL_0061
+// rerouting_probe.cpp — device-side probe for INTEL_0047
 // (cpu_rerouting_anomaly). See rerouting_classify.h for the classification
 // contract; this TU takes the two measurements and emits the record.
 //

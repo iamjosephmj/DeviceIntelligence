@@ -111,7 +111,7 @@ object FrameworkShim {
      * order: widevineId, widevineLevel, androidId.
      *
      * Everything else in the fingerprint — kernel release, build fingerprint,
-     * security patch — is read natively, because those feed INTEL_0048 and must not
+     * security patch — is read natively, because those feed INTEL_0019 and must not
      * travel through an ART-hookable surface. These three have no native path:
      * MediaDrm is binder, ANDROID_ID is a ContentResolver read.
      *
@@ -476,7 +476,7 @@ object FrameworkShim {
      * mode). Its value is that it separates "no StrongBox here" from "StrongBox present
      * but the keygen failed", which StrongBoxUnavailableException cannot. The backend
      * cross-checks it against the ATTESTED brand/model, so a device that lies about the
-     * capability to escape the cross-level check is caught by INTEL_0034 rather than
+     * capability to escape the cross-level check is caught by INTEL_0039 rather than
      * believed.
      */
     private fun a18(): String = runCatching {

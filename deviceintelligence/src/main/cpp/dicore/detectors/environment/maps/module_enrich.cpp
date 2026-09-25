@@ -38,7 +38,7 @@ std::string self_lib_path() {
 // if it links a dedicated hooking library. FAIL-OPEN and crash-safe: DT_STRTAB is
 // validated to lie within the module's own mapped span, sonames are read via bounded
 // process_vm_readv (never a raw deref), and matching is exact-basename (no strstr). Any
-// doubt -> omit the detail. This annotates the INTEL_0035 finding; it never condemns on
+// doubt -> omit the detail. This annotates the INTEL_0044 finding; it never condemns on
 // its own, so a benign injected module is described, not falsely flagged.
 bool is_hook_soname(const std::string& so) {
     static const char* h[] = {"libdobby.so","libwhale.so","libyahfa.so","liblsplant.so",

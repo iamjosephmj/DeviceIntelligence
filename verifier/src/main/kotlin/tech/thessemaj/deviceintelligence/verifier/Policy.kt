@@ -16,13 +16,13 @@ data class Policy(
     /** High-assurance tier: reject any attestation weaker than StrongBox (TEE-only -> COMPROMISED). */
     val requireStrongBox: Boolean = false,
     /**
-     * INTEL_0047 window: how old the OLDEST attested patch level may be, in days.
+     * INTEL_0050 window: how old the OLDEST attested patch level may be, in days.
      * Modelled on Play Integrity's recent-security-update requirement. Lives here,
      * not on the device, so it can be retuned without an app release.
      */
     val maxPatchAgeDays: Int = 365,
     /**
-     * Opt-in FP tuning for INTEL_0009 (rwx_memory_mapping), enabled by the per-region hook-stub
+     * Opt-in FP tuning for INTEL_0052 (rwx_memory_mapping), enabled by the per-region hook-stub
      * enrichment the device now attaches. RWX presence alone is ambiguous — a benign JIT code
      * cache is RWX too. When true, an RWX finding with NO resolved hook stubs
      * (`hook_stub_regions == 0`) is downgraded to observe (non-blocking), while a confirmed hook

@@ -1,8 +1,8 @@
-// emu_vm_platform.cpp — INTEL_0063 (arm64_vm_platform): arm64 tier-2 probe
+// emu_vm_platform.cpp — INTEL_0048 (arm64_vm_platform): arm64 tier-2 probe
 // for hardware-virtualized / full-system-emulated environments.
 //
 // Why: ARM KVM passes the host MIDR through, so there is no CPUID-style
-// architectural tell on ARM (INTEL_0062 is x86-silicon-only). What leaks
+// architectural tell on ARM (INTEL_0033 is x86-silicon-only). What leaks
 // instead is the PLATFORM:
 //   - /proc/device-tree model + compatible: QEMU machines report
 //     "linux,dummy-virt" / "QEMU ...", cuttlefish reports its board,

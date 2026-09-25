@@ -62,12 +62,12 @@ internal class ScanEvidence(
         }
         val detail = a.detail?.let { " ($it)" } ?: ""
         when (a.reason) {
-            "NO_SESSION" -> add("INTEL_0053", "scan issued with no prepared session$detail")
+            "NO_SESSION" -> add("INTEL_0023", "scan issued with no prepared session$detail")
             "LICENCE_EXPIRED", "LICENCE_PKG_MISMATCH", "LICENCE_UNPARSEABLE" ->
-                add("INTEL_0054", "licence rejected at scan time: ${a.reason}$detail")
-            else -> add("INTEL_0052", "attestation unavailable: ${a.reason}$detail")
+                add("INTEL_0038", "licence rejected at scan time: ${a.reason}$detail")
+            else -> add("INTEL_0030", "attestation unavailable: ${a.reason}$detail")
         }
-        if (a.signed == AttestationLevel.NONE) add("INTEL_0055", "token carries no signature")
+        if (a.signed == AttestationLevel.NONE) add("INTEL_0015", "token carries no signature")
         return out
     }
 
@@ -98,17 +98,17 @@ internal class ScanEvidence(
 
         val agrees = attested.packageNames.contains(pkg) &&
             attested.signatureDigests.any { it.equals(signer, ignoreCase = true) }
-        if (!agrees) return sig("INTEL_0045",
+        if (!agrees) return sig("INTEL_0046",
             "reported=$pkg/${signer.take(16)}… attested=${attested.packageNames.firstOrNull() ?: "?"}")
 
         // Identity is genuine; the only remaining question is entitlement.
-        if (!licenses.isLicensed(pkg, signer)) return sig("INTEL_0046", "package=$pkg")
+        if (!licenses.isLicensed(pkg, signer)) return sig("INTEL_0037", "package=$pkg")
         return emptyList()
     }
 
     /**
      * Surface the carried attestation findings as first-class registry SIGs, so a boot
-     * spoof appears as INTEL_0030 in the signal list (the shared taxonomy) alongside the
+     * spoof appears as INTEL_0055 in the signal list (the shared taxonomy) alongside the
      * gate that already rejects it. The gate is the authority; the SIG is the telemetry.
      */
     fun carriedSignals(s: ScanSession): List<ResolvedSignal> {
@@ -117,10 +117,10 @@ internal class ScanEvidence(
             out.add(ResolvedSignal(m.id, m.detector, m.kind, m.title, m.severity, detail,
                 policy.isBlocking(m.id, m.severity)))
         }
-        if (s.bootStateSpoofer) add("INTEL_0030", "self-report=green/locked but hardware attestation disagrees")
-        if (s.crossLevelReuse) add("INTEL_0032", "same attestation batch key across StrongBox and TEE — leaked keybox")
-        if (s.strongboxChainMissing) add("INTEL_0033", "StrongBox hardware indicated but no StrongBox attestation chain produced")
-        if (s.softwareAttested) add("INTEL_0044", "attestation reports securityLevel=Software — no hardware root of trust")
+        if (s.bootStateSpoofer) add("INTEL_0055", "self-report=green/locked but hardware attestation disagrees")
+        if (s.crossLevelReuse) add("INTEL_0016", "same attestation batch key across StrongBox and TEE — leaked keybox")
+        if (s.strongboxChainMissing) add("INTEL_0045", "StrongBox hardware indicated but no StrongBox attestation chain produced")
+        if (s.softwareAttested) add("INTEL_0056", "attestation reports securityLevel=Software — no hardware root of trust")
         return out
     }
 
@@ -141,7 +141,7 @@ internal class ScanEvidence(
     }.getOrNull()
 
     /**
-     * INTEL_0047 + INTEL_0048.
+     * INTEL_0050 + INTEL_0019.
      *
      * Staleness uses the OLDEST of the three attested levels: a current framework
      * patch on a two-year-old bootloader is still exposed.
@@ -164,7 +164,7 @@ internal class ScanEvidence(
         if (epochs.isNotEmpty()) {
             val ageDays = (now() - epochs.min()) / 86_400L
             if (ageDays > policy.maxPatchAgeDays)
-                add("INTEL_0047", "oldest attested patch is $ageDays days old " +
+                add("INTEL_0050", "oldest attested patch is $ageDays days old " +
                     "(policy window ${policy.maxPatchAgeDays})")
         }
 
@@ -176,7 +176,7 @@ internal class ScanEvidence(
                 reported.substring(0, 4).toInt() * 100 + reported.substring(5, 7).toInt()
             }.getOrNull()
             if (reportedMonth != null && reportedMonth != attestedMonth)
-                add("INTEL_0048", "self-report $reported vs attested $attestedMonth")
+                add("INTEL_0019", "self-report $reported vs attested $attestedMonth")
         }
         return out
     }

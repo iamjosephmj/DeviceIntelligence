@@ -40,7 +40,7 @@ int    raw_munmap(void* addr, size_t length);
 ssize_t raw_self_read(const void* addr, size_t len, void* dst, int* errno_out);
 
 // uname(2) by raw syscall. The kernel release feeds both the device fingerprint
-// and INTEL_0048, so it must not be forgeable through a libc PLT hook.
+// and INTEL_0019, so it must not be forgeable through a libc PLT hook.
 //
 // <sys/utsname.h> is included rather than forward-declared: a `struct utsname;`
 // inside this namespace would declare dicore::sys::utsname, a DIFFERENT type

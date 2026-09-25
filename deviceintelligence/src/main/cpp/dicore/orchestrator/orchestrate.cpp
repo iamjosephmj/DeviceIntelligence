@@ -237,10 +237,10 @@ static const Licence& licence() {
         dicore::crypto::fp_hash(pepper, f[0], &idHash);   // stays empty if input is empty
         dicore::crypto::fp_hash(pepper, f[2], &aidHash);
 
-        // Native fields. These feed INTEL_0048, so they are deliberately NOT read
+        // Native fields. These feed INTEL_0019, so they are deliberately NOT read
         // through the JVM: a prop spoofer hooking FrameworkShim.q must not be able
         // to forge the evidence that catches it. A native property hook is still
-        // possible but is already covered by INTEL_0043.
+        // possible but is already covered by INTEL_0058.
         std::string kernel;
         {
             struct utsname u {};
@@ -479,44 +479,44 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
     append(out, "root", root_verdict_records(), critical);
     // emulator — the CPU-identity probes stay OFF the wire (issue #8): the x86
     // CPUID hypervisor bit is set on genuine ChromeOS (ARCVM) / WSA, and the
-    // arm64 CNTFRQ check is heuristic. INTEL_0056 translated_environment IS wired:
+    // arm64 CNTFRQ check is heuristic. INTEL_0027 translated_environment IS wired:
     // uname-vs-ABI divergence is definitional (an arm64 process on an x86 kernel
     // cannot happen on silicon) and the native-bridge sub-facts only fire on
     // images that ship a translation layer — raw-syscall reads, fail-open, so
     // they clear the FP bar the CPU probes failed.
     append(out, "emulator", emu_translation_records(), critical);
-    // INTEL_0061 — cpu_rerouting_anomaly: behavioural companion to INTEL_0056.
+    // INTEL_0047 — cpu_rerouting_anomaly: behavioural companion to INTEL_0027.
     // Both sub-facts (CNTVCT-off-CNTFRQ rate, UDF fault replayed as a
     // user-sent signal) are architecturally impossible on genuine silicon,
     // so this clears the same FP bar that kept the CPUID/CNTFRQ-value probes
     // off the wire — and it still fires when a bridge renames itself out of
-    // INTEL_0056's provenance keys. Fail-open; arm64-only.
+    // INTEL_0027's provenance keys. Fail-open; arm64-only.
     append(out, "emulator", emu_rerouting_records(), critical);
-    // INTEL_0062 — hypervisor_cpu: the x86_64 CPU-state probe (CPUID
+    // INTEL_0033 — hypervisor_cpu: the x86_64 CPU-state probe (CPUID
     // hypervisor bit + vendor leaf) for hardware-virtualized emulators,
-    // where nothing is translated and INTEL_0056 correctly stays silent.
+    // where nothing is translated and INTEL_0027 correctly stays silent.
     // Real-phone silicon cannot set the bit; x86_64 Android also runs on
     // Chromebooks/WSA (also set) — severity reflects that honestly.
     append(out, "emulator", emu_hv_records(), critical);
-    // INTEL_0063 — arm64_vm_platform: the arm64 tier-2 probe (device-tree
+    // INTEL_0048 — arm64_vm_platform: the arm64 tier-2 probe (device-tree
     // markers + qemu_pipe) for VMs and full-system emulators that run ARM
-    // code natively inside an emulated ARM system — invisible to INTEL_0056
-    // (guest ISA matches the app) and to INTEL_0062 (x86-only).
+    // code natively inside an emulated ARM system — invisible to INTEL_0027
+    // (guest ISA matches the app) and to INTEL_0033 (x86-only).
     append(out, "emulator", emu_vm_platform_records(), critical);
     append(out, "environment", antidebug_verdict_records(), critical);
     append(out, "seccomp", seccomp_verdict_records(), critical);
-    // INTEL_0057 — anon/memfd/deleted executable mappings (zygisk stub pools,
+    // INTEL_0009 — anon/memfd/deleted executable mappings (zygisk stub pools,
     // Frida gadgets, unloaded payloads), read through the maps family's
     // raw-syscall reader. Fail-open like everything above.
     append(out, "environment", anon_exec_records(), critical);
-    // INTEL_0058 — the scan channel's own sequence/rate invariant. Advances the
+    // INTEL_0029 — the scan channel's own sequence/rate invariant. Advances the
     // MAC chain at scan entry and trips on a synthetic-sweep rate; the (seq,
     // mac) pair rides the record as evidence for the backend replay check.
     append(out, "native_integrity", channel_guard_records(), critical);
-    // INTEL_0059 — own executable segment vs the CMake-baked build digest
+    // INTEL_0042 — own executable segment vs the CMake-baked build digest
     // (dicore_text_digest_gen.h; all-zero = no baseline yet -> skipped).
     append(out, "native_integrity", text_digest_records(), critical);
-    // INTEL_0060 — fork-exec watchdog child: an independent /system/bin/sh
+    // INTEL_0018 — fork-exec watchdog child: an independent /system/bin/sh
     // loop reports the parent's TracerPid over a private pipe every beat
     // period; 3 missed beats (cause=silent) or a nonzero tracer report
     // (cause=tracer) emit one HIGH record with a keyed-heartbeat (seq, mac)

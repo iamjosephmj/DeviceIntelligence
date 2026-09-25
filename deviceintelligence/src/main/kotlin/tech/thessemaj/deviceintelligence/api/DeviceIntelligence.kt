@@ -49,7 +49,7 @@ object DeviceIntelligence {
      *
      *   - **Parsed but rejected** (expired, or bound to another package) — the blob
      *     still carries a usable server public key, so [scan] emits a DEGRADED token
-     *     that NAMES the rejection (`INTEL_0054`) and carries the detector findings.
+     *     that NAMES the rejection (`INTEL_0038`) and carries the detector findings.
      *     Send it. Silence is what an attacker wants: at the backend, no token is
      *     indistinguishable from a network error or an app with no SDK at all.
      *   - **Unparseable or missing** from `assets/tech.thessemaj.deviceintelligence/server.key` — there

@@ -59,7 +59,7 @@ class SessionSigner(
             strongboxChainMissing = o["sbMissing"] as? Boolean ?: false,
             devicePropMismatch = o["propMismatch"] as? Boolean ?: false,
             bootStateSpoofer = o["bootSpoofer"] as? Boolean ?: false,
-            // `sbDowngrade` (INTEL_0034) is retired. Sessions issued before that still
+            // `sbDowngrade` (INTEL_0039) is retired. Sessions issued before that still
             // carry the field; it is simply not read — the HMAC covers the stored bytes,
             // so those sessions keep verifying.
             softwareAttested = o["swAttest"] as? Boolean ?: false,

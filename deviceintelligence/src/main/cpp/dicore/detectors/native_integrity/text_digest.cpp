@@ -1,7 +1,7 @@
-// text_digest.cpp — INTEL_0059 .text section digest verifier.
+// text_digest.cpp — INTEL_0042 .text section digest verifier.
 // Thin wrapper over the vendored SHA-256 (dicore::sha) — the same
 // backend every other crypto TU uses — plus a constant-time 32-byte
-// compare copied from the INTEL_0058 channel guard. Pure host-testable
+// compare copied from the INTEL_0029 channel guard. Pure host-testable
 // logic; no JNI, no platform calls.
 #include "dicore/detectors/native_integrity/text_digest.hpp"
 

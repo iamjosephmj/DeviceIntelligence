@@ -1,4 +1,4 @@
-// translation_probe.cpp — runtime.emulator probe for INTEL_0056
+// translation_probe.cpp — runtime.emulator probe for INTEL_0027
 // (translated_environment). See translation_classify.h for the classification
 // contract; this TU gathers the three inputs and emits the record.
 //
@@ -13,7 +13,7 @@
 //   - ro.dalvik.vm.native.bridge via __system_property_get: hookable, but a
 //     spoof only removes the bridge_named sub-fact — divergence and the maps
 //     sub-fact are unaffected, and an actual spoof on THIS key is a separate
-//     (INTEL_0043-shaped) problem.
+//     (INTEL_0058-shaped) problem.
 // Every read failure contributes nothing. Fail-open; no finding without an
 // affirmative sub-fact.
 
@@ -89,7 +89,7 @@ std::vector<std::string> emu_translation_records() {
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
     // CRITICAL, not HIGH: the sub-facts are impossible on genuine silicon (the
-    // sanctioned-translation exception, ChromeOS/ARC, already trips INTEL_0044 /
+    // sanctioned-translation exception, ChromeOS/ARC, already trips INTEL_0056 /
     // the pinned-root chain check, so it is no new landing zone), and CRITICAL
     // is what keeps the on_clean_device() string-unlock gate locked on an
     // emulator — on an AVD where the attestation path degrades before the

@@ -73,29 +73,29 @@ bool runtime_hooking_present();
 // only fed a boot-gated bool and never counted). Empty on a clean process.
 std::vector<std::string> hook_framework_records();
 
-// runtime.environment: INTEL_0040 behavioral syscall divergence. For a set of INVARIANT
+// runtime.environment: INTEL_0059 behavioral syscall divergence. For a set of INVARIANT
 // system paths, compares libc faccessat() (which a userspace hook may intercept) against a
 // RAW `svc` faccessat that bypasses libc. Flags ONLY when the raw syscall confirms the file
 // exists (kernel ground truth) but libc denies it — a userspace hook lying to hide a file.
 // Mechanism-independent (inline/GOT/PLT/preload) and FP-free by construction. Empty on a
-// clean process. Carries hooked_symbol so the verdict can correlate it with INTEL_0038/0039.
+// clean process. Carries hooked_symbol so the verdict can correlate it with INTEL_0003/0039.
 std::vector<std::string> syscall_divergence_records();
 
-// runtime.environment: INTEL_0041 linker<->maps divergence. dl_iterate_phdr (the dynamic
+// runtime.environment: INTEL_0061 linker<->maps divergence. dl_iterate_phdr (the dynamic
 // linker's object list) vs /proc/self/maps (the kernel's view): flags a linker-named .so
 // whose executable-segment base is an anonymous (empty-path) VMA — the file->anon map spoof
 // (NeoZygisk `spoof_virtual_maps` / ZygiskNext-class cleanup) that erases a foreign module's
 // file provenance while its soinfo stays linked. FP-free by construction; empty on a clean process.
 std::vector<std::string> linker_maps_records();
 
-// runtime.environment: INTEL_0042 sealed executable memfd. Root injectors (NeoZygisk/zygiskd)
+// runtime.environment: INTEL_0028 sealed executable memfd. Root injectors (NeoZygisk/zygiskd)
 // hand each module .so to the app as a SEALED (F_SEAL_WRITE|F_SEAL_SEAL) read-only memfd and
 // dlopen it (DlopenMem), so the module never appears at a /data/adb path. Flags any mapped
 // memfd that is BOTH sealed-write and executable. ART's JIT memfd is executable but writable
 // (never F_SEAL_WRITE), so this is FP-safe and name-independent. Empty on a clean process.
 std::vector<std::string> sealed_memfd_records();
 
-// runtime.environment: INTEL_0043 behavioral property divergence. Compares a boot-state property
+// runtime.environment: INTEL_0058 behavioral property divergence. Compares a boot-state property
 // read via libc __system_property_get (a spoofer's hook target) against the same property read
 // via __system_property_find + __system_property_read_callback (bypasses the hook). A mismatch
 // means __system_property_get is hooked to lie about boot state. FP-free; empty on a clean process.
@@ -113,7 +113,7 @@ std::vector<std::string> dex_provenance_records();
 // attestation software_attestation_only signal. Implemented in emu_verdict.cpp.
 std::vector<std::string> emu_verdict_records();
 
-// runtime.emulator: INTEL_0056 translated_environment. The kernel's ISA (raw
+// runtime.emulator: INTEL_0027 translated_environment. The kernel's ISA (raw
 // uname) vs this process's compile-time ABI — an arm64 process on an x86
 // kernel (or the reverse) is running under binary translation, which cannot
 // happen on genuine silicon. Corroborating sub-facts: ro.dalvik.vm.native.bridge
@@ -123,25 +123,25 @@ std::vector<std::string> emu_verdict_records();
 // Fail-open on every input. Implemented in translation/translation_probe.cpp.
 std::vector<std::string> emu_translation_records();
 
-// runtime.emulator: INTEL_0061 cpu_rerouting_anomaly. Behavioural companion to
-// INTEL_0056: measures the rerouting a CPU-virtualizing layer cannot avoid —
+// runtime.emulator: INTEL_0047 cpu_rerouting_anomaly. Behavioural companion to
+// INTEL_0027: measures the rerouting a CPU-virtualizing layer cannot avoid —
 // CNTVCT advancing off CNTFRQ (architecturally fixed on silicon), and a
 // synchronous undefined-instruction fault replayed with a user-sent si_code.
-// Fires when provenance is scrubbed and INTEL_0056's name keys are gone.
+// Fires when provenance is scrubbed and INTEL_0027's name keys are gone.
 // arm64-only (the registers do not exist elsewhere); fail-open on every
 // read. Implemented in translation/rerouting_probe.cpp.
 std::vector<std::string> emu_rerouting_records();
 
-// runtime.emulator: INTEL_0062 hypervisor_cpu — x86_64-only CPU-state probe
+// runtime.emulator: INTEL_0033 hypervisor_cpu — x86_64-only CPU-state probe
 // for hardware-assisted virtualization (CPUID.1:ECX[31] + the 0x40000000
 // vendor leaf). Catches emulators that hand guest code to the real CPU
-// under KVM — no translation exists for INTEL_0056 to see. Honest scope:
+// under KVM — no translation exists for INTEL_0027 to see. Honest scope:
 // x86_64 Android also runs on Chromebooks (ARCVM) and WSA, which set the
 // bit too; backend policy decides. Fail-open, empty on other ABIs.
 // Implemented in emulator/arch/emu_hv_probe.cpp.
 std::vector<std::string> emu_hv_records();
 
-// runtime.emulator: INTEL_0063 arm64_vm_platform — arm64 tier-2 probe for
+// runtime.emulator: INTEL_0048 arm64_vm_platform — arm64 tier-2 probe for
 // hardware-virtualized / full-system-emulated environments (ARM KVM passes
 // the host MIDR through, so there is no CPUID tell on ARM). Reads the
 // device-tree model/compatible and probes /dev/qemu_pipe; markers are
@@ -183,7 +183,7 @@ std::vector<std::string> seccomp_verdict_records();
 // empty vector. Fail-open. Implemented in native_integrity/prologue_verify.cpp.
 std::vector<std::string> prologue_verdict_records();
 
-// runtime.environment: INTEL_0057 injected_executable_mapping. Executable
+// runtime.environment: INTEL_0009 injected_executable_mapping. Executable
 // anonymous / memfd-backed / deleted-file-backed mappings — the traces
 // injected code leaves when no clean loader produced it (zygisk stub pools,
 // Frida gadgets, unloaded-but-mapped payloads). Maps read via the same
@@ -194,7 +194,7 @@ std::vector<std::string> prologue_verdict_records();
 // Implemented in environment/maps/anon_exec_probe.cpp.
 std::vector<std::string> anon_exec_records();
 
-// native_integrity: INTEL_0058 channel_sequence_anomaly. Advances the
+// native_integrity: INTEL_0029 channel_sequence_anomaly. Advances the
 // session-key-MACed monotonic chain once per scan and enforces the on-device
 // rate guard — the synthetic-sweep detector (an Incognia-style 60-command
 // drive exhausts the window). v1 roots the chain at a process-local random
@@ -204,7 +204,7 @@ std::vector<std::string> anon_exec_records();
 // Implemented in native_integrity/channel_guard_probe.cpp.
 std::vector<std::string> channel_guard_records();
 
-// native_integrity: INTEL_0059 text_integrity_divergence. SHA-256 over this
+// native_integrity: INTEL_0042 text_integrity_divergence. SHA-256 over this
 // library's own executable PT_LOAD segment (dl_iterate_phdr + safe code
 // read) compared against the build-time digest baked by
 // tools/native/gen-dicore-text-digest.py (dicore_text_digest_gen.h). Catches
@@ -215,14 +215,14 @@ std::vector<std::string> channel_guard_records();
 // Implemented in native_integrity/text_digest_probe.cpp.
 std::vector<std::string> text_digest_records();
 
-// native_integrity: INTEL_0060 watchdog_anomaly. Fork-exec'd /system/bin/sh
+// native_integrity: INTEL_0018 watchdog_anomaly. Fork-exec'd /system/bin/sh
 // watchdog child re-reads the parent's TracerPid every beat period and
 // reports over a private pipe (stderr-dup2'd); the host-testable engine
 // (watchdog.hpp — Spawn-injectable, time-injected) classifies 3 consecutive
 // missed beats (cause=silent — child killed/silenced) or a nonzero TracerPid
 // report (cause=tracer) into one HIGH record carrying a keyed-heartbeat
 // (seq, mac) evidence pair (SHA-256(key||be32(seq)) truncated, constant-time,
-// consume-once — INTEL_0058's anti-forgery shape). Detection-only: no kills,
+// consume-once — INTEL_0029's anti-forgery shape). Detection-only: no kills,
 // no respawn. Fail-open on spawn failure and every parse error.
 // Implemented in native_integrity/watchdog_probe.cpp.
 std::vector<std::string> watchdog_records();

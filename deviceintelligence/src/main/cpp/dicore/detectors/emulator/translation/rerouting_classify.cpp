@@ -1,4 +1,4 @@
-// rerouting_classify.cpp — pure verdict logic for INTEL_0061
+// rerouting_classify.cpp — pure verdict logic for INTEL_0047
 // (cpu_rerouting_anomaly). See rerouting_classify.h for the contract and
 // docs/spikes/cpu-rerouting.md for the measured evidence behind each rule.
 

@@ -41,14 +41,14 @@ class ScanDecisionTest {
     @Test fun a_blocking_signal_is_compromised() {
         assertEquals(
             Decision.COMPROMISED,
-            result(ok = true, signals = listOf(signal("INTEL_0008", blocking = true))).decision,
+            result(ok = true, signals = listOf(signal("INTEL_0025", blocking = true))).decision,
         )
     }
 
     @Test fun a_non_blocking_signal_stays_trustworthy() {
         assertEquals(
             Decision.TRUSTWORTHY,
-            result(ok = true, signals = listOf(signal("INTEL_0044", blocking = false))).decision,
+            result(ok = true, signals = listOf(signal("INTEL_0056", blocking = false))).decision,
         )
     }
 
@@ -60,17 +60,17 @@ class ScanDecisionTest {
         val r = result(
             ok = true,
             signals = listOf(
-                signal("INTEL_0044", blocking = false),
-                signal("INTEL_0008", blocking = true),
-                signal("INTEL_0035", blocking = true),
+                signal("INTEL_0056", blocking = false),
+                signal("INTEL_0025", blocking = true),
+                signal("INTEL_0044", blocking = true),
             ),
         )
-        assertEquals(listOf("INTEL_0008", "INTEL_0035"), r.blockingSignals.map { it.id })
+        assertEquals(listOf("INTEL_0025", "INTEL_0044"), r.blockingSignals.map { it.id })
     }
 
     @Test fun forgery_wins_over_everything() {
         // Both axes bad + blocking signal: still REJECT — contents are not trustworthy.
-        val r = result(ok = false, deviceIntegrityOk = false, signals = listOf(signal("INTEL_0008", true)))
+        val r = result(ok = false, deviceIntegrityOk = false, signals = listOf(signal("INTEL_0025", true)))
         assertEquals(Decision.REJECT, r.decision)
     }
 }

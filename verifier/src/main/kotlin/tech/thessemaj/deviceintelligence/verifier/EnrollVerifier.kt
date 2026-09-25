@@ -81,17 +81,17 @@ class EnrollVerifier(
 
         // --- attestation findings (recorded for telemetry; carried, NOT enroll-blocking) ---
         // NOTE: a leaf-notBefore-precedes-issuer "keybox injection" heuristic used to live
-        // here (INTEL_0031, now retired). It false-positived on genuine StrongBox/TEE devices,
+        // here (INTEL_0020, now retired). It false-positived on genuine StrongBox/TEE devices,
         // whose attestation leaf legitimately carries notBefore=epoch-0 while the issuer is
         // freshly minted per attestation. Keybox injection is covered instead by the CRL /
-        // cross-level batch-key-reuse checks below and the boot-state buster (INTEL_0030).
+        // cross-level batch-key-reuse checks below and the boot-state buster (INTEL_0055).
 
         val fields = runCatching { Attestation.fields(leaf) }.getOrNull()
         val locked = fields?.deviceLocked == true
         // A missing/unparseable securityLevel grades to SOFTWARE, not TEE: absence of a
         // level is not evidence of hardware backing, and TokenVerifier's ">= TEE" gate is
         // only meaningful if SOFTWARE is actually reachable here.
-        // INTEL_0044: securityLevel was EXPLICITLY reported as Software(0) — a real software
+        // INTEL_0056: securityLevel was EXPLICITLY reported as Software(0) — a real software
         // keystore, no hardware root of trust. Kept separate from `assurance` because the
         // null/unparseable case below also grades to SOFTWARE (fail-safe for the gate) but
         // proves nothing, and must not raise the signal.
@@ -103,8 +103,8 @@ class EnrollVerifier(
         }
 
         // Cross-level batch-key reuse (replayed keybox across StrongBox/TEE). Split into the
-        // strong tell (same batch key across levels — INTEL_0032) and the fail-closed case
-        // (StrongBox claimed but no SB chain — INTEL_0033, lower confidence).
+        // strong tell (same batch key across levels — INTEL_0016) and the fail-closed case
+        // (StrongBox claimed but no SB chain — INTEL_0045, lower confidence).
         val xlevel = runCatching { crossLevelCheck(sb, tee, assurance) }.getOrDefault(CrossLevel(false, false))
         ck("no cross-level keybox reuse", !xlevel.reuse)
         ck("strongbox attestation chain present", !xlevel.strongboxChainMissing)
@@ -130,9 +130,9 @@ class EnrollVerifier(
         // (PackageManager.FEATURE_STRONGBOX_KEYSTORE, `sbFeature`). Android throws the same
         // StrongBoxUnavailableException whether StrongBox is absent or merely failing right
         // now, so the exception alone cannot separate the two: a device that says it HAS the
-        // hardware yet produced no StrongBox attestation hit a transient failure -> INTEL_0033.
+        // hardware yet produced no StrongBox attestation hit a transient failure -> INTEL_0045.
         //
-        // The capability interlock that used to live here (INTEL_0034) is RETIRED along with its
+        // The capability interlock that used to live here (INTEL_0039) is RETIRED along with its
         // strongbox-devices.json device list — see the registry tombstone for what that costs.
         val sbFeature: Boolean? = when (reported["sbFeature"] as? String) {
             "1" -> true; "0" -> false; else -> null
@@ -170,7 +170,7 @@ class EnrollVerifier(
             keyboxRevoked = revokedSerial != null,
             crossLevelReuse = xlevel.reuse,
             // Both routes to "StrongBox hardware exists but produced no StrongBox chain"
-            // surface as INTEL_0033: the leaf claiming StrongBox without an SB chain, and a
+            // surface as INTEL_0045: the leaf claiming StrongBox without an SB chain, and a
             // reported-capable device that fell back to TEE.
             strongboxChainMissing = xlevel.strongboxChainMissing || strongboxTransient,
             devicePropMismatch = propMismatch != null,

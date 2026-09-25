@@ -9,7 +9,7 @@ always) and emits a `.dicoreobf.strtab` metadata section: 32-byte entries
     {u64 addr, u64 len, u64 key0, u64 flags}
 (addr carries a linker relocation, so post-link it is the linked VA; flags
 bit0 = BOUND (set by THIS tool, read by the runtime ctor), bit1 = NEVER_BIND
-(set by the pass — the INTEL_0059 digest array stays seed-only so the baseline
+(set by the pass — the INTEL_0042 digest array stays seed-only so the baseline
 decrypts independent of the exec digest). This tool, run POST_BUILD:
 
   1. computes D = fold128(sha256(file[exec_off : exec_off + min(4096, fsz)]))
@@ -33,7 +33,7 @@ this is a split-halves scheme, not key confidentiality — key0 SHIPS in
 .dicoreobf.strtab and the digest half is recomputable offline by anyone
 holding the apk (read the strtab, hash the shipped exec page). What the
 digest half binds is INTEGRITY: patch the exec page and every bound string
-turns to garbage on-device (stacked with INTEL_0059's whole-segment verify).
+turns to garbage on-device (stacked with INTEL_0042's whole-segment verify).
 
     python3 tools/native/dicore-bind-strkeys.py <elf> [elf-cap-bytes]
 

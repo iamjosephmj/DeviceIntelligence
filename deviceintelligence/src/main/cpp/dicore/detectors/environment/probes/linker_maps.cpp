@@ -1,4 +1,4 @@
-// INTEL_0041 — linker vs maps divergence.
+// INTEL_0061 — linker vs maps divergence.
 //
 // The dynamic linker's own list of loaded objects, compared against what
 // /proc/self/maps says is mapped. A module that unlinks its soinfo to hide from one
@@ -47,7 +47,7 @@ int dicore_linker_cb(struct dl_phdr_info* info, size_t, void* data) {
 }
 }  // namespace
 
-// INTEL_0041 — linker<->maps divergence. The linker's object list (dl_iterate_phdr) and the
+// INTEL_0061 — linker<->maps divergence. The linker's object list (dl_iterate_phdr) and the
 // kernel's VMA list (/proc/self/maps) must agree: a named .so's executable segment must map to
 // a file-backed VMA. NeoZygisk's spoof_virtual_maps() mremaps the loader's file VMA into an
 // anonymous region to erase its provenance, but the soinfo stays linked — so the linker names an
@@ -100,7 +100,7 @@ std::vector<std::string> linker_maps_records() {
 #define F_SEAL_WRITE 0x0008
 #endif
 
-// INTEL_0042 — sealed executable memfd. NeoZygisk/zygiskd load each module from a sealed
+// INTEL_0028 — sealed executable memfd. NeoZygisk/zygiskd load each module from a sealed
 // read-only memfd (DlopenMem), never a /data/adb file. Flag any mapped memfd fd that is BOTH
 // sealed-write (F_SEAL_WRITE|F_SEAL_SEAL) AND executable. Name-independent (keys on seal bits,
 // so a module named "jit-cache" is still caught); FP-safe (ART's JIT memfd is exec but

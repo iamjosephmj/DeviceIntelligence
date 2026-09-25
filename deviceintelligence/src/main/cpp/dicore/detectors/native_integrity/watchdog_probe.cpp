@@ -1,4 +1,4 @@
-// watchdog_probe.cpp — native_integrity probe for INTEL_0060
+// watchdog_probe.cpp — native_integrity probe for INTEL_0018
 // (watchdog_anomaly). See watchdog.hpp for the engine contract; this TU owns
 // the ONE Android-flavored piece — the production Spawn (pipe + fork; the
 // child dup2's the pipe onto stderr and execl's /system/bin/sh -c, the only
@@ -89,7 +89,7 @@ std::vector<std::string> watchdog_records() {
     // on the next scan — never latched, never a finding.
     if (!dicore::watchdog::start(g_mon, g_key, prod_spawn)) return {};
 
-    // Monotonic clock — same time base as the INTEL_0058 rate guard; wall-clock
+    // Monotonic clock — same time base as the INTEL_0029 rate guard; wall-clock
     // jumps must not fabricate or mask missed beats.
     const int64_t now_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -109,7 +109,7 @@ std::vector<std::string> watchdog_records() {
             return {};
     }
 
-    // Keyed-heartbeat evidence pair rides the record (INTEL_0058's shape):
+    // Keyed-heartbeat evidence pair rides the record (INTEL_0029's shape):
     // fresh (seq, mac) per emitted finding, consume-once verifiable.
     dicore::watchdog::Heartbeat hb;
     dicore::watchdog::evidence(g_mon, hb);

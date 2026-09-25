@@ -92,7 +92,7 @@ class CleanDeviceTest {
 
     /**
      * The steady-state scan is signed by the key bootstrap attested, and its
-     * self-reported identity agrees with what the TEE attested — so no INTEL_0045.
+     * self-reported identity agrees with what the TEE attested — so no INTEL_0046.
      */
     @Test fun t2_steady_state_scan_verifies_against_the_bootstrap_key() {
         val boot = ensureBound()
@@ -104,7 +104,7 @@ class CleanDeviceTest {
         assertFalse("must not be a second bootstrap", r.bootstrap)
         assertTrue(r.checks.first { it.name == "signature by the bound key" }.ok)
         assertFalse("a genuine app must not raise an identity mismatch",
-            r.signals.any { it.id == "INTEL_0045" })
+            r.signals.any { it.id == "INTEL_0046" })
     }
 
     /** A token signed by this device must not verify against somebody else's key. */
@@ -147,7 +147,7 @@ class CleanDeviceTest {
         val bound = ensureBound()
         val r = ScanVerifier().verifyScan(NativeBridge.scan("checkout"), sessionId, priv, session = bound)
         assertFalse("a genuine device must not report a patch-level mismatch",
-            r.signals.any { it.id == "INTEL_0048" })
+            r.signals.any { it.id == "INTEL_0019" })
     }
 
     /**

@@ -320,7 +320,7 @@ size_t scan_jni_entry(JniEntryScanEntry* out, size_t out_capacity) {
                 // null -> resolved as drift claims tampering against a baseline
                 // that was never captured. Live-confirmed on an API 28 emulator:
                 // java.lang.Object#getClass snapshots as 0x0 and resolves on first
-                // call, firing art/jni_entry_drifted (INTEL_0001, CRITICAL) on a
+                // call, firing art/jni_entry_drifted (INTEL_0012, CRITICAL) on a
                 // device with no hook framework present.
                 //
                 // Note the resolved pointer classifies UNKNOWN (it is neither in

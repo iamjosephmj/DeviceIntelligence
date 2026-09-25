@@ -60,7 +60,7 @@ package tech.thessemaj.deviceintelligence.dx
  *  "ts":<epoch>,"bootstrap":true,"attestedKey":"<hex spki>",
  *  "app":{"package":"…","signer":"<sha256 hex>"},
  *  "device":{"api":36,"abi":"arm64-v8a","model":"…"},
- *  "signals":[{"id":"INTEL_0018","severity":"CRITICAL","detail":"enforce=0"}, …]}
+ *  "signals":[{"id":"INTEL_0006","severity":"CRITICAL","detail":"enforce=0"}, …]}
  * ```
  * Each signal is an OPAQUE code — `detector`/`kind` never leave the device. The
  * code↔meaning map is tools/registry/signals-registry.json (append-only), resolved by the
@@ -102,7 +102,7 @@ package tech.thessemaj.deviceintelligence.dx
   *  - [g]  no longer backs a feature. It is retained deliberately: `jni_register`
   *         binds it BY NAME, so deleting the declaration fails RegisterNatives and
   *         takes JNI_OnLoad down with it, and `prologue_verify` uses its address as
-  *         one of four anchors for the native inline-hook check (INTEL_0003).
+  *         one of four anchors for the native inline-hook check (INTEL_0034).
  */
 object NativeBridge {
 
@@ -137,7 +137,7 @@ object NativeBridge {
      * Returns false when the blob is missing, unsigned, bound to a different package,
      * or expired — but false is NOT a reason to stop. A blob that PARSED still carries
      * a usable server public key, so [scan] emits a DEGRADED token naming the
-     * rejection (`INTEL_0054`) rather than nothing. Only a blob that did not parse at
+     * rejection (`INTEL_0038`) rather than nothing. Only a blob that did not parse at
      * all leaves [scan] returning "", because the key it would encrypt to lives
      * inside that blob.
      *

@@ -70,7 +70,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
     std::vector<std::string> foreign_mod;           // module_id per foreign_ranges entry
     std::vector<std::pair<uintptr_t,uintptr_t>> anon_exec;  // [anon]/memfd exec (trampoline candidates)
     std::map<std::string,uintptr_t> legit_base;     // lowest addr per legit .so (for symbol resolution)
-    std::vector<std::pair<uintptr_t,uintptr_t>> rwx_bounds;   // bounds of the kept RWX regions (INTEL_0009 enrichment)
+    std::vector<std::pair<uintptr_t,uintptr_t>> rwx_bounds;   // bounds of the kept RWX regions (INTEL_0052 enrichment)
     // Every executable region + a class, so an RWX region's trampoline stubs can be attributed:
     // L=legit code root, F=foreign injected .so, S=self (this lib), A=anon, M=memfd, O=other.
     struct ExecR { uintptr_t s, e; char cls; std::string mod; };
@@ -110,7 +110,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
         }
         // Signal A (provenance): executable code from outside the legit roots = injected.
         bool is_x = perms.size() == 4 && perms[2] == 'x';
-        // Classify every executable region so RWX trampoline targets can be attributed (INTEL_0009 enrichment).
+        // Classify every executable region so RWX trampoline targets can be attributed (INTEL_0052 enrichment).
         if (is_x) {
             uintptr_t rs, re;
             if (range_bounds(range, &rs, &re)) {
@@ -254,7 +254,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
 
     // Signal D (FP-free): a libc function whose PROLOGUE was rewritten to branch into
     // injected foreign code / an anon trampoline — an INLINE hook (Dobby/ShadowHook/
-    // bytehook). These leave the GOT intact, so INTEL_0036 cannot see them. Double-gated:
+    // bytehook). These leave the GOT intact, so INTEL_0031 cannot see them. Double-gated:
     // the first instruction must decode as an unconditional branch AND its target must
     // land in a confirmed-foreign or anon-exec region. No legit libc prologue does this,
     // so it has no benign cause (an intra-legit ifunc/tail branch is ignored).
@@ -269,7 +269,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
             if (emitted >= 16) break;
             void* p = dlsym(RTLD_DEFAULT, fn);
             if (!p) continue;
-            // Crash-safe read of the prologue bytes for the opcode-shape (INTEL_0039) check.
+            // Crash-safe read of the prologue bytes for the opcode-shape (INTEL_0008) check.
             uint8_t code[16];
             { struct iovec lo{code, sizeof(code)}, ro{p, sizeof(code)};
               if (process_vm_readv(getpid(), &lo, 1, &ro, 1, 0) != (ssize_t)sizeof(code)) continue; }
@@ -285,7 +285,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                 for (const auto& ar : anon_exec)
                     if (tgt >= ar.first && tgt < ar.second) {
                         // Anon trampoline: flag ONLY if it references injected FOREIGN code
-                        // (same discipline as INTEL_0036). A legit app-bundled inline hooker
+                        // (same discipline as INTEL_0031). A legit app-bundled inline hooker
                         // (ShadowHook/bytehook/profilo) routes to its own /data/app .so, so its
                         // trampoline references legit code -> trampoline_target == "" -> not flagged.
                         bool found = false;
@@ -295,9 +295,9 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                         break;
                     }
             }
-            // INTEL_0039 (cleanup-resistant): the prologue IS an unambiguous absolute-jump stub,
+            // INTEL_0008 (cleanup-resistant): the prologue IS an unambiguous absolute-jump stub,
             // but its target is NOT confirmed-foreign — a fully-cleaned inline hook (anon-only,
-            // trampoline references legit code, module unmapped). INTEL_0038 goes silent here by
+            // trampoline references legit code, module unmapped). INTEL_0003 goes silent here by
             // design (its FP-gate is provenance); this catches it by OPCODE SHAPE instead. FP-safe:
             // a legit compiled prologue is stack setup / a BTI landing pad, never an abs-jump stub;
             // benign per-device/version drift never produces one. (A legit app-bundled inline hooker
@@ -338,7 +338,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                     out.push_back(r);
                     ++emitted;
                 }
-                continue;   // no confirmed-foreign target -> INTEL_0038 does not fire
+                continue;   // no confirmed-foreign target -> INTEL_0003 does not fire
             }
             std::string r = "libc_inline_hook";
             r = append_field(r, "HIGH");
@@ -360,7 +360,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
         r = append_field(r, "framework=" + fw);
         out.push_back(r);
     }
-    // INTEL_0009 enrichment: characterize one RWX region's contents. RWX presence alone is
+    // INTEL_0052 enrichment: characterize one RWX region's contents. RWX presence alone is
     // ambiguous — a benign JIT is RWX too, holding only self-referential stubs (tramp=self) or
     // none; a hooker's trampoline pool holds absolute-jump stubs (LDR x16/x17,#8 ; BR ; .quad)
     // that branch into legit system code (a hook redirecting libc/libart — Frida/LSPlant class)
@@ -459,7 +459,7 @@ bool runtime_hooking_present() {
     return false;
 }
 
-// INTEL_0040 — behavioral syscall divergence (query-only, side-effect-free). Checks faccessat
+// INTEL_0059 — behavioral syscall divergence (query-only, side-effect-free). Checks faccessat
 // AND the stat family. Ask libc
 // faccessat (which a userspace hook may intercept) and a RAW `svc` faccessat that bypasses
 // libc; flag ONLY when the kernel confirms existence (raw == 0) but libc denies it. This is

@@ -16,33 +16,17 @@ val libraryArtifactId: String = providers.gradleProperty("LIBRARY_ARTIFACT_ID").
 group = publishGroup
 version = publishVersion
 
-// Hardening gate: a release .so SHOULD go through the Arkari obfuscating
-// toolchain. An unobfuscated libdicore.so hands a static analyst every detector
-// string (INTEL_* IDs, Frida/Magisk/KernelSU artifacts), readable control
-// flow and ~900 function boundaries. This guard makes a local release build
-// fail fast instead of silently shipping readable native code.
-// Dev escape hatch: -Pdeviceintelligence.allowUnobfuscatedRelease=true.
-//
-// Launcher resolution order:
-//   1. Explicit -Pdeviceintelligence.obfuscate=<launcher> wins (CI passes it in release.yml).
-//      Relative paths are canonicalized against the ROOT project — CMake/Ninja
-//      execute from deviceintelligence/.cxx/<variant>/<abi>, where a bare relative path is
-//      "not found".
-//   2. Otherwise the in-repo launcher (tools/obfuscator/arkari-launch.sh) is used
-//      automatically when present. It routes compile steps through the Arkari
-//      clang (an LLVM/Clang fork at ~/AndroidStudioProjects/_ollvm/Arkari, run
-//      inside the ddk bwrap chroot) with the -mllvm -irobf-* pass flags; link
-//      steps fall through to the NDK compiler. Arkari is a prebuilt fork —
-//      there is no pass to compile (the old self-owned pass build step is gone).
-//   3. -Pdeviceintelligence.allowUnobfuscatedRelease=true skips auto-detection (a plain
-//      NDK toolchain build) and disarms the gate.
+// Release hardening gate: releases must go through the OLLVM launcher
+// (tools/obfuscator/ollvm-launch.sh), which is auto-detected when present.
+// Explicit -Pdeviceintelligence.obfuscate=<launcher> wins;
+// -Pdeviceintelligence.allowUnobfuscatedRelease=true opts out.
 val diObfuscateProperty = project.findProperty("deviceintelligence.obfuscate") as String?
 val allowUnobfuscatedRelease =
         (project.findProperty("deviceintelligence.allowUnobfuscatedRelease") as String?) == "true"
 val obfRoot = rootProject.projectDir.resolve("tools/obfuscator")
-val arkariLauncher: File? =
+val obfLauncher: File? =
         diObfuscateProperty?.let { rootProject.file(it) }
-                ?: obfRoot.resolve("arkari-launch.sh").takeIf { launcher ->
+                ?: obfRoot.resolve("ollvm-launch.sh").takeIf { launcher ->
                     !allowUnobfuscatedRelease && launcher.exists()
                 }
 if (!allowUnobfuscatedRelease) {
@@ -53,13 +37,13 @@ if (!allowUnobfuscatedRelease) {
             it.project.path == ":deviceintelligence" && it.name.contains("Release") &&
                     !it.name.contains("Clean", ignoreCase = true)
         }
-        if (releasesDeviceIntelligence && arkariLauncher == null) {
+        if (releasesDeviceIntelligence && obfLauncher == null) {
             throw GradleException(
-                "deviceintelligence: release build without the Arkari launcher would ship an " +
+                "deviceintelligence: release build without the OLLVM launcher would ship an " +
                         "unobfuscated libdicore.so (plaintext detector strings, recoverable " +
-                        "control flow). tools/obfuscator/arkari-launch.sh is missing — restore it " +
-                        "and ensure the Arkari clang exists at " +
-                        "~/AndroidStudioProjects/_ollvm/Arkari/build/bin/clang (see " +
+                        "control flow). tools/obfuscator/ollvm-launch.sh is missing — restore it " +
+                        "and ensure the ollvm17 clang exists at " +
+                        "~/AndroidStudioProjects/_ollvm/ollvm17/build/bin/clang (see " +
                         "tools/obfuscator/README.md), or pass " +
                         "-Pdeviceintelligence.obfuscate=<launcher> / " +
                         "-Pdeviceintelligence.allowUnobfuscatedRelease=true to opt out explicitly.",
@@ -135,14 +119,8 @@ android {
                     "-DANDROID_STL=c++_static",
                     "-DANDROID_PLATFORM=android-28",
                 )
-                // Obfuscation: when the Arkari launcher is resolved (explicit
-                // -Pdeviceintelligence.obfuscate=<launcher>, or auto-detected in-repo — see the
-                // resolution block at the top of this file), route compile steps
-                // through it (tools/obfuscator/arkari-launch.sh), which hops into the
-                // ddk chroot and compiles with the Arkari clang (links stay on NDK
-                // clang). Off when unresolvable so ordinary builds use the plain NDK
-                // toolchain.
-                arkariLauncher?.let { launcher ->
+                // Obfuscation: route compile steps through the launcher when resolved.
+                obfLauncher?.let { launcher ->
                     arguments(
                         "-DCMAKE_C_COMPILER_LAUNCHER=${launcher.absolutePath}",
                         "-DCMAKE_CXX_COMPILER_LAUNCHER=${launcher.absolutePath}",

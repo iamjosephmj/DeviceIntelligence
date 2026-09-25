@@ -1,5 +1,5 @@
 // deviceintelligence/src/main/cpp/test/detectors/native_integrity/test_watchdog.cpp
-// Host test for the INTEL_0060 watchdog: the pure keyed-heartbeat core
+// Host test for the INTEL_0018 watchdog: the pure keyed-heartbeat core
 // (beat/check), the WD-line parser, the liveness window arithmetic, and the
 // monitor engine driven through an injected Spawn that writes synthetic
 // beats through a REAL pipe (no mocks of the pipe/fd machinery).

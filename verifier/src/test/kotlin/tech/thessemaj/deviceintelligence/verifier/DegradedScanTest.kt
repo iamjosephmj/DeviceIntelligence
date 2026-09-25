@@ -29,7 +29,7 @@ class DegradedScanTest {
         level: String = "NONE",
         signed: String = "NONE",
         detail: String? = null,
-        signals: String = """[{"id":"INTEL_0001","severity":"CRITICAL","detail":"art hook"}]""",
+        signals: String = """[{"id":"INTEL_0012","severity":"CRITICAL","detail":"art hook"}]""",
         sid: String = sessionId,
     ) = """{"schemaVersion":4,"type":"scan","sessionId":"$sid","name":"checkout",""" +
         """"ts":1787670292,"bootstrap":false,""" +
@@ -60,7 +60,7 @@ class DegradedScanTest {
         // blinded to exactly the cases it most wants to see.
         val r = verify(token(doc("KEYGEN_FAILED")))
         assertTrue("the detector findings must survive the rejection",
-            r.signals.any { it.id == "INTEL_0001" })
+            r.signals.any { it.id == "INTEL_0012" })
     }
 
     @Test fun the_attestation_block_is_reported() {
@@ -108,7 +108,7 @@ class DegradedScanTest {
         assertSame("the established session must be returned untouched, not replaced",
             established, r.session)
         assertTrue("the regression is itself worth reporting",
-            r.signals.any { it.id == "INTEL_0052" })
+            r.signals.any { it.id == "INTEL_0030" })
     }
 
     @Test fun a_degraded_token_never_establishes_a_session() {
@@ -148,7 +148,7 @@ class DegradedScanTest {
         assertFalse(r.ok)
         assertTrue("the degradation is the reason, not the mismatch",
             r.reason!!.contains("NO_SESSION"))
-        assertTrue("INTEL_0053 must still be raised", r.signals.any { it.id == "INTEL_0053" })
+        assertTrue("INTEL_0023 must still be raised", r.signals.any { it.id == "INTEL_0023" })
         assertFalse("the mismatch is still recorded as a failed check",
             r.checks.first { it.name == "session id matches issued" }.ok)
     }

@@ -1,4 +1,4 @@
-// text_digest_probe.cpp — native_integrity probe for INTEL_0059
+// text_digest_probe.cpp — native_integrity probe for INTEL_0042
 // (text_integrity_divergence). See text_digest.hpp for the verify contract;
 // this TU locates our own executable segment and checks it against the
 // build-time digest.

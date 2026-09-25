@@ -1,4 +1,4 @@
-// Host unit test for the pure INTEL_0063 marker classifier
+// Host unit test for the pure INTEL_0048 marker classifier
 // (emu_vm_markers.h). Header-only; compiles standalone.
 
 #include "dicore/detectors/emulator/arch/emu_vm_markers.h"

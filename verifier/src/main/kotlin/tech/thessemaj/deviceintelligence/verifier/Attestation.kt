@@ -48,7 +48,7 @@ data class AttestedApp(
  * what makes them worth grading on.
  *
  * [osPatchLevel] is YYYYMM (month precision). [vendorPatchLevel] and
- * [bootPatchLevel] are YYYYMMDD. Mixing those granularities is the bug INTEL_0048
+ * [bootPatchLevel] are YYYYMMDD. Mixing those granularities is the bug INTEL_0019
  * exists to avoid — see the comparison rule there.
  */
 data class AttestedPlatform(

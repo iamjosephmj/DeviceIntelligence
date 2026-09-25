@@ -75,7 +75,7 @@ fun scanResult(
 )
 
 fun blockingSignal() = ResolvedSignal(
-    id = "INTEL_0008",
+    id = "INTEL_0025",
     detector = "art",
     kind = "hook",
     title = "ART method entrypoint rewritten",

@@ -58,11 +58,11 @@ std::string trampoline_target(uintptr_t alo, uintptr_t ahi,
 
 // Signal D helper: decode the branch target of an inline-hook prologue at [addr].
 // Per-ABI, and deliberately mirrors the shapes prologue_looks_hooked() recognises
-// (INTEL_0039) so the provenance check (INTEL_0038) can attribute every stub the shape
+// (INTEL_0008) so the provenance check (INTEL_0003) can attribute every stub the shape
 // check can see. Returns 0 if the prologue is not a branch (the normal case).
 // All reads are bounded via pvr (EFAULT, never a fault).
 //
-// Previously ARM64-only, which left INTEL_0038 structurally unable to fire on
+// Previously ARM64-only, which left INTEL_0003 structurally unable to fire on
 // x86_64/x86 (emulators — so red-team runs there silently "passed" it) and on
 // armeabi-v7a, a shipped ABI.
 uintptr_t prologue_branch_target(uintptr_t addr) {
@@ -124,7 +124,7 @@ uintptr_t prologue_branch_target(uintptr_t addr) {
 #endif
 }
 
-// INTEL_0039 attribution: follow the trampoline's BRANCH chain from `start` (up to 8 hops,
+// INTEL_0008 attribution: follow the trampoline's BRANCH chain from `start` (up to 8 hops,
 // decoding B / BL / LDR x16|x17+BR) and return the first module whose FOREIGN code range a
 // hop lands in — recovering the culprit the level-1 pointer-scan missed (relative branches
 // store no pointer; multi-stage trampolines hide the module past the first page). Also

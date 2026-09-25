@@ -16,11 +16,11 @@ class TokenDecoderTest {
     @Test fun resolve_maps_known_signal_from_registry() {
         val reg = SignalRegistry.bundled
         val doc = mapOf<String, Any?>(
-            "signals" to listOf(mapOf<String, Any?>("id" to "INTEL_0009", "detail" to "x")),
+            "signals" to listOf(mapOf<String, Any?>("id" to "INTEL_0052", "detail" to "x")),
         )
         val out = Signals.resolve(doc, reg, Policy())
         assertEquals(1, out.size)
-        assertEquals("INTEL_0009", out[0].id)
+        assertEquals("INTEL_0052", out[0].id)
         assertNotEquals("?", out[0].detector)     // resolved from the registry
         assertEquals("x", out[0].detail)
     }

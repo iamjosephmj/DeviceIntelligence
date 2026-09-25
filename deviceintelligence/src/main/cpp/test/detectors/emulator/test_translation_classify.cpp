@@ -1,4 +1,4 @@
-// Host unit test for the pure INTEL_0056 classifier (translation_classify.cpp).
+// Host unit test for the pure INTEL_0027 classifier (translation_classify.cpp).
 // Not built by gradle; compiled directly with host c++ (see
 // tools/qa/native-unit-tests.sh). The classifier only uses <cstring>/<string>,
 // so it builds & runs on the host.

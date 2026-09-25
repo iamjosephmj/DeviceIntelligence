@@ -3,8 +3,8 @@
 // The /proc/self/maps walk itself: classify every mapping, characterize the
 // suspicious ones, and emit ready-to-marshal finding records.
 //
-// One pass produces INTEL_0008 (a hook framework is mapped), INTEL_0009 (RWX regions,
-// with their trampoline analysis attached) and INTEL_0035 (executable code from
+// One pass produces INTEL_0025 (a hook framework is mapped), INTEL_0052 (RWX regions,
+// with their trampoline analysis attached) and INTEL_0044 (executable code from
 // outside the legitimate roots). They share a pass because they read the same lines,
 // and separating them would mean walking a 200-500 KB procfs file three times.
 

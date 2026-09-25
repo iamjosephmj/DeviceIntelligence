@@ -6,8 +6,8 @@
 //            exec page)) reproduces the expected DICOREOBFMARK_* plaintexts;
 //   tamper — the same decryption against a copy whose exec first page was
 //            flipped must NOT reproduce any marker (garbage keys), while the
-//            NEVER_BIND entry (the INTEL_0059 digest array stand-in) still
-//            decrypts with its seed-only key0 — INTEL_0059 stays independent
+//            NEVER_BIND entry (the INTEL_0042 digest array stand-in) still
+//            decrypts with its seed-only key0 — INTEL_0042 stays independent
 //            of the very .text an attacker patches.
 //
 // File-based by design (mmap/read the ELF, never execute it): a tampered
@@ -173,7 +173,7 @@ int main(int argc, char** argv) {
     size_t bound_n = 0, never_n = 0;
     for (const Entry& e : ents) (e.flags & kFlagNever) ? never_n++ : bound_n++;
     CHECK(bound_n >= 8);   // the leg must have teeth
-    // >=1: the INTEL_0059 digest stand-in, plus the kNoBind diagnostic
+    // >=1: the INTEL_0042 digest stand-in, plus the kNoBind diagnostic
     // strings (log tag, formats) that must stay seed-decryptable by design.
     CHECK(never_n >= 1);
 
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
     }
     CHECK(still == 0);  // no bound string may survive a .text patch
     if (digest_entry) {
-        // INTEL_0059 independence: seed-only decryption still exact on the
+        // INTEL_0042 independence: seed-only decryption still exact on the
         // tampered image
         std::string d = decrypt_entry(tam, *digest_entry, d64t, /*bound=*/false);
         CHECK(digest_entry && d.size() == digest_entry->len && d.size() <= 32 && memcmp(d.data(), kDigestBytes, d.size()) == 0);

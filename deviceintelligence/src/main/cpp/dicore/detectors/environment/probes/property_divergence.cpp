@@ -1,4 +1,4 @@
-// INTEL_0043 — system-property divergence.
+// INTEL_0058 — system-property divergence.
 //
 // Asks for a property two ways and flags a disagreement. A prop spoofer hooks the
 // convenient path and forgets the other one; the DISAGREEMENT is the finding, which

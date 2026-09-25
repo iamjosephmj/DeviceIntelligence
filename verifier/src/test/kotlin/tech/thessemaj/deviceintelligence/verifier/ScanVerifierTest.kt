@@ -90,10 +90,10 @@ class ScanVerifierTest {
     @Test fun signals_are_resolved_through_the_registry() {
         val json = scanJson("s1", false).replace(
             """"signals":[]""",
-            """"signals":[{"id":"INTEL_0018","severity":"CRITICAL","detail":"enforce=0"}]""")
+            """"signals":[{"id":"INTEL_0006","severity":"CRITICAL","detail":"enforce=0"}]""")
         val r = sv.verifyScan(token(json, "SIG\u001Fdead"), "s1", priv, session = fakeSession())
         assertEquals(1, r.signals.size)
-        assertEquals("INTEL_0018", r.signals.first().id)
+        assertEquals("INTEL_0006", r.signals.first().id)
         assertEquals("selinux_permissive", r.signals.first().kind)
     }
 
@@ -129,36 +129,36 @@ class ScanVerifierTest {
         osPatchLevel = 202607, vendorPatchLevel = 20260701, bootPatchLevel = 20260701,
     )
 
-    @Test fun a_self_report_disagreeing_with_the_attested_identity_raises_INTEL_0045() {
+    @Test fun a_self_report_disagreeing_with_the_attested_identity_raises_INTEL_0046() {
         val json = scanJson("s1", false).replace("com.example.app", "com.attacker.app")
         val r = sv.verifyScan(token(json, "SIG\u001Fdead"), "s1", priv,
                               session = fakeSession())
         assertTrue("a forged self-report must be reported",
-            r.signals.any { it.id == "INTEL_0045" })
+            r.signals.any { it.id == "INTEL_0046" })
     }
 
-    @Test fun a_self_report_with_a_forged_signer_raises_INTEL_0045() {
+    @Test fun a_self_report_with_a_forged_signer_raises_INTEL_0046() {
         val json = scanJson("s1", false).replace("aa".repeat(32), "bb".repeat(32))
         val r = sv.verifyScan(token(json, "SIG\u001Fdead"), "s1", priv,
                               session = fakeSession())
         assertTrue("the signing digest is half the identity",
-            r.signals.any { it.id == "INTEL_0045" })
+            r.signals.any { it.id == "INTEL_0046" })
     }
 
     @Test fun an_agreeing_self_report_raises_nothing() {
         val r = sv.verifyScan(token(scanJson("s1", false), "SIG\u001Fdead"), "s1", priv,
                               session = fakeSession())
-        assertFalse(r.signals.any { it.id == "INTEL_0045" || it.id == "INTEL_0046" })
+        assertFalse(r.signals.any { it.id == "INTEL_0046" || it.id == "INTEL_0037" })
     }
 
-    @Test fun an_unlicensed_but_consistent_identity_raises_INTEL_0046_not_INTEL_0045() {
+    @Test fun an_unlicensed_but_consistent_identity_raises_INTEL_0037_not_INTEL_0046() {
         val reg = StaticLicenseRegistry(mapOf("com.someone.else" to setOf("00".repeat(32))))
         val r = ScanVerifier(licenses = reg)
             .verifyScan(token(scanJson("s1", false), "SIG\u001Fdead"), "s1", priv,
                         session = fakeSession())
-        assertTrue(r.signals.any { it.id == "INTEL_0046" })
+        assertTrue(r.signals.any { it.id == "INTEL_0037" })
         assertFalse("a stale licence table is not a compromise",
-            r.signals.any { it.id == "INTEL_0045" })
+            r.signals.any { it.id == "INTEL_0046" })
     }
 
     @Test fun an_absent_self_report_emits_nothing() {
@@ -167,14 +167,14 @@ class ScanVerifierTest {
         val r = sv.verifyScan(token(json, "SIG\u001Fdead"), "s1", priv,
                               session = fakeSession())
         assertFalse("fail open: absence is not evidence",
-            r.signals.any { it.id == "INTEL_0045" || it.id == "INTEL_0046" })
+            r.signals.any { it.id == "INTEL_0046" || it.id == "INTEL_0037" })
     }
 
     @Test fun no_attested_identity_to_compare_against_emits_nothing() {
         val r = sv.verifyScan(token(scanJson("s1", false), "SIG\u001Fdead"), "s1", priv,
                               session = fakeSession(app = null))
         assertFalse("nothing to cross-check means nothing to report",
-            r.signals.any { it.id == "INTEL_0045" || it.id == "INTEL_0046" })
+            r.signals.any { it.id == "INTEL_0046" || it.id == "INTEL_0037" })
     }
 
     // --- device integrity: the checks a chain-only verifier would miss -------------
@@ -206,24 +206,24 @@ class ScanVerifierTest {
         assertFalse(r.checks.first { it.name == "no revoked keybox" }.ok)
     }
 
-    @Test fun cross_level_keybox_reuse_rejects_and_raises_INTEL_0032() {
+    @Test fun cross_level_keybox_reuse_rejects_and_raises_INTEL_0016() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession().copy(crossLevelReuse = true))
         assertFalse("one keybox signing both levels proves injection", r.ok)
-        assertTrue(r.signals.any { it.id == "INTEL_0032" })
+        assertTrue(r.signals.any { it.id == "INTEL_0016" })
     }
 
-    @Test fun a_boot_state_spoofer_rejects_and_raises_INTEL_0030() {
+    @Test fun a_boot_state_spoofer_rejects_and_raises_INTEL_0055() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession().copy(bootStateSpoofer = true))
         assertFalse("props claiming a boot the TEE denies is a proven forgery", r.ok)
-        assertTrue(r.signals.any { it.id == "INTEL_0030" })
+        assertTrue(r.signals.any { it.id == "INTEL_0055" })
     }
 
-    @Test fun a_software_attested_environment_raises_INTEL_0044() {
+    @Test fun a_software_attested_environment_raises_INTEL_0056() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession(assurance = Assurance.SOFTWARE).copy(softwareAttested = true))
-        assertTrue(r.signals.any { it.id == "INTEL_0044" })
+        assertTrue(r.signals.any { it.id == "INTEL_0056" })
     }
 
     @Test fun a_missing_strongbox_chain_is_a_signal_not_a_gate() {
@@ -231,7 +231,7 @@ class ScanVerifierTest {
         // inform policy without failing the device outright.
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession().copy(strongboxChainMissing = true))
-        assertTrue(r.signals.any { it.id == "INTEL_0033" })
+        assertTrue(r.signals.any { it.id == "INTEL_0045" })
         assertTrue("must not be an AUTH gate",
             r.checks.filter { it.kind == CheckKind.AUTH }.none { it.name.contains("StrongBox") && !it.ok })
     }
@@ -262,31 +262,31 @@ class ScanVerifierTest {
         assertEquals("com.android.vending", r.fingerprint?.installer)
     }
 
-    @Test fun a_stale_attested_patch_raises_INTEL_0047() {
+    @Test fun a_stale_attested_patch_raises_INTEL_0050() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = 202001,
                                          vendorPatchLevel = 20200101, bootPatchLevel = 20200101))
-        assertTrue(r.signals.any { it.id == "INTEL_0047" })
+        assertTrue(r.signals.any { it.id == "INTEL_0050" })
     }
 
     @Test fun a_current_attested_patch_raises_nothing() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession())
-        assertFalse(r.signals.any { it.id == "INTEL_0047" })
+        assertFalse(r.signals.any { it.id == "INTEL_0050" })
     }
 
     @Test fun staleness_uses_the_OLDEST_of_the_three_patch_levels() {
         val r = sv.verifyScan(signedToken(scanJson("s1", false)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = 202607, bootPatchLevel = 20200101))
         assertTrue("an ancient bootloader must not hide behind a current framework patch",
-            r.signals.any { it.id == "INTEL_0047" })
+            r.signals.any { it.id == "INTEL_0050" })
     }
 
-    @Test fun a_self_report_disagreeing_with_the_attested_patch_raises_INTEL_0048() {
+    @Test fun a_self_report_disagreeing_with_the_attested_patch_raises_INTEL_0019() {
         val fp = """{"id":"","aid":"","lvl":"","build":"","kernel":"","patch":"2026-08-05","installer":""}"""
         val r = sv.verifyScan(signedToken(scanJsonWithFp("s1", fp)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = 202604, fingerprint = null))
-        assertTrue(r.signals.any { it.id == "INTEL_0048" })
+        assertTrue(r.signals.any { it.id == "INTEL_0019" })
     }
 
     @Test fun day_precision_does_not_false_positive_against_a_month_precision_attestation() {
@@ -294,18 +294,18 @@ class ScanVerifierTest {
         val fp = """{"id":"","aid":"","lvl":"","build":"","kernel":"","patch":"2026-04-05","installer":""}"""
         val r = sv.verifyScan(signedToken(scanJsonWithFp("s1", fp)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = 202604, fingerprint = null))
-        assertFalse("same month must NOT mismatch", r.signals.any { it.id == "INTEL_0048" })
+        assertFalse("same month must NOT mismatch", r.signals.any { it.id == "INTEL_0019" })
     }
 
     @Test fun a_missing_patch_on_either_side_emits_nothing() {
         val none = """{"id":"","aid":"","lvl":"","build":"","kernel":"","patch":"","installer":""}"""
         val r = sv.verifyScan(signedToken(scanJsonWithFp("s1", none)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = 202604, fingerprint = null))
-        assertFalse("fail open on a missing self-report", r.signals.any { it.id == "INTEL_0048" })
+        assertFalse("fail open on a missing self-report", r.signals.any { it.id == "INTEL_0019" })
 
         val some = """{"id":"","aid":"","lvl":"","build":"","kernel":"","patch":"2026-04-05","installer":""}"""
         val r2 = sv.verifyScan(signedToken(scanJsonWithFp("s1", some)), "s1", priv,
             session = fakeSession().copy(osPatchLevel = null, fingerprint = null))
-        assertFalse("fail open on a missing attested value", r2.signals.any { it.id == "INTEL_0048" })
+        assertFalse("fail open on a missing attested value", r2.signals.any { it.id == "INTEL_0019" })
     }
 }

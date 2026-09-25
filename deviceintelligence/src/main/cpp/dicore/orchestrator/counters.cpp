@@ -24,7 +24,7 @@
 #endif
 
 // integrity.art vector A ("ArtMethod entry pointer escaped every known ART region")
-// is OBSERVE-ONLY (logs, does not count toward INTEL_0001) until a clean-device
+// is OBSERVE-ONLY (logs, does not count toward INTEL_0012) until a clean-device
 // zero-hit matrix validates it; then build with -DDICORE_ART_VECTOR_A_ENFORCE=1.
 //
 // Unlike vectors C/D/E/F — which compare against a baseline or an embedded

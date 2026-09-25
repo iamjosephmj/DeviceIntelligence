@@ -38,7 +38,7 @@ std::string fw_signing_digest();
 // The fingerprint inputs that need the JVM, '\n'-joined in a fixed order:
 //   widevineId, widevineLevel, androidId
 // Any unavailable field is empty; the field count is always three. Kernel, build
-// fingerprint and security patch are read natively instead — they feed INTEL_0048
+// fingerprint and security patch are read natively instead — they feed INTEL_0019
 // and must not cross an ART-hookable surface. The two identity fields are hashed
 // before they reach the wire; see fp_pepper.h.
 std::string fw_fingerprint_raw();

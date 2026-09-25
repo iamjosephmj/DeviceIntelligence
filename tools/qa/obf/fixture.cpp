@@ -24,7 +24,7 @@ static const InlineMethod g_inline_methods[] = {
      reinterpret_cast<void*>(2)},
 };
 
-// (d) INTEL_0059 digest-array stand-in (task A1): same IR shape as
+// (d) INTEL_0042 digest-array stand-in (task A1): same IR shape as
 // text_digest_probe.cpp's `static const uint8_t DICORE_TEXT_DIGEST[32]` — an
 // internal-linkage ConstantDataArray the strenc pass encrypts but must NEVER
 // digest-bind (the baseline has to decrypt independent of the exec digest).

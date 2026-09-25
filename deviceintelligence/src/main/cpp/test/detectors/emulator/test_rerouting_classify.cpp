@@ -1,4 +1,4 @@
-// Host unit test for the pure INTEL_0061 classifier (rerouting_classify.cpp).
+// Host unit test for the pure INTEL_0047 classifier (rerouting_classify.cpp).
 // Not built by gradle; compiled directly with host c++ (see
 // tools/qa/native-unit-tests.sh). The classifier only uses <cstdint>, so it
 // builds & runs on the host.

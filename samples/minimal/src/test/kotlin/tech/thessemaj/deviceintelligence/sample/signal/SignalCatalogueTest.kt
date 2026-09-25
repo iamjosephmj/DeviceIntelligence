@@ -44,17 +44,17 @@ class SignalCatalogueTest {
     }
 
     @Test fun `codes are filed under the family their detector belongs to`() {
-        assertEquals(SignalGroup.Attestation, SignalCatalogue.of("INTEL_0000")?.group)
-        assertEquals(SignalGroup.RuntimeInstrumentation, SignalCatalogue.of("INTEL_0001")?.group)
-        assertEquals(SignalGroup.RuntimeInstrumentation, SignalCatalogue.of("INTEL_0003")?.group)
-        assertEquals(SignalGroup.AntiAnalysis, SignalCatalogue.of("INTEL_0004")?.group)
-        assertEquals(SignalGroup.PackageIntegrity, SignalCatalogue.of("INTEL_0020")?.group)
+        assertEquals(SignalGroup.Attestation, SignalCatalogue.of("INTEL_0001")?.group)
+        assertEquals(SignalGroup.RuntimeInstrumentation, SignalCatalogue.of("INTEL_0012")?.group)
+        assertEquals(SignalGroup.RuntimeInstrumentation, SignalCatalogue.of("INTEL_0034")?.group)
+        assertEquals(SignalGroup.AntiAnalysis, SignalCatalogue.of("INTEL_0036")?.group)
+        assertEquals(SignalGroup.PackageIntegrity, SignalCatalogue.of("INTEL_0062")?.group)
     }
 
     @Test fun `retired codes are flagged`() {
         // A retired code should never arrive; if one does, the resolving registry is stale.
-        assertTrue(SignalCatalogue.of("INTEL_0034")!!.retired)
-        assertFalse(SignalCatalogue.of("INTEL_0000")!!.retired)
+        assertTrue(SignalCatalogue.of("INTEL_0039")!!.retired)
+        assertFalse(SignalCatalogue.of("INTEL_0001")!!.retired)
     }
 
     @Test fun `every entry carries a meaning`() {

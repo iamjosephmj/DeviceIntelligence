@@ -12,7 +12,7 @@
 // The scan cores are NOT dormant — an earlier version of this comment said they were.
 // orchestrator/counters.cpp::count_art_hook_critical() calls all five scans on every
 // challenge, and their result is pushed as a CRITICAL `art/art_hook_critical` record
-// (INTEL_0001) by dicore_verdict(). It demonstrably fires: two false positives were fixed in
+// (INTEL_0012) by dicore_verdict(). It demonstrably fires: two false positives were fixed in
 // PRs #3 and #4 after it flagged clean devices.
 
 #include "dicore/detectors/art_integrity/checks/access_flags.h"
