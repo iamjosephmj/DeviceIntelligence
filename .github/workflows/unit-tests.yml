@@ -55,6 +55,11 @@ jobs:
       - name: JVM unit tests
         run: ./gradlew :verifier:test :deviceintelligence:testReleaseUnitTest :samples:minimal:testReleaseUnitTest --console=plain
 
+      # Host C++ unit tests: crypto KATs, licence blob, token crypto, native
+      # integrity (elf segment, channel guard, text digest, watchdog), JNI cache.
+      - name: C++ unit tests
+        run: bash tools/qa/native-unit-tests.sh
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
