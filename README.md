@@ -39,9 +39,27 @@ Dev vs release: the script signs with a publisher key compiled into the SDK, whi
 
 **Android** — apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
 
+Make sure Maven Central is resolvable:
+
+```kotlin
+// settings.gradle.kts
+pluginManagement { repositories { mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositories { mavenCentral() } }
+```
+
+Then apply the plugin:
+
 ```kotlin
 plugins {
     id("tech.thessemaj.deviceintelligence") version "3.0.0"
+}
+```
+
+No plugin? Add the AAR directly and handle the fingerprint baking yourself:
+
+```kotlin
+dependencies {
+    implementation("tech.thessemaj:deviceintelligence:3.0.0")
 }
 ```
 
@@ -64,11 +82,26 @@ Not on coroutines: `tech.thessemaj.deviceintelligence.dx.NativeBridge` is the bl
 
 ## Backend
 
-The [`verifier`](verifier) module is plain Kotlin/JVM with zero external dependencies — copy it into your project and add it as a module.
+The [`verifier`](verifier) module is plain Kotlin/JVM with zero external dependencies. Add it to your backend project:
+
+```sh
+cp -r DeviceIntelligence/verifier <your-backend>/verifier
+```
 
 ```kotlin
-val verifier = ScanVerifier()
-val result = verifier.verifyScan(
+// settings.gradle.kts
+include(":verifier")
+```
+
+```kotlin
+// build.gradle.kts
+dependencies { implementation(project(":verifier")) }
+```
+
+Verify a scan:
+
+```kotlin
+val result = ScanVerifier().verifyScan(
     token,                                  // the token string from the device
     sessionId,                              // the session id you issued
     serverPrivateKeyStream,                 // server-priv-<epoch>.pem — PEM or raw DER PKCS#8
