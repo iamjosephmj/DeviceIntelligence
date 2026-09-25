@@ -1,8 +1,16 @@
 # DeviceIntelligence 🐍
 
-Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
+DeviceIntelligence answers one question for your backend: **can this phone be trusted?**
 
-## Install
+A rooted, hook-laden or spoofed device lies to your app about everything — the files on disk, the values of its own properties, the provenance of the code running inside it. DeviceIntelligence sends a sensor into that minefield: on-device detectors probe hardware attestation, verified boot, hook frameworks, root, syscall filtering, package tampering and emulated environments, and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token.
+
+Three principles shape everything:
+
+- **Detection only.** The device reports; the backend decides. Nothing is killed, blocked, or degraded on-device — anything the app could enforce, a rooted attacker can remove. Enforcement lives where the attacker isn't.
+- **Hardware-bound sessions.** Hardware attestation runs once per session, keyed to the session id *your* backend issued at login. The attested key signs every later scan, so a captured token is worthless anywhere else — and every token names the user it belongs to.
+- **Opaque on the wire.** The token carries codes, not explanations. Detector names, probe mechanisms and evasion semantics never leave the device; your backend resolves them from the registry and grades what it sees.
+
+## Quick start
 
 Apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
 
@@ -39,5 +47,5 @@ All three are suspend functions. Send the token even when the first two return f
 
 - [Android integration](android.md) — repositories, plugin styles, per-call contracts.
 - [Backend verification](backend.md) — the `verifier` module and the decision flow.
-- [Keys & licences](keys.md) — what the two files are, rotation, dev vs release.
+- [Keys & licences](keys.md) — the two files, rotation, dev vs release.
 - [Signal catalogue](signal-catalogue.md) — every `INTEL_XXXX` code, decoded.

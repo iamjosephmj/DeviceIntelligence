@@ -1,52 +1,19 @@
-## Quick start
+# DeviceIntelligence 🐍
 
-Apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
+Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
 
-```kotlin
-plugins {
-    id("tech.thessemaj.deviceintelligence") version "3.0.0"
-}
-```
+<p align="left">
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg?logo=kotlin&logoColor=white">
+  <img alt="Maven Central" src="https://img.shields.io/maven-central/v/tech.thessemaj/deviceintelligence">
+  <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=flat&logo=githubsponsors"></a>
+</p>
 
-Provision one X25519 keypair on your machine — never in a build, never on a device:
+### 📚 [docs.iamjosephmj — the full documentation lives here](https://iamjosephmj.github.io/DeviceIntelligence/)
 
-```sh
-python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
-```
+Integration guides, the backend verifier, keys & licences, and the decoded signal catalogue — all on the docs site.
 
-Ship `server.key` as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key`; the private half belongs to your backend. Then three calls:
-
-```kotlin
-DeviceIntelligence.initialize(application)      // once, local, ~3 ms
-DeviceIntelligence.setSession(sessionId)        // once per session, ~175 ms, off the UI thread
-val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
-myBackend.submit(token)
-```
-
-All three are suspend functions. Send the token even when the first two return false — a degraded token names the failure, and your backend grades it.
-
-## Verdicts
-
-- **TRUSTWORTHY** — authentic and clean.
-- **COMPROMISED** — authentic, but the device reports an untrustworthy state.
-- **REJECT** — forged, replayed, or re-signed.
-
-## Documentation
-
-Full documentation lives on the [docs site](https://iamjosephmj.github.io/DeviceIntelligence/):
-
-- [Android integration](https://iamjosephmj.github.io/DeviceIntelligence/android/) — repositories, plugin styles, per-call contracts.
-- [Backend verification](https://iamjosephmj.github.io/DeviceIntelligence/backend/) — the `verifier` module and the decision flow.
-- [Keys & licences](https://iamjosephmj.github.io/DeviceIntelligence/keys/) — the two files, rotation, dev vs release.
-- [Signal catalogue](https://iamjosephmj.github.io/DeviceIntelligence/signal-catalogue/) — every `INTEL_XXXX` code, decoded.
-
-## Building this repo
-
-```sh
-./gradlew :samples:minimal:assembleRelease         # SDK + sample
-bash tools/qa/native-unit-tests.sh                 # native unit tests
-python3 tools/registry/gen-signal-ids.py --check   # signal registry drift gate
-```
+🙏 If you like DeviceIntelligence you can show support by starring ⭐ this repository.
 
 ## License
 
