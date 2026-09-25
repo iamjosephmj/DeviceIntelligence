@@ -1,9 +1,12 @@
+import com.vanniktech.maven.publish.GradlePlugin
+import com.vanniktech.maven.publish.JavadocJar
 import java.util.Properties
 
 plugins {
     `kotlin-dsl`
     `java-gradle-plugin`
     `maven-publish`
+    id("com.vanniktech.maven.publish") version "0.34.0"
 }
 
 // Single source of truth: the parent build's gradle.properties. We're an
@@ -125,69 +128,61 @@ val generatePluginVersion by tasks.registering {
 
 sourceSets["main"].java.srcDir(generatePluginVersion.map { generatedSrcDir })
 
-// `java-gradle-plugin` + `maven-publish` together auto-create:
-//   - a `pluginMaven` MavenPublication for the plugin JAR itself
-//   - a marker MavenPublication per `gradlePlugin.plugins { create("X") }`
-//     entry, with artifactId == `${id}.gradle.plugin`
-//
-// The marker POM is what makes `id("tech.thessemaj.deviceintelligence") version "X"`
-// resolvable for consumers — without it they'd need a `resolutionStrategy`
-// dance in their settings.gradle.kts. We override only the JAR publication's
-// artifactId + POM metadata; the marker publication is left at its
-// auto-generated coordinates so the plugin id mapping stays correct.
-afterEvaluate {
-    publishing {
-        publications.withType<MavenPublication>().configureEach {
-            // Common POM applied to BOTH the JAR publication AND the marker.
-            pom {
-                url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-                        distribution.set("repo")
-                    }
-                }
-                developers {
-                    developer {
-                        id.set("iamjosephmj")
-                        name.set("Joseph James")
-                        url.set("https://github.com/iamjosephmj")
-                    }
-                }
-                scm {
-                    url.set("https://github.com/iamjosephmj/DeviceIntelligence")
-                    connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
-                    developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
-                }
+// Maven Central publishing via vanniktech. `GradlePlugin` config publishes
+// both the plugin JAR (coordinates below) and the auto-generated marker
+// (`tech.thessemaj.deviceintelligence.gradle.plugin`) that makes
+// `id("tech.thessemaj.deviceintelligence") version "X"` resolvable.
+mavenPublishing {
+    configure(GradlePlugin(javadocJar = JavadocJar.Javadoc(), sourcesJar = true))
+    publishToMavenCentral(automaticRelease = true)
+    // Sign only when a key is supplied (CI). JitPack's keyless
+    // publishToMavenLocal must keep working.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
+    coordinates(publishGroup, pluginArtifactId, publishVersion)
+    pom {
+        name.set("DeviceIntelligence Gradle plugin")
+        description.set(
+            "Gradle plugin half of DeviceIntelligence. Wires per-variant " +
+                "fingerprint baking + manifest injection at build time, and " +
+                "auto-applies the matching DeviceIntelligence runtime AAR so " +
+                "consumers integrate with a single plugin id and one repo entry."
+        )
+        url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+        licenses {
+            license {
+                name.set("Creative Commons Attribution-NoDerivatives 4.0 International (CC BY-ND 4.0)")
+                url.set("https://creativecommons.org/licenses/by-nd/4.0/legalcode")
+                distribution.set("repo")
             }
         }
-
-        // Override only the plugin-JAR publication's coordinates + POM
-        // name/description. The auto-generated marker publication keeps
-        // its `${id}.gradle.plugin` artifactId so plugin resolution works.
-        publications.named<MavenPublication>("pluginMaven") {
-            artifactId = pluginArtifactId
-            pom {
-                name.set("DeviceIntelligence Gradle plugin")
-                description.set(
-                    "Gradle plugin half of DeviceIntelligence. Wires per-variant " +
-                        "fingerprint baking + manifest injection at build time, and " +
-                        "auto-applies the matching DeviceIntelligence runtime AAR so " +
-                        "consumers integrate with a single plugin id and one repo entry."
-                )
+        developers {
+            developer {
+                id.set("iamjosephmj")
+                name.set("Joseph James")
+                url.set("https://github.com/iamjosephmj")
             }
         }
+        scm {
+            url.set("https://github.com/iamjosephmj/DeviceIntelligence")
+            connection.set("scm:git:git://github.com/iamjosephmj/DeviceIntelligence.git")
+            developerConnection.set("scm:git:ssh://git@github.com/iamjosephmj/DeviceIntelligence.git")
+        }
+    }
+}
 
-        repositories {
-            System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
-                maven {
-                    name = "GitHubPackages"
-                    url = uri("https://maven.pkg.github.com/$gpr")
-                    credentials {
-                        username = System.getenv("GITHUB_ACTOR").orEmpty()
-                        password = System.getenv("GITHUB_TOKEN").orEmpty()
-                    }
+// Keep publishing the plugin to GitHub Packages too (CI only). vanniktech
+// owns the publications; this only adds a second repository target.
+publishing {
+    repositories {
+        System.getenv("GITHUB_REPOSITORY")?.let { gpr ->
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/$gpr")
+                credentials {
+                    username = System.getenv("GITHUB_ACTOR").orEmpty()
+                    password = System.getenv("GITHUB_TOKEN").orEmpty()
                 }
             }
         }

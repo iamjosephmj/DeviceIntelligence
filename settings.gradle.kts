@@ -14,6 +14,13 @@ pluginManagement {
     // The consumer-facing plugin below is a separate composite build and
     // intentionally does not use it.
     includeBuild("build-logic")
+    // -Pdeviceintelligence.useMavenArtifacts=true = the sample resolves the
+    // PUBLISHED AAR + plugin from Maven Central (the eat-your-own-dog-food
+    // check for a release). Without it, the in-tree composite builds stand in.
+    // The plugin composite stays included even in maven-artifacts mode: the
+    // published plugin POM carries an internal project(":baker") dependency
+    // that no external repository can resolve, so Central resolution of the
+    // plugin would fail. The in-tree plugin is the only working source.
     includeBuild("deviceintelligence-gradle")
     repositories {
         google()
@@ -45,7 +52,9 @@ if (!System.getenv("JITPACK").isNullOrEmpty()) {
 // `project(":deviceintelligence")` for the otherwise-fetched published AAR
 // (see DeviceIntelligencePlugin.addRuntimeDep). External consumers without
 // this module get the published AAR instead — same one-line consumer DSL.
-include(":deviceintelligence")
+if (!providers.gradleProperty("deviceintelligence.useMavenArtifacts").isPresent) {
+    include(":deviceintelligence")
+}
 // Backend verifier — pure Kotlin/JVM library. The sample app bundles it for the
 // on-device demo loop and the SDK androidTests decode tokens with it.
 include(":verifier")
