@@ -31,6 +31,8 @@ myBackend.submit(token)
 
 All three are suspend functions. Send the token even when the first two return false — a degraded token names the failure, and your backend grades it.
 
+`setSession(sessionId)` is what ties a scan to a user. Your backend already knows who is logged in at login time — pass that same id here, and every token from this device names it, so the verifier can correlate the verdict with the user on the backend. It also becomes the challenge the hardware attestation binds to: the key is attested *for that session*, so a captured token cannot be replayed under another session or another user.
+
 ## Verdicts
 
 Your backend opens tokens with the [`verifier`](verifier) module (zero-dependency Kotlin/JVM):
