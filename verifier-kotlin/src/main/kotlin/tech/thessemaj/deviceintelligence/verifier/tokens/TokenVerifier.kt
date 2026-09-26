@@ -1,21 +1,20 @@
 package tech.thessemaj.deviceintelligence.verifier.tokens
 
+import java.security.Signature
+import java.security.cert.X509Certificate
 import tech.thessemaj.deviceintelligence.verifier.attestation.Attestation
 import tech.thessemaj.deviceintelligence.verifier.attestation.ChainVerifier
 import tech.thessemaj.deviceintelligence.verifier.attestation.PinnedRoots
-import tech.thessemaj.deviceintelligence.verifier.model.Assurance
 import tech.thessemaj.deviceintelligence.verifier.model.Check
 import tech.thessemaj.deviceintelligence.verifier.model.CheckKind
 import tech.thessemaj.deviceintelligence.verifier.model.Decision
 import tech.thessemaj.deviceintelligence.verifier.model.ResolvedSignal
 import tech.thessemaj.deviceintelligence.verifier.model.Session
 import tech.thessemaj.deviceintelligence.verifier.model.VerificationResult
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
 import tech.thessemaj.deviceintelligence.verifier.policy.Policy
 import tech.thessemaj.deviceintelligence.verifier.policy.SignalRegistry
 import tech.thessemaj.deviceintelligence.verifier.text.Json
-
-import java.security.Signature
-import java.security.cert.X509Certificate
 
 /**
  * The backend entry point: turn a token + the nonce the server issued into a
@@ -31,8 +30,9 @@ import java.security.cert.X509Certificate
  * ```
  *
  * The decision is LAYERED and mirrors the Python exactly:
- *  - authenticity — binding present · nonce fresh · challenge == nonce ·
- *    chain → pinned Google root · ECDSA signature valid. Fail any ⇒ REJECT.
+ *  - authenticity — the [authGates] chain of responsibility below: each gate
+ *    appends its [Check] and decides whether the chain continues. A failed
+ *    HARD gate stops the chain (⇒ REJECT); soft gates record and continue.
  *  - device integrity — the TEE's own attestation: security level ≥ TEE,
  *    verifiedBootState == Verified, deviceLocked.
  *  - policy over signals — each resolved code run through [Policy].
@@ -48,49 +48,17 @@ class TokenVerifier(
 
     fun verify(tokenHex: String, issuedNonce: String): VerificationResult {
         val checks = Checks()
-        val t = TokenText(tokenHex)
+        val ctx = GateCtx(TokenText(tokenHex), issuedNonce)
 
-        if (!checks.auth("binding present", t.hasBinding, if (!t.hasBinding) "unbound/legacy token" else "")) {
-            return result(checks, t)
+        // Chain of responsibility: each gate appends its check and decides whether
+        // the chain continues. A failed HARD gate stops it — the flow below never
+        // sees a token whose provenance is not fully established.
+        for (gate in authGates) {
+            if (!gate.check(checks, ctx) && gate.hard) return result(checks, ctx.t)
         }
-        if (t.doc.isEmpty()) {
-            checks.auth("signed content is JSON", false, "unparseable signed_content")
-            return result(checks, t)
-        }
-
-        val tokenNonce = t.doc["nonce"] as? String ?: ""
-        checks.auth("nonce matches issued", tokenNonce == issuedNonce, "token=${tokenNonce.take(16)}… issued=${issuedNonce.take(16)}…")
-
-        val (sigHex, certsHex) = parseBinding(t.binding)
-        if (!checks.auth("chain + signature present", sigHex.isNotEmpty() && certsHex.isNotEmpty())) {
-            return result(checks, t)
-        }
-
-        val chain = runCatching { chainVerifier.parseChain(certsHex) }.getOrNull()
-        if (chain == null || chain.isEmpty()) {
-            checks.auth("chain parses", false, "could not parse cert chain")
-            return result(checks, t)
-        }
-        val leaf = chain.first()
-
-        runCatching { chainVerifier.verifyToPinnedRoot(chain) }
-            .onSuccess { checks.auth("chain -> pinned Google root", true, it.subjectX500Principal.name) }
-            .onFailure { checks.auth("chain -> pinned Google root", false, it.message ?: "chain error") }
-
-        runCatching { Attestation.challenge(leaf) }
-            .onSuccess { chal -> checks.auth("attestation challenge == nonce", Hex.encode(chal) == issuedNonce.lowercase(), "challenge=${Hex.encode(chal).take(16)}…") }
-            .onFailure { checks.auth("attestation challenge == nonce", false, it.message ?: "no challenge") }
-
-        runCatching {
-            val sig = Signature.getInstance("SHA256withECDSA")
-            sig.initVerify(leaf.publicKey)
-            sig.update(t.signed.toByteArray(Charsets.UTF_8))
-            sig.verify(Hex.decode(sigHex))
-        }.onSuccess { ok -> checks.auth("signature over verdict", ok, if (ok) "" else "ECDSA verify failed") }
-            .onFailure { checks.auth("signature over verdict", false, it.message ?: "signature error") }
 
         // Device-integrity layer — the TEE's own attestation fields.
-        runCatching { Attestation.fields(leaf) }
+        runCatching { Attestation.fields(ctx.chain.first()) }
             .onSuccess { f ->
                 checks.integ("hardware security level >= TEE", f.securityLevel == 1 || f.securityLevel == 2, f.securityLevelName)
                 checks.integ("verified boot state = Verified", f.verifiedBootState == 0, f.bootStateName)
@@ -98,7 +66,7 @@ class TokenVerifier(
             }
             .onFailure { checks.integ("attestation device-integrity fields", false, it.message ?: "parse error") }
 
-        return result(checks, t)
+        return result(checks, ctx.t)
     }
 
     fun verifyChallenge(tokenHex: String, issuedChallenge: String, sessionSigner: SessionSigner): VerificationResult {
@@ -197,10 +165,62 @@ class TokenVerifier(
         )
     }
 
+    /** The authenticity gate chain, in wire order. `hard` gates stop the chain on
+     *  failure (the flow below never runs on unproven provenance); soft gates record
+     *  their verdict and let later gates run so the ledger stays complete. */
+    private val authGates: List<Gate> = listOf(
+        Gate("binding present", hard = true) {
+            auth("binding present", it.t.hasBinding, if (!it.t.hasBinding) "unbound/legacy token" else "")
+        },
+        Gate("signed content is JSON", hard = true) {
+            auth("signed content is JSON", it.t.doc.isNotEmpty(), "unparseable signed_content")
+        },
+        Gate("nonce matches issued", hard = false) {
+            val tokenNonce = it.t.doc["nonce"] as? String ?: ""
+            auth("nonce matches issued", tokenNonce == it.issuedNonce,
+                 "token=${tokenNonce.take(16)}… issued=${it.issuedNonce.take(16)}…")
+            true
+        },
+        Gate("chain + signature present", hard = true) {
+            val (sigHex, certsHex) = parseBinding(it.t.binding)
+            it.sigHex = sigHex
+            it.certsHex = certsHex
+            auth("chain + signature present", sigHex.isNotEmpty() && certsHex.isNotEmpty())
+        },
+        Gate("chain parses", hard = true) {
+            it.chain = runCatching { chainVerifier.parseChain(it.certsHex) }.getOrNull().orEmpty()
+            auth("chain parses", it.chain.isNotEmpty(), "could not parse cert chain")
+        },
+        Gate("chain -> pinned Google root", hard = false) {
+            runCatching { chainVerifier.verifyToPinnedRoot(it.chain) }
+                .onSuccess { auth("chain -> pinned Google root", true, it.subjectX500Principal.name) }
+                .onFailure { auth("chain -> pinned Google root", false, it.message ?: "chain error") }
+            true
+        },
+        Gate("attestation challenge == nonce", hard = false) {
+            val leaf = it.chain.first()
+            runCatching { Attestation.challenge(leaf) }
+                .onSuccess { chal -> auth("attestation challenge == nonce", Hex.encode(chal) == it.issuedNonce.lowercase(), "challenge=${Hex.encode(chal).take(16)}…") }
+                .onFailure { auth("attestation challenge == nonce", false, it.message ?: "no challenge") }
+            true
+        },
+        Gate("signature over verdict", hard = false) {
+            val leaf = it.chain.first()
+            runCatching {
+                val sig = Signature.getInstance("SHA256withECDSA")
+                sig.initVerify(leaf.publicKey)
+                sig.update(it.t.signed.toByteArray(Charsets.UTF_8))
+                sig.verify(Hex.decode(it.sigHex))
+            }.onSuccess { ok -> auth("signature over verdict", ok, if (ok) "" else "ECDSA verify failed") }
+                .onFailure { auth("signature over verdict", false, it.message ?: "signature error") }
+            true
+        },
+    )
+
     private companion object {
         const val FS = ""
 
-        /** SIG<FS>hex and one-or-more CERT<FS>hex lines out of the binding payload. */
+        /** SIG<US>hex and one-or-more CERT<US>hex lines out of the binding payload. */
         fun parseBinding(binding: String): Pair<String, List<String>> {
             var sigHex = ""
             val certsHex = ArrayList<String>()
@@ -213,6 +233,18 @@ class TokenVerifier(
             return sigHex to certsHex
         }
     }
+}
+
+/** One authenticity gate. [hard] gates stop the chain when [check] fails; soft
+ *  gates record their verdict (always returning true) so the ledger stays complete. */
+private class Gate(val name: String, val hard: Boolean, val check: Checks.(GateCtx) -> Boolean)
+
+/** Per-verify mutable context: the parsed token plus what the gates establish
+ *  along the way (the binding split, then the parsed chain). */
+private class GateCtx(val t: TokenText, val issuedNonce: String) {
+    var sigHex: String = ""
+    var certsHex: List<String> = emptyList()
+    var chain: List<X509Certificate> = emptyList()
 }
 
 /** The decrypted token split at the binding separator, with its parsed (untrusted)

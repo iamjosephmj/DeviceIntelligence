@@ -159,9 +159,13 @@ class ScanVerifier(
 
         if (!sessionIdOk) return fail("session id mismatch", bootstrap, signals, attestation)
 
-        return if (bootstrap)
-            verifyBootstrap(doc, binding, issuedSessionId, signed, checks, signals, attestation)
-        else verifySteadyState(doc, binding, signed, session, checks, signals, attestation)
+        // State dispatch: which phase the scan claims decides which verifier runs.
+        return when (ScanPhase.of(doc)) {
+            ScanPhase.Bootstrap ->
+                verifyBootstrap(doc, binding, issuedSessionId, signed, checks, signals, attestation)
+            ScanPhase.SteadyState ->
+                verifySteadyState(doc, binding, signed, session, checks, signals, attestation)
+        }
     }
 
     /**
@@ -383,5 +387,18 @@ class ScanVerifier(
 
         return ScanResult(ok, bootstrap, integrityOk, if (bootstrap) session else null,
             checks, all, reason, session.fingerprint ?: evidence.fingerprintOf(doc), attestation)
+    }
+}
+
+/** The two scan phases a token can claim (State pattern): the phase decides which
+ *  verifier runs, because a bootstrap carries the hardware attestation that a
+ *  steady-state scan must instead prove possession of via the attested key. */
+internal sealed class ScanPhase {
+    data object Bootstrap : ScanPhase()
+    data object SteadyState : ScanPhase()
+
+    companion object {
+        fun of(doc: Map<String, Any?>): ScanPhase =
+            if (doc["bootstrap"] == true) Bootstrap else SteadyState
     }
 }
