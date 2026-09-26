@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from deviceintelligence_verifier.scan_verifier import ScanVerifier
 from deviceintelligence_verifier.codec import decode
+from deviceintelligence_verifier.server_key import from_file
 
 HERE = Path(__file__).resolve().parents[2]
 FIXTURES = HERE / "fixtures"
@@ -18,7 +19,7 @@ def test_bootstrap_scan_matches_the_kotlin_golden():
     expected_facts = json.loads(session_facts)
     expected_result = next(ln.strip() for ln in golden_lines if ln.startswith("RESULT:"))
 
-    server_priv = (FIXTURES / "fp-e2e-priv.pem").read_text().strip()
+    server_priv = from_file(str(FIXTURES / 'fp-e2e-priv.pem'))
     token = (FIXTURES / "fp-e2e.token").read_text().strip()
     session_id = (FIXTURES / "fp-e2e-session.txt").read_text().strip()
 
