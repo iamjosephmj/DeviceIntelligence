@@ -16,6 +16,7 @@
 // Every failure path contributes nothing. Fail-open; no finding without an
 // affirmative sub-fact.
 
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/emulator/translation/rerouting_classify.h"
 #include "dicore/platform/obf.h"
 
@@ -79,7 +80,6 @@ constexpr uint64_t kWindowNs = 20'000'000;  // 20 ms
 }  // namespace
 
 std::vector<std::string> emu_rerouting_records() {
-    constexpr char kFS = '\x1f';
 
     // -- counter coherence ---------------------------------------------------
     uint64_t freq = 0;
@@ -139,11 +139,7 @@ std::vector<std::string> emu_rerouting_records() {
     if (!f.affirmative) return {};
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
-    std::string r = "cpu_rerouting_anomaly";
-    r += kFS;
-    r += "CRITICAL";
-    r += kFS;
-    r += "cntfrq=";
+    std::string r = "cntfrq=";
     r += std::to_string(freq);
     r += "|have_freq=";
     r += have_freq ? "1" : "0";
@@ -156,7 +152,7 @@ std::vector<std::string> emu_rerouting_records() {
         r += "|udf_code=";
         r += std::to_string(f.udf_si_code);
     }
-    return {r};
+    return {encode_record(make_finding("cpu_rerouting_anomaly", Severity::kCritical, {r}))};
 }
 
 }  // namespace dicore

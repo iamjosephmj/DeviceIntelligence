@@ -27,6 +27,7 @@
 // Every failure path contributes nothing. Fail-open; no finding without
 // the bit or a known vendor string.
 
+#include "dicore/orchestrator/finding.h"
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -173,11 +174,7 @@ std::vector<std::string> emu_hv_records() {
                       info.masked_vendor;
     if (!fire) return {};
 
-    std::string r = "hypervisor_cpu";
-    r += '\x1f';
-    r += "CRITICAL";
-    r += '\x1f';
-    r += "hvbit=";
+    std::string r = "hvbit=";
     r += info.hyp_bit ? "1" : "0";
     r += "|vendor=";
     r += info.vendor;
@@ -203,7 +200,7 @@ std::vector<std::string> emu_hv_records() {
     std::snprintf(corr, sizeof(corr), "|max_std_leaf=%u|pa_bits=%u",
                   info.max_std_leaf, info.phys_addr_bits);
     r += corr;
-    return {r};
+    return {encode_record(make_finding("hypervisor_cpu", Severity::kCritical, {r}))};
 }
 
 }  // namespace dicore

@@ -15,6 +15,7 @@
 // Markers are classified by the pure header (host-tested); this TU is the
 // thin IO wrapper.
 
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/emulator/arch/emu_vm_markers.h"
 #include "dicore/platform/obf.h"
 #include "dicore/platform/syscalls.h"
@@ -69,11 +70,7 @@ std::vector<std::string> emu_vm_platform_records() {
 
     if (!dicore::vmplat::any_marker(flags)) return {};
 
-    std::string r = "arm64_vm_platform";
-    r += '\x1f';
-    r += "CRITICAL";
-    r += '\x1f';
-    r += "flags=";
+    std::string r = "flags=";
     char num[16];
     std::snprintf(num, sizeof(num), "%u", flags);
     r += num;
@@ -82,7 +79,7 @@ std::vector<std::string> emu_vm_platform_records() {
     if (flags & dicore::vmplat::kMarkCrosvm) r += "|crosvm=1";
     if (flags & dicore::vmplat::kMarkCuttlefish) r += "|cuttlefish=1";
     if (flags & dicore::vmplat::kMarkDummyVirt) r += "|dummy_virt=1";
-    return {r};
+    return {encode_record(make_finding("arm64_vm_platform", Severity::kCritical, {r}))};
 }
 
 }  // namespace dicore

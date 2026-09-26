@@ -17,6 +17,7 @@
 // Every read failure contributes nothing. Fail-open; no finding without an
 // affirmative sub-fact.
 
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/emulator/translation/translation_classify.h"
 #include "dicore/core/verdict_cores.h"
 #include "dicore/platform/syscalls.h"
@@ -71,7 +72,6 @@ const char* process_abi_name() {
 
 DI_OBF_EMU
 std::vector<std::string> emu_translation_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     // Sub-fact inputs, each fail-open.
@@ -94,11 +94,7 @@ std::vector<std::string> emu_translation_records() {
     // is what keeps the on_clean_device() string-unlock gate locked on an
     // emulator — on an AVD where the attestation path degrades before the
     // KeyDescription parse, this signal can be the only on-device finding.
-    std::string r = "translated_environment";
-    r += kFS;
-    r += "CRITICAL";
-    r += kFS;
-    r += "machine=";
+    std::string r = "machine=";
     r += f.machine;
     r += "|abi=";
     r += process_abi_name();
@@ -108,7 +104,7 @@ std::vector<std::string> emu_translation_records() {
         r += f.bridge;
     }
     if (f.bridge_mapped) r += "|bridge_mapped=1";
-    out.push_back(r);
+    out.push_back(encode_record(make_finding("translated_environment", Severity::kCritical, {r})));
     return out;
 }
 

@@ -20,6 +20,7 @@
 //
 // This core is retained but dead. See issue #8 before wiring or deleting it.
 
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/emulator/emu_probe.h"
 #include "dicore/core/verdict_cores.h"
 
@@ -29,12 +30,11 @@
 namespace dicore {
 
 std::vector<std::string> emu_verdict_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
     emu::Signals s = emu::probe();
     if (s.decisive) {
         // kind \x1f SEVERITY \x1f raw-signals
-        out.push_back(std::string("runtime_emulator_cpu") + kFS + "CRITICAL" + kFS + s.raw);
+        out.push_back(encode_record(make_finding("runtime_emulator_cpu", Severity::kCritical, {s.raw})));
     }
     return out;
 }
