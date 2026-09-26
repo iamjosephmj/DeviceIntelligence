@@ -100,3 +100,14 @@ lint/reports/
 .DS_Store
 Thumbs.db
 site/
+
+# Python port
+.venv/
+__pycache__/
+
+# Node port
+dist/
+node_modules/
+
+# Python packaging
+*.egg-info/

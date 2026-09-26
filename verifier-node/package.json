@@ -1,0 +1,13 @@
+{
+  "name": "deviceintelligence-verifier",
+  "version": "3.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp -r resources dist/",
+    "test": "npm run build && node --test dist/tests/"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}
