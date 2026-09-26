@@ -71,8 +71,8 @@ std::vector<std::string> dex_provenance_records() {
         if (!path.empty()) {
             // A dex with a real path: judged purely on where that path lives.
             if (attacker_writable(path)) {
-                out.push_back(std::string("foreign_dex_loaded") + kFS + "CRITICAL" + kFS +
-                              "path=" + path + " loader=" + loader);
+                out.push_back(encode_record(make_finding("foreign_dex_loaded",
+                Severity::kCritical, {"path=" + path + " loader=" + loader})));
             }
             continue;
         }
@@ -88,9 +88,10 @@ std::vector<std::string> dex_provenance_records() {
         // app it was loaded into is not a feature module.
         ++reachable_in_memory;
         if (sees == "0") {
-            out.push_back(std::string("dex_foreign_loader") + kFS + "HIGH" + kFS +
-                          "in-memory dex whose loader chain cannot see the app's own "
-                          "classes loader=" + loader);
+            out.push_back(encode_record(make_finding("dex_foreign_loader",
+                Severity::kHigh,
+                {"in-memory dex whose loader chain cannot see the app's own "
+                 "classes loader=" + loader})));
         }
     }
 
@@ -106,7 +107,8 @@ std::vector<std::string> dex_provenance_records() {
         snprintf(detail, sizeof(detail),
                  "mapped_in_memory_dex=%zu reachable=%zu unaccounted=%zu",
                  mapped, reachable_in_memory, mapped - reachable_in_memory);
-        out.push_back(std::string("dex_unaccounted_in_memory") + kFS + "HIGH" + kFS + detail);
+        out.push_back(encode_record(make_finding("dex_unaccounted_in_memory",
+                Severity::kHigh, {detail})));
     }
 
     return out;

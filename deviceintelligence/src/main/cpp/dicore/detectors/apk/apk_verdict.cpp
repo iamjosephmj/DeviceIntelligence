@@ -17,6 +17,7 @@
 // lib_inventory scanner it fed (set_expected_so_inventory) was removed — see #8/#17.
 
 #include "dicore/detectors/apk/container/apkmap.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/apk/identity/fingerprint_decode.h"
 #include "dicore/platform/framework_shim.h"  // split_source_dirs() for bundle mode
 #include "dicore/platform/obf.h"  // DI_OBF_MAX
@@ -35,16 +36,14 @@
 namespace dicore {
 namespace {
 
-constexpr char kFS = '\x1f';
-
-std::string rec(const char* kind, const char* sev, const std::string& subject,
+std::string rec(const char* kind, Severity sev, const std::string& subject,
                 const std::string& msg, const std::vector<std::string>& details) {
-    std::string r = kind;
-    r += kFS; r += sev;
-    r += kFS; r += subject;
-    r += kFS; r += msg;
-    for (const auto& d : details) { r += kFS; r += d; }
-    return r;
+    std::vector<std::string> fields;
+    fields.reserve(2 + details.size());
+    fields.push_back(subject);
+    fields.push_back(msg);
+    fields.insert(fields.end(), details.begin(), details.end());
+    return encode_record(make_finding(kind, sev, std::move(fields)));
 }
 
 std::string join(const std::vector<std::string>& v, char sep) {
@@ -94,7 +93,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     // seed + the embedded env-KEK phrase; the key is never shipped.
     constexpr size_t kSeedLen = 32;
     if (asset.size() < kSeedLen + 4) {
-        out.push_back(rec("fingerprint_corrupt", "HIGH", "",
+        out.push_back(rec("fingerprint_corrupt", Severity::kHigh, "",
                           "Fingerprint blob is structurally malformed", {}));
         return out;
     }
@@ -109,14 +108,14 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     if (st != fp::Status::kOk) {
         switch (st) {
             case fp::Status::kBadMagic:
-                out.push_back(rec("fingerprint_bad_magic", "CRITICAL", "",
+                out.push_back(rec("fingerprint_bad_magic", Severity::kCritical, "",
                                   "Fingerprint blob has wrong magic — likely re-encrypted with a different key", {}));
                 break;
             case fp::Status::kFormatMismatch:
                 out.push_back(std::string("__status") + kFS + "FORMAT_SKEW");
                 break;
             default:
-                out.push_back(rec("fingerprint_corrupt", "HIGH", "",
+                out.push_back(rec("fingerprint_corrupt", Severity::kHigh, "",
                                   "Fingerprint blob is structurally malformed", {}));
         }
         return out;
@@ -155,7 +154,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
                 bool ok = false;
                 for (const auto& allow : fp.signer_cert_sha256) if (allow == obs) { ok = true; break; }
                 if (!ok) {
-                    out.push_back(rec("apk_signer_mismatch", "CRITICAL", "",
+                    out.push_back(rec("apk_signer_mismatch", Severity::kCritical, "",
                                       "Installed signer not in the baked allow-set (bundle mode)",
                                       {"observed=" + obs, "allowed=" + join(fp.signer_cert_sha256, ',')}));
                 }
@@ -178,11 +177,11 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
                 if (zip::hash_entry_decompressed(m, c, kv.first, &observed)) { found = true; break; }
             }
             if (!found) {
-                out.push_back(rec("apk_entry_removed", "HIGH", kv.first,
+                out.push_back(rec("apk_entry_removed", Severity::kHigh, kv.first,
                                   "Baked bundle entry not found across base+splits",
                                   {"expected=" + kv.second}));
             } else if (observed != kv.second) {
-                out.push_back(rec("apk_entry_modified", "CRITICAL", kv.first,
+                out.push_back(rec("apk_entry_modified", Severity::kCritical, kv.first,
                                   "Bundle entry bytes differ from build time",
                                   {"expected=" + kv.second, "observed=" + observed}));
             }
@@ -211,7 +210,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
         std::sort(e2.begin(), e2.end()); e2.erase(std::unique(e2.begin(), e2.end()), e2.end());
         std::sort(o2.begin(), o2.end()); o2.erase(std::unique(o2.begin(), o2.end()), o2.end());
         if (e2 != o2) {
-            out.push_back(rec("apk_signer_mismatch", "CRITICAL", "",
+            out.push_back(rec("apk_signer_mismatch", Severity::kCritical, "",
                               "APK signer cert(s) differ from the build-time baked set",
                               {"expected=" + join(expected, ','), "observed=" + join(observed, ',')}));
         }
@@ -219,7 +218,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
 
     // source-dir prefix
     if (!fp.expected_source_dir_prefix.empty() && !starts_with(apkPath, fp.expected_source_dir_prefix)) {
-        out.push_back(rec("apk_source_dir_unexpected", "MEDIUM", apkPath,
+        out.push_back(rec("apk_source_dir_unexpected", Severity::kMedium, apkPath,
                           "Installed APK lives outside the expected path prefix",
                           {"expected_prefix=" + fp.expected_source_dir_prefix, "observed_path=" + apkPath}));
     }
@@ -229,7 +228,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
         bool ok = false;
         for (const auto& w : fp.expected_installer_whitelist) if (w == installer && !installer.empty()) { ok = true; break; }
         if (!ok) {
-            out.push_back(rec("installer_not_whitelisted", "MEDIUM", installer,
+            out.push_back(rec("installer_not_whitelisted", Severity::kMedium, installer,
                               "Installer package is not in the baked whitelist",
                               {"whitelist=" + join(fp.expected_installer_whitelist, ','),
                                "observed_installer=" + (installer.empty() ? std::string("<null>") : installer)}));
@@ -250,18 +249,18 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     for (const auto& kv : fp.entries) {
         auto it = filtered.find(kv.first);
         if (it == filtered.end()) {
-            out.push_back(rec("apk_entry_removed", "HIGH", kv.first,
+            out.push_back(rec("apk_entry_removed", Severity::kHigh, kv.first,
                               "APK entry was present at build time but is missing at runtime",
                               {"expected_hash=" + kv.second}));
         } else if (it->second != kv.second) {
-            out.push_back(rec("apk_entry_modified", "CRITICAL", kv.first,
+            out.push_back(rec("apk_entry_modified", Severity::kCritical, kv.first,
                               "APK entry exists but its bytes differ from build time",
                               {"expected_hash=" + kv.second, "observed_hash=" + it->second}));
         }
     }
     for (const auto& kv : filtered) {
         if (expectedEntries.find(kv.first) == expectedEntries.end()) {
-            out.push_back(rec("apk_entry_added", "HIGH", kv.first,
+            out.push_back(rec("apk_entry_added", Severity::kHigh, kv.first,
                               "APK entry exists at runtime but wasn't present at build time",
                               {"observed_hash=" + kv.second}));
         }
