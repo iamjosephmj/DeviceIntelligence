@@ -163,7 +163,7 @@ HypervisorInfo probe_hypervisor() {
 }  // namespace
 
 DI_OBF_EMU
-std::vector<std::string> emu_hv_records() {
+std::vector<Finding> emu_hv_records() {
     HypervisorInfo info = probe_hypervisor();
 
     // Finding rule: any architectural hypervisor evidence fires. A real
@@ -200,7 +200,7 @@ std::vector<std::string> emu_hv_records() {
     std::snprintf(corr, sizeof(corr), "|max_std_leaf=%u|pa_bits=%u",
                   info.max_std_leaf, info.phys_addr_bits);
     r += corr;
-    return {encode_record(make_finding("hypervisor_cpu", Severity::kCritical, {r}))};
+    return {make_finding("hypervisor_cpu", Severity::kCritical, {r})};
 }
 
 }  // namespace dicore
@@ -214,7 +214,7 @@ namespace dicore {
 
 // The CPUID probe is x86-silicon-only: arm64 builds never execute x86 code,
 // and real ARM devices (the overwhelming majority) contribute nothing.
-std::vector<std::string> emu_hv_records() {
+std::vector<Finding> emu_hv_records() {
     return {};
 }
 

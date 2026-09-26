@@ -29,12 +29,12 @@ using env::read_proc_self_maps;
 using env::extract_pathname;
 using env::range_bounds;
 
-std::vector<std::string> hook_framework_records() {
-    std::vector<std::string> raw, out;
+std::vector<Finding> hook_framework_records() {
+    std::vector<std::string> raw;
+    std::vector<Finding> out;
     scan_runtime_maps(raw);
     const int api = android_get_device_api_level();
-    const std::string from = std::string(1, kFS) + std::string(severity_name(Severity::kHigh)) + std::string(1, kFS);
-    const std::string to = std::string(1, kFS) + std::string(severity_name(Severity::kCritical)) + std::string(1, kFS);
+
     for (auto& r : raw) {
         bool keep = false;
         bool restamp = true;   // most kept records escalate HIGH->CRITICAL
@@ -59,12 +59,14 @@ std::vector<std::string> hook_framework_records() {
             keep = true;
         }
         if (!keep) continue;
-        std::string s = r;
-        if (restamp) {
-            auto pos = s.find(from);
-            if (pos != std::string::npos) s.replace(pos, from.size(), to);
+        auto f = decode_record(r);
+        if (!f) continue;
+        if (restamp && f->severity == Severity::kHigh) {
+            f->severity = Severity::kCritical;
+            f->severity_token = std::string(severity_name(Severity::kCritical));
+            f->fields[1] = f->severity_token;
         }
-        out.push_back(std::move(s));
+        out.push_back(std::move(*f));
     }
     return out;
 }

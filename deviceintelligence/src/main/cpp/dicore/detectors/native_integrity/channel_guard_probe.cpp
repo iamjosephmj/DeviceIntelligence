@@ -62,8 +62,8 @@ void to_hex32(const uint8_t in[32], char out[65]) {
 }  // namespace
 
 DI_OBF_ORCH
-std::vector<std::string> channel_guard_records() {
-    std::vector<std::string> out;
+std::vector<Finding> channel_guard_records() {
+    std::vector<Finding> out;
 
     std::lock_guard<std::mutex> lk(g_mu);
     if (!g_init) {
@@ -96,7 +96,7 @@ std::vector<std::string> channel_guard_records() {
     r += mac;
     r += "|rate_window_ms=" + std::to_string(kRateWindowMs);
     r += "|rate_max_scans=" + std::to_string(kRateMaxScans);
-    out.push_back(encode_record(make_finding("channel_sequence_anomaly", Severity::kCritical, {r})));
+    out.push_back(make_finding("channel_sequence_anomaly", Severity::kCritical, {r}));
     return out;
 }
 

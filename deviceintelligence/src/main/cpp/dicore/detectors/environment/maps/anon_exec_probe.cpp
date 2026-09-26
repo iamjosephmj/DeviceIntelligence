@@ -33,8 +33,8 @@ constexpr size_t kDetailRegions = 8;
 }  // namespace
 
 DI_OBF_ORCH
-std::vector<std::string> anon_exec_records() {
-    std::vector<std::string> out;
+std::vector<Finding> anon_exec_records() {
+    std::vector<Finding> out;
 
     std::string maps;
     if (!env::read_proc_self_maps(&maps)) return {};
@@ -62,7 +62,7 @@ std::vector<std::string> anon_exec_records() {
         r += rb;
     }
     if (n > kDetailRegions) r += "|more=" + std::to_string(n - kDetailRegions);
-    out.push_back(encode_record(make_finding("injected_executable_mapping", Severity::kHigh, {r})));
+    out.push_back(make_finding("injected_executable_mapping", Severity::kHigh, {r}));
     return out;
 }
 

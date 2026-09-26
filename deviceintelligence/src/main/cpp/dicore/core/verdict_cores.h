@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dicore/orchestrator/finding.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -71,7 +72,7 @@ bool runtime_hooking_present();
 // /proc/self/maps — a proof-positive signal. Emitted here as CRITICAL
 // `hook_framework_present` records so they reach the verdict (the legacy path
 // only fed a boot-gated bool and never counted). Empty on a clean process.
-std::vector<std::string> hook_framework_records();
+std::vector<Finding> hook_framework_records();
 
 // runtime.environment: INTEL_0059 behavioral syscall divergence. For a set of INVARIANT
 // system paths, compares libc faccessat() (which a userspace hook may intercept) against a
@@ -79,39 +80,39 @@ std::vector<std::string> hook_framework_records();
 // exists (kernel ground truth) but libc denies it — a userspace hook lying to hide a file.
 // Mechanism-independent (inline/GOT/PLT/preload) and FP-free by construction. Empty on a
 // clean process. Carries hooked_symbol so the verdict can correlate it with INTEL_0003/0039.
-std::vector<std::string> syscall_divergence_records();
+std::vector<Finding> syscall_divergence_records();
 
 // runtime.environment: INTEL_0061 linker<->maps divergence. dl_iterate_phdr (the dynamic
 // linker's object list) vs /proc/self/maps (the kernel's view): flags a linker-named .so
 // whose executable-segment base is an anonymous (empty-path) VMA — the file->anon map spoof
 // (NeoZygisk `spoof_virtual_maps` / ZygiskNext-class cleanup) that erases a foreign module's
 // file provenance while its soinfo stays linked. FP-free by construction; empty on a clean process.
-std::vector<std::string> linker_maps_records();
+std::vector<Finding> linker_maps_records();
 
 // runtime.environment: INTEL_0028 sealed executable memfd. Root injectors (NeoZygisk/zygiskd)
 // hand each module .so to the app as a SEALED (F_SEAL_WRITE|F_SEAL_SEAL) read-only memfd and
 // dlopen it (DlopenMem), so the module never appears at a /data/adb path. Flags any mapped
 // memfd that is BOTH sealed-write and executable. ART's JIT memfd is executable but writable
 // (never F_SEAL_WRITE), so this is FP-safe and name-independent. Empty on a clean process.
-std::vector<std::string> sealed_memfd_records();
+std::vector<Finding> sealed_memfd_records();
 
 // runtime.environment: INTEL_0058 behavioral property divergence. Compares a boot-state property
 // read via libc __system_property_get (a spoofer's hook target) against the same property read
 // via __system_property_find + __system_property_read_callback (bypasses the hook). A mismatch
 // means __system_property_get is hooked to lie about boot state. FP-free; empty on a clean process.
-std::vector<std::string> property_divergence_records();
+std::vector<Finding> property_divergence_records();
 
 // runtime.dex: dex-injection provenance. Flags a loaded dex whose source is not
 // the app's own file-backed APK/splits — an in-memory dex (InMemoryDexClassLoader)
 // or a dex loaded from an attacker-writable path — across reachable class loaders.
 // CRITICAL findings; empty on a clean app. Implemented in dex_provenance.cpp.
-std::vector<std::string> dex_provenance_records();
+std::vector<Finding> dex_provenance_records();
 
 // runtime.emulator: CPU-identity probe (CNTFRQ_EL0 on arm64; CPUID hypervisor
 // leaf on x86_64). Emits a single CRITICAL `runtime_emulator_cpu` record when
 // the probe is decisive, else an empty vector. Defense-in-depth alongside the
 // attestation software_attestation_only signal. Implemented in emu_verdict.cpp.
-std::vector<std::string> emu_verdict_records();
+std::vector<Finding> emu_verdict_records();
 
 // runtime.emulator: INTEL_0027 translated_environment. The kernel's ISA (raw
 // uname) vs this process's compile-time ABI — an arm64 process on an x86
@@ -121,7 +122,7 @@ std::vector<std::string> emu_verdict_records();
 // bridge is mapped in /proc/self/maps (read by raw syscall, so it survives a
 // prop spoofer). One CRITICAL record when affirmative; clean => empty vector.
 // Fail-open on every input. Implemented in translation/translation_probe.cpp.
-std::vector<std::string> emu_translation_records();
+std::vector<Finding> emu_translation_records();
 
 // runtime.emulator: INTEL_0047 cpu_rerouting_anomaly. Behavioural companion to
 // INTEL_0027: measures the rerouting a CPU-virtualizing layer cannot avoid —
@@ -130,7 +131,7 @@ std::vector<std::string> emu_translation_records();
 // Fires when provenance is scrubbed and INTEL_0027's name keys are gone.
 // arm64-only (the registers do not exist elsewhere); fail-open on every
 // read. Implemented in translation/rerouting_probe.cpp.
-std::vector<std::string> emu_rerouting_records();
+std::vector<Finding> emu_rerouting_records();
 
 // runtime.emulator: INTEL_0033 hypervisor_cpu — x86_64-only CPU-state probe
 // for hardware-assisted virtualization (CPUID.1:ECX[31] + the 0x40000000
@@ -139,7 +140,7 @@ std::vector<std::string> emu_rerouting_records();
 // x86_64 Android also runs on Chromebooks (ARCVM) and WSA, which set the
 // bit too; backend policy decides. Fail-open, empty on other ABIs.
 // Implemented in emulator/arch/emu_hv_probe.cpp.
-std::vector<std::string> emu_hv_records();
+std::vector<Finding> emu_hv_records();
 
 // runtime.emulator: INTEL_0048 arm64_vm_platform — arm64 tier-2 probe for
 // hardware-virtualized / full-system-emulated environments (ARM KVM passes
@@ -147,7 +148,7 @@ std::vector<std::string> emu_hv_records();
 // device-tree model/compatible and probes /dev/qemu_pipe; markers are
 // classified by the pure header (host-tested). Fail-open; arm64-only.
 // Implemented in emulator/arch/emu_vm_platform.cpp.
-std::vector<std::string> emu_vm_platform_records();
+std::vector<Finding> emu_vm_platform_records();
 
 // runtime.environment: anti-debug / anti-Frida. Complements scan_runtime_maps
 // (which catches a MAPPED hooking trampoline) with the dynamic-instrumentation
@@ -157,7 +158,7 @@ std::vector<std::string> emu_vm_platform_records();
 // clean process emits an empty vector. All probes fail-open (errno -> no record),
 // so a sandboxed /proc or a missing INTERNET permission never false-positives.
 // Implemented in antidebug_verdict.cpp.
-std::vector<std::string> antidebug_verdict_records();
+std::vector<Finding> antidebug_verdict_records();
 
 // runtime.environment (seccomp): detect a filter that actively neuters our
 // syscall-based defense, EFFECT-first (we can't read an installed filter's BPF;
@@ -171,7 +172,7 @@ std::vector<std::string> antidebug_verdict_records();
 // filter from a hostile one and bricks legitimate apps for zero benefit, since
 // the removed enforcement kill's wild-write detonate is unfilterable anyway.)
 // Implemented in seccomp_verdict.cpp.
-std::vector<std::string> seccomp_verdict_records();
+std::vector<Finding> seccomp_verdict_records();
 
 // native_integrity (self-hook): scan the PROLOGUES of a curated set of our own
 // high-value functions (orchestrator entry, key derivation, the kill request) for
@@ -181,7 +182,7 @@ std::vector<std::string> seccomp_verdict_records();
 // needed, so it also catches a function that was already hooked BEFORE our load
 // snapshot. Each hooked function is one CRITICAL record; a clean process emits an
 // empty vector. Fail-open. Implemented in native_integrity/prologue_verify.cpp.
-std::vector<std::string> prologue_verdict_records();
+std::vector<Finding> prologue_verdict_records();
 
 // runtime.environment: INTEL_0009 injected_executable_mapping. Executable
 // anonymous / memfd-backed / deleted-file-backed mappings — the traces
@@ -192,7 +193,7 @@ std::vector<std::string> prologue_verdict_records();
 // HIGH record with the region count + capped region details when any finding;
 // clean => empty vector. Fail-open on unreadable maps.
 // Implemented in environment/maps/anon_exec_probe.cpp.
-std::vector<std::string> anon_exec_records();
+std::vector<Finding> anon_exec_records();
 
 // native_integrity: INTEL_0029 channel_sequence_anomaly. Advances the
 // session-key-MACed monotonic chain once per scan and enforces the on-device
@@ -202,7 +203,7 @@ std::vector<std::string> anon_exec_records();
 // token-crypto task rebinds it — see channel_guard_probe.cpp. One CRITICAL
 // record per scan issued beyond the rate cap; clean => empty vector.
 // Implemented in native_integrity/channel_guard_probe.cpp.
-std::vector<std::string> channel_guard_records();
+std::vector<Finding> channel_guard_records();
 
 // native_integrity: INTEL_0042 text_integrity_divergence. SHA-256 over this
 // library's own executable PT_LOAD segment (dl_iterate_phdr + safe code
@@ -213,7 +214,7 @@ std::vector<std::string> channel_guard_records();
 // baseline" and skips verification; any read failure contributes nothing.
 // One CRITICAL record on mismatch; clean => empty vector. Fail-open.
 // Implemented in native_integrity/text_digest_probe.cpp.
-std::vector<std::string> text_digest_records();
+std::vector<Finding> text_digest_records();
 
 // native_integrity: INTEL_0018 watchdog_anomaly. Fork-exec'd /system/bin/sh
 // watchdog child re-reads the parent's TracerPid every beat period and
@@ -225,7 +226,7 @@ std::vector<std::string> text_digest_records();
 // consume-once — INTEL_0029's anti-forgery shape). Detection-only: no kills,
 // no respawn. Fail-open on spawn failure and every parse error.
 // Implemented in native_integrity/watchdog_probe.cpp.
-std::vector<std::string> watchdog_records();
+std::vector<Finding> watchdog_records();
 
 // Pure ABI-specific predicate behind prologue_verdict_records — true if the bytes
 // at `code` begin with a recognised inline-hook trampoline. Exposed for unit

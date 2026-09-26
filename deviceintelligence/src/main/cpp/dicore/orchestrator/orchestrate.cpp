@@ -102,6 +102,17 @@ void append(std::vector<std::string>& out, const char* det,
     }
 }
 
+// Typed overload: cores that emit Finding structs encode to the wire line only
+// here, at the orchestrator boundary (meta rows are skipped exactly as above).
+void append(std::vector<std::string>& out, const char* det,
+            const std::vector<Finding>& recs, int& critical) {
+    for (const auto& f : recs) {
+        if (f.meta) continue;
+        if (is_critical(f)) ++critical;
+        out.push_back(std::string(det) + kFS + encode_record(f));
+    }
+}
+
 #if !DICORE_TOKEN_V2
 // v1 token crypto: encrypt with a SHA-256 keystream keyed by a baked phrase and
 // hex-encode. Identical framing to crl.bin (key = SHA256(phrase); keystream block

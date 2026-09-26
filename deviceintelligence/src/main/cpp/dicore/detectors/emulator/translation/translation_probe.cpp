@@ -71,8 +71,8 @@ const char* process_abi_name() {
 }  // namespace
 
 DI_OBF_EMU
-std::vector<std::string> emu_translation_records() {
-    std::vector<std::string> out;
+std::vector<Finding> emu_translation_records() {
+    std::vector<Finding> out;
 
     // Sub-fact inputs, each fail-open.
     struct utsname un;
@@ -104,7 +104,7 @@ std::vector<std::string> emu_translation_records() {
         r += f.bridge;
     }
     if (f.bridge_mapped) r += "|bridge_mapped=1";
-    out.push_back(encode_record(make_finding("translated_environment", Severity::kCritical, {r})));
+    out.push_back(make_finding("translated_environment", Severity::kCritical, {r}));
     return out;
 }
 

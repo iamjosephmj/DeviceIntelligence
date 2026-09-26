@@ -42,6 +42,7 @@
 // patched runtime costs less than a clean one, and the site walk runs only after
 // a mismatch is already established.
 
+#include "dicore/orchestrator/finding.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -95,6 +96,6 @@ bool scan_libart_text(LibArtTextScan* out);
  * Findings for the orchestrator, `<kind>\x1f<severity>\x1f<description>\x1f<fields...>`.
  * Emits nothing when clean or unavailable.
  */
-std::vector<std::string> libart_verdict_records();
+std::vector<Finding> libart_verdict_records();
 
 }  // namespace dicore::native_integrity

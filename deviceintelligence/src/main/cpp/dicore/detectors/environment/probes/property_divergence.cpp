@@ -7,6 +7,7 @@
 #include "dicore/core/verdict_cores.h"
 #include "dicore/orchestrator/record_util.h"
 #include "dicore/detectors/environment/maps/maps_parse.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -33,8 +34,8 @@ static void dicore_prop_cb(void* cookie, const char* /*name*/, const char* value
     char* out = static_cast<char*>(cookie);
     std::strncpy(out, value ? value : "", PROP_VALUE_MAX - 1);
 }
-std::vector<std::string> property_divergence_records() {
-    std::vector<std::string> out;
+std::vector<Finding> property_divergence_records() {
+    std::vector<Finding> out;
     static const char* kBootKeys[] = {
         "ro.boot.verifiedbootstate", "ro.boot.flash.locked", "ro.boot.vbmeta.device_state",
         "ro.boot.veritymode", "ro.build.tags", "ro.debuggable", "ro.secure",
@@ -54,7 +55,7 @@ std::vector<std::string> property_divergence_records() {
         r = append_field(r, std::string("key=") + key);
         r = append_field(r, std::string("get=") + via_get);
         r = append_field(r, std::string("area=") + via_cb);
-        out.push_back(r);
+        out.push_back(std::move(*decode_record(r)));
         break;   // one proven lie is sufficient
     }
     return out;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dicore/orchestrator/finding.h"
 #include <string>
 #include <vector>
 
@@ -16,6 +17,6 @@ namespace dicore {
 // are never flagged. CRITICAL. Empty on a clean app / when the shim is
 // unavailable (fail-open). A fully-detached loader that no thread references is
 // out of reach here (that needs ART-internal enumeration — see FrameworkShim a15).
-std::vector<std::string> dex_provenance_records();
+std::vector<Finding> dex_provenance_records();
 
 }  // namespace dicore

@@ -54,21 +54,21 @@ bool seccomp_user_notif_listener_present() {
 // kill. Baseline Android app policy permits kill(self,0), so EPERM/EACCES means a
 // filter is actively blocking kill — a hostile, high-confidence tamper signal. A
 // benign allow-all filter passes the probe and is correctly ignored.
-std::vector<std::string> seccomp_verdict_records() {
-    std::vector<std::string> out;
+std::vector<Finding> seccomp_verdict_records() {
+    std::vector<Finding> out;
 
     int rc = kill(getpid(), 0);
     int saved_errno = errno;
     if (kill_probe_indicates_filter(rc, saved_errno)) {
-        out.push_back(encode_record(make_finding("seccomp_kill_filtered", Severity::kCritical,
-            {"errno=" + std::to_string(saved_errno)})));
+        out.push_back(make_finding("seccomp_kill_filtered", Severity::kCritical,
+            {"errno=" + std::to_string(saved_errno)}));
     }
 
     // USER_NOTIF interceptor: a self-held seccomp-notify listener fd (the /proc-spoof
     // primitive the kill probe above cannot see).
     if (seccomp_user_notif_listener_present()) {
-        out.push_back(encode_record(make_finding("seccomp_user_notif_listener", Severity::kCritical,
-            {"self-held SECCOMP_RET_USER_NOTIF listener fd (syscall interception)"})));
+        out.push_back(make_finding("seccomp_user_notif_listener", Severity::kCritical,
+            {"self-held SECCOMP_RET_USER_NOTIF listener fd (syscall interception)"}));
     }
     return out;
 }

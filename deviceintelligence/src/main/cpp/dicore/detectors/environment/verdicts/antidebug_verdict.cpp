@@ -118,21 +118,21 @@ bool frida_worker_thread(std::string& which) {
 }  // namespace
 
 DI_OBF_MAX
-std::vector<std::string> antidebug_verdict_records() {
-    std::vector<std::string> out;
+std::vector<Finding> antidebug_verdict_records() {
+    std::vector<Finding> out;
 
     // --- debugger_attached: a tracer that is NOT our own watchdog ---------------
     int tracer = read_tracer_pid();
     if (tracer != 0) {
-        out.push_back(encode_record(make_finding("debugger_attached", Severity::kCritical,
-            {"tracer_pid=" + std::to_string(tracer)})));
+        out.push_back(make_finding("debugger_attached", Severity::kCritical,
+            {"tracer_pid=" + std::to_string(tracer)}));
     }
 
     // --- frida_server_port: default frida-server loopback ports -----------------
     for (int port : {27042, 27043}) {
         if (frida_port_listening(port)) {
-            out.push_back(encode_record(make_finding("frida_server_port", Severity::kCritical,
-                {"port=" + std::to_string(port)})));
+            out.push_back(make_finding("frida_server_port", Severity::kCritical,
+                {"port=" + std::to_string(port)}));
             break;
         }
     }
@@ -140,8 +140,8 @@ std::vector<std::string> antidebug_verdict_records() {
     // --- frida_worker_thread: agent/gadget worker thread names ------------------
     std::string which;
     if (frida_worker_thread(which)) {
-        out.push_back(encode_record(make_finding("frida_worker_thread", Severity::kCritical,
-            {"comm=" + which})));
+        out.push_back(make_finding("frida_worker_thread", Severity::kCritical,
+            {"comm=" + which}));
     }
 
     // --- hook_framework_present: a mapped/anon-named hook-framework library ------

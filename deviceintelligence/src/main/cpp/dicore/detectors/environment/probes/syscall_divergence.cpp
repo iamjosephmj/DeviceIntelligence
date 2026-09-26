@@ -7,6 +7,7 @@
 #include "dicore/core/verdict_cores.h"
 #include "dicore/orchestrator/record_util.h"
 #include "dicore/detectors/environment/maps/maps_parse.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -58,8 +59,8 @@ static long dicore_raw_stat(const char* path, void* stbuf) {
 #endif
 }
 
-std::vector<std::string> syscall_divergence_records() {
-    std::vector<std::string> out;
+std::vector<Finding> syscall_divergence_records() {
+    std::vector<Finding> out;
     // Paths that exist on every Android build; a hook hiding any of them is caught. Path
     // choice cannot cause an FP: divergence needs libc != kernel, which only a hook produces.
     static const char* kInvariantPaths[] = {
@@ -76,7 +77,7 @@ std::vector<std::string> syscall_divergence_records() {
         r = append_field(r, "libc/raw file-query divergence");
         r = append_field(r, std::string("hooked_symbol=") + sym);
         r = append_field(r, std::string("path=") + path);
-        out.push_back(r);
+        out.push_back(std::move(*decode_record(r)));
     };
     bool did_fac = false, did_stat = false;
     for (const char* path : kInvariantPaths) {

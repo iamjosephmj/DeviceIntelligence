@@ -79,7 +79,7 @@ constexpr uint64_t kWindowNs = 20'000'000;  // 20 ms
 
 }  // namespace
 
-std::vector<std::string> emu_rerouting_records() {
+std::vector<Finding> emu_rerouting_records() {
 
     // -- counter coherence ---------------------------------------------------
     uint64_t freq = 0;
@@ -152,7 +152,7 @@ std::vector<std::string> emu_rerouting_records() {
         r += "|udf_code=";
         r += std::to_string(f.udf_si_code);
     }
-    return {encode_record(make_finding("cpu_rerouting_anomaly", Severity::kCritical, {r}))};
+    return {make_finding("cpu_rerouting_anomaly", Severity::kCritical, {r})};
 }
 
 }  // namespace dicore
@@ -164,7 +164,7 @@ namespace dicore {
 // The rerouting probes read arm64 system registers — on every other ABI the
 // record function is empty (the probes read registers the other ISAs do not
 // have). Fail-open: contributes nothing rather than guessing.
-std::vector<std::string> emu_rerouting_records() {
+std::vector<Finding> emu_rerouting_records() {
     return {};
 }
 

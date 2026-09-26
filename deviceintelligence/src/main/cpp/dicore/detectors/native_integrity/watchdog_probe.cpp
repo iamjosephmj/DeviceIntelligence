@@ -77,8 +77,8 @@ void to_hex8(const uint8_t in[8], char out[17]) {
 }  // namespace
 
 DI_OBF_ORCH
-std::vector<std::string> watchdog_records() {
-    std::vector<std::string> out;
+std::vector<Finding> watchdog_records() {
+    std::vector<Finding> out;
 
     std::lock_guard<std::mutex> lk(g_mu);
     if (!g_key_init) {
@@ -128,7 +128,7 @@ std::vector<std::string> watchdog_records() {
     r += "|mac=";
     r += mac;
     r += "|period_ms=" + std::to_string(dicore::watchdog::kBeatPeriodMs);
-    out.push_back(encode_record(make_finding("watchdog_anomaly", Severity::kHigh, {r})));
+    out.push_back(make_finding("watchdog_anomaly", Severity::kHigh, {r}));
     return out;
 }
 

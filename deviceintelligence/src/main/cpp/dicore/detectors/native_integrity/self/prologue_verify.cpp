@@ -79,8 +79,8 @@ bool prologue_looks_hooked(const uint8_t* code) {
 }
 
 DI_OBF_MAX
-std::vector<std::string> prologue_verdict_records() {
-    std::vector<std::string> out;
+std::vector<Finding> prologue_verdict_records() {
+    std::vector<Finding> out;
 
     const Target targets[] = {
         {"challenge",    reinterpret_cast<uintptr_t>(&anchors::nat_challenge)},
@@ -101,8 +101,8 @@ std::vector<std::string> prologue_verdict_records() {
             continue;
         }
         if (prologue_looks_hooked(code)) {
-            out.push_back(encode_record(make_finding("native_function_hooked",
-                Severity::kCritical, {"target=" + std::string(t.name)})));
+            out.push_back(make_finding("native_function_hooked",
+                Severity::kCritical, {"target=" + std::string(t.name)}));
         }
     }
     return out;

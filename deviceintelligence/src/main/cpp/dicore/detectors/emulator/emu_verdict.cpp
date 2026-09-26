@@ -29,12 +29,12 @@
 
 namespace dicore {
 
-std::vector<std::string> emu_verdict_records() {
-    std::vector<std::string> out;
+std::vector<Finding> emu_verdict_records() {
+    std::vector<Finding> out;
     emu::Signals s = emu::probe();
     if (s.decisive) {
         // kind \x1f SEVERITY \x1f raw-signals
-        out.push_back(encode_record(make_finding("runtime_emulator_cpu", Severity::kCritical, {s.raw})));
+        out.push_back(make_finding("runtime_emulator_cpu", Severity::kCritical, {s.raw}));
     }
     return out;
 }

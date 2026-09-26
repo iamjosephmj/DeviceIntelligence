@@ -49,7 +49,7 @@ ssize_t read_small_file(const char* path, char* buf, size_t cap) {
 
 }  // namespace
 
-std::vector<std::string> emu_vm_platform_records() {
+std::vector<Finding> emu_vm_platform_records() {
     char buf[512];
     uint32_t flags = 0;
 
@@ -79,7 +79,7 @@ std::vector<std::string> emu_vm_platform_records() {
     if (flags & dicore::vmplat::kMarkCrosvm) r += "|crosvm=1";
     if (flags & dicore::vmplat::kMarkCuttlefish) r += "|cuttlefish=1";
     if (flags & dicore::vmplat::kMarkDummyVirt) r += "|dummy_virt=1";
-    return {encode_record(make_finding("arm64_vm_platform", Severity::kCritical, {r}))};
+    return {make_finding("arm64_vm_platform", Severity::kCritical, {r})};
 }
 
 }  // namespace dicore
@@ -93,7 +93,7 @@ namespace dicore {
 
 // The arm64 platform probes read arm64 device-tree paths and the goldfish
 // pipe device — on every other ABI they contribute nothing.
-std::vector<std::string> emu_vm_platform_records() {
+std::vector<Finding> emu_vm_platform_records() {
     return {};
 }
 

@@ -3,6 +3,7 @@
 #include "dicore/orchestrator/record_util.h"  // kFS
 #include "dicore/platform/framework_shim.h"
 #include "dicore/platform/svc_io.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cstdio>
 #include <cstring>
@@ -55,8 +56,8 @@ size_t in_memory_dex_regions() {
 
 }  // namespace
 
-std::vector<std::string> dex_provenance_records() {
-    std::vector<std::string> out;
+std::vector<Finding> dex_provenance_records() {
+    std::vector<Finding> out;
     size_t reachable_in_memory = 0;
 
     // "<loaderClass>\x1f<dexPathOrEmpty>\x1f<appLoaderInChain 0|1>"
@@ -71,8 +72,8 @@ std::vector<std::string> dex_provenance_records() {
         if (!path.empty()) {
             // A dex with a real path: judged purely on where that path lives.
             if (attacker_writable(path)) {
-                out.push_back(encode_record(make_finding("foreign_dex_loaded",
-                Severity::kCritical, {"path=" + path + " loader=" + loader})));
+                out.push_back(make_finding("foreign_dex_loaded",
+                Severity::kCritical, {"path=" + path + " loader=" + loader}));
             }
             continue;
         }
@@ -88,10 +89,10 @@ std::vector<std::string> dex_provenance_records() {
         // app it was loaded into is not a feature module.
         ++reachable_in_memory;
         if (sees == "0") {
-            out.push_back(encode_record(make_finding("dex_foreign_loader",
+            out.push_back(make_finding("dex_foreign_loader",
                 Severity::kHigh,
                 {"in-memory dex whose loader chain cannot see the app's own "
-                 "classes loader=" + loader})));
+                 "classes loader=" + loader}));
         }
     }
 
@@ -107,8 +108,8 @@ std::vector<std::string> dex_provenance_records() {
         snprintf(detail, sizeof(detail),
                  "mapped_in_memory_dex=%zu reachable=%zu unaccounted=%zu",
                  mapped, reachable_in_memory, mapped - reachable_in_memory);
-        out.push_back(encode_record(make_finding("dex_unaccounted_in_memory",
-                Severity::kHigh, {detail})));
+        out.push_back(make_finding("dex_unaccounted_in_memory",
+                Severity::kHigh, {detail}));
     }
 
     return out;

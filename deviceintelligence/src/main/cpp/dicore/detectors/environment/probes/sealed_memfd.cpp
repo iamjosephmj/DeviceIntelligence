@@ -7,6 +7,7 @@
 #include "dicore/core/verdict_cores.h"
 #include "dicore/orchestrator/record_util.h"
 #include "dicore/detectors/environment/maps/maps_parse.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -29,8 +30,8 @@ using env::read_proc_self_maps;
 using env::extract_pathname;
 using env::range_bounds;
 
-std::vector<std::string> sealed_memfd_records() {
-    std::vector<std::string> out;
+std::vector<Finding> sealed_memfd_records() {
+    std::vector<Finding> out;
     std::vector<std::string> exec_memfd;
     std::string maps;
     if (read_proc_self_maps(&maps)) {
@@ -71,7 +72,7 @@ std::vector<std::string> sealed_memfd_records() {
         r = append_field(r, "object=" + oname);
         char sbuf[32]; std::snprintf(sbuf, sizeof sbuf, "seals=%#x", seals);
         r = append_field(r, sbuf);
-        out.push_back(r);
+        out.push_back(std::move(*decode_record(r)));
         ++emitted;
     }
     closedir(d);

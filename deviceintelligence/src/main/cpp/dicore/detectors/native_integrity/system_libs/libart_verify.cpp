@@ -157,8 +157,8 @@ bool scan_libart_text(LibArtTextScan* out) {
     return true;
 }
 
-std::vector<std::string> libart_verdict_records() {
-    std::vector<std::string> out;
+std::vector<Finding> libart_verdict_records() {
+    std::vector<Finding> out;
     LibArtTextScan scan{};
     if (!scan_libart_text(&scan)) {
         RLOGI("native_integrity: G10 libart text scan unavailable");
@@ -217,7 +217,7 @@ std::vector<std::string> libart_verdict_records() {
         // the diff). Still a real finding — say exactly that much and no more.
         r = append_field(r, "sites_unlocated=1");
     }
-    out.push_back(std::move(r));
+    out.push_back(std::move(*decode_record(r)));
     return out;
 }
 

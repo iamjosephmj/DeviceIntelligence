@@ -61,8 +61,8 @@ bool baseline_present(const uint8_t d[32]) {
 }  // namespace
 
 DI_OBF_ORCH
-std::vector<std::string> text_digest_records() {
-    std::vector<std::string> out;
+std::vector<Finding> text_digest_records() {
+    std::vector<Finding> out;
 
     if (!baseline_present(DICORE_TEXT_DIGEST)) return {};
 
@@ -87,7 +87,7 @@ std::vector<std::string> text_digest_records() {
     std::string r = "segment_bytes=" + std::to_string(bytes.size());
     r += pages == SIZE_MAX ? "|mismatch_pages=unknown_v1"
                            : "|mismatch_pages=" + std::to_string(pages);
-    out.push_back(encode_record(make_finding("text_integrity_divergence", Severity::kCritical, {r})));
+    out.push_back(make_finding("text_integrity_divergence", Severity::kCritical, {r}));
     return out;
 }
 

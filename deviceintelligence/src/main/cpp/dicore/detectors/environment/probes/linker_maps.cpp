@@ -8,6 +8,7 @@
 #include "dicore/core/verdict_cores.h"
 #include "dicore/orchestrator/record_util.h"
 #include "dicore/detectors/environment/maps/maps_parse.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -53,8 +54,8 @@ int dicore_linker_cb(struct dl_phdr_info* info, size_t, void* data) {
 // anonymous region to erase its provenance, but the soinfo stays linked — so the linker names an
 // object whose base VMA is empty-path. FP-free: a real .so always has BOTH a linker record and a
 // named VMA; memfd libs keep a /memfd: name; JIT/anon code is not linker-tracked.
-std::vector<std::string> linker_maps_records() {
-    std::vector<std::string> out;
+std::vector<Finding> linker_maps_records() {
+    std::vector<Finding> out;
     std::vector<DiLObj> objs;
     dl_iterate_phdr(dicore_linker_cb, &objs);
     std::string maps;
@@ -84,7 +85,7 @@ std::vector<std::string> linker_maps_records() {
         r = append_field(r, "object=" + o.name);
         char b[40]; std::snprintf(b, sizeof(b), "base=%#lx", (unsigned long)o.exec_base);
         r = append_field(r, b);
-        out.push_back(r);
+        out.push_back(std::move(*decode_record(r)));
         ++emitted;
     }
     return out;
