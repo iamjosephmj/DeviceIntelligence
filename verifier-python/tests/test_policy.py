@@ -1,4 +1,4 @@
-from deviceintelligence_verifier.policy import Policy
+from deviceintelligence_verifier.policy.policy import Policy
 
 
 def test_critical_severity_blocks():

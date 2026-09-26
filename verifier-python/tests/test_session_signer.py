@@ -1,6 +1,6 @@
-from deviceintelligence_verifier.lab_keys import SERVER_KEY
-from deviceintelligence_verifier.models import Assurance, Session
-from deviceintelligence_verifier.session_signer import SessionSigner
+from deviceintelligence_verifier.tokens.lab_keys import SERVER_KEY
+from deviceintelligence_verifier.model import Assurance, Session
+from deviceintelligence_verifier.tokens.session_signer import SessionSigner
 
 ISSUED_AT = 1_787_220_000
 SESSION = Session("30591301deadbeef", Assurance.STRONGBOX, "Verified", True, ISSUED_AT)
@@ -23,7 +23,7 @@ def test_rejects_expired():
 
 
 def signer_max_age():
-    from deviceintelligence_verifier.session_signer import DEFAULT_MAX_AGE_SECONDS
+    from deviceintelligence_verifier.tokens.session_signer import DEFAULT_MAX_AGE_SECONDS
     return DEFAULT_MAX_AGE_SECONDS
 
 

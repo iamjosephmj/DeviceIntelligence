@@ -1,5 +1,5 @@
-from deviceintelligence_verifier.models import AttestationFields
-from deviceintelligence_verifier.scan_verifier import boot_state_spoofer
+from deviceintelligence_verifier.model import AttestationFields
+from deviceintelligence_verifier.scan.scan_verifier import boot_state_spoofer
 
 
 def att(boot, locked):

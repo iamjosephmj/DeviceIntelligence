@@ -32,5 +32,5 @@ class AttestationCrl:
 
     @staticmethod
     def default() -> "AttestationCrl":
-        p = os.path.join(os.path.dirname(__file__), "resources", "attestation-crl.txt")
+        p = os.path.join(os.path.dirname(__file__), "../resources", "attestation-crl.txt")
         return AttestationCrl.parse(open(p, encoding="utf-8").read())

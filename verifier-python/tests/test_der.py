@@ -1,5 +1,5 @@
 """The minimal DER TLV reader (Der.kt port) — short/long/high-tag forms."""
-from deviceintelligence_verifier.der import read_tlv, tlv_list, sequence_elements
+from deviceintelligence_verifier.text.der import read_tlv, tlv_list, sequence_elements
 
 
 def test_reads_short_form_tlv():

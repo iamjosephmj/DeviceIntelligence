@@ -2,7 +2,7 @@
 (KernelSU + TrickyStore). The Python verifier must grade this exact token+nonce
 COMPROMISED, identically to the Kotlin reference."""
 from pathlib import Path
-from deviceintelligence_verifier.token_verifier import TokenVerifier
+from deviceintelligence_verifier.tokens.token_verifier import TokenVerifier
 
 FIXTURES = Path(__file__).resolve().parents[2] / "verifiers" / "fixtures"
 

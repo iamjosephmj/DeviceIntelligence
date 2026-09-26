@@ -1,8 +1,8 @@
 import json
-from deviceintelligence_verifier.policy import Policy
-from deviceintelligence_verifier.registry import SignalRegistry
-from deviceintelligence_verifier.signals import resolve
-from deviceintelligence_verifier.models import definitive_hooks
+from deviceintelligence_verifier.policy.policy import Policy
+from deviceintelligence_verifier.policy.registry import SignalRegistry
+from deviceintelligence_verifier.tokens.signals import resolve
+from deviceintelligence_verifier.model import definitive_hooks
 
 REG = SignalRegistry.bundled()
 POL = Policy()

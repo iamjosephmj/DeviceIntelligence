@@ -1,4 +1,4 @@
-from deviceintelligence_verifier.models import Decision, ResolvedSignal, ScanResult
+from deviceintelligence_verifier.model import Decision, ResolvedSignal, ScanResult
 
 
 def signal(sid, blocking):

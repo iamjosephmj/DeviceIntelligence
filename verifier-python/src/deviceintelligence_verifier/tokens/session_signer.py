@@ -1,6 +1,6 @@
 """Stateless HMAC session tokens (SessionSigner.kt port)."""
 import base64, hashlib, hmac, json, time
-from .models import Assurance, Session
+from ..model import Assurance, Session
 
 DEFAULT_MAX_AGE_SECONDS = 24 * 60 * 60
 

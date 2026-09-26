@@ -8,8 +8,8 @@ BINDING_SEP = "\n--BINDING\n"
 
 class TokenDecoder:
     def __init__(self, registry=None, policy=None):
-        from .registry import SignalRegistry
-        from .policy import Policy
+        from ..policy.registry import SignalRegistry
+        from ..policy.policy import Policy
         self.registry = registry or SignalRegistry.bundled()
         self.policy = policy or Policy()
 
@@ -18,7 +18,7 @@ class TokenDecoder:
         idx = text.find(BINDING_SEP)
         signed = text[:idx] if idx >= 0 else text
         doc = _json.loads(signed)
-        from .models import DecodedToken
+        from ..model import DecodedToken
         return DecodedToken(
             schema_version=doc.get("schemaVersion"), point=doc.get("point"),
             ts=doc.get("ts"), nonce=doc.get("nonce"),

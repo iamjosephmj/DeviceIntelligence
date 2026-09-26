@@ -1,5 +1,5 @@
 """Signal resolution + enrichment parsing (Signals.kt port)."""
-from .models import ResolvedSignal, DeviceInfo
+from ..model import ResolvedSignal, DeviceInfo
 
 ATTR_KEYS = {"path", "module_id", "needed", "links_hook_lib", "hooked_symbol", "hooked_by",
              "target", "ondisk_confirmed", "on_disk_prologue", "trampoline_class", "object",

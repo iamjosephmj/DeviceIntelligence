@@ -37,5 +37,5 @@ class SignalRegistry:
 
     @staticmethod
     def bundled() -> "SignalRegistry":
-        p = os.path.join(os.path.dirname(__file__), "resources", "signals-registry.json")
+        p = os.path.join(os.path.dirname(__file__), "../resources", "signals-registry.json")
         return SignalRegistry.from_resource(p)

@@ -4,12 +4,11 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from .keystream import decrypt_hex
-from .models import Check, CheckKind, Decision, VerificationResult
-from .chain_verifier import parse_chain as _parse_chain
-from .pinned_roots import default as _pinned_default
-from .attestation import challenge as _att_challenge, fields as _att_fields
+from ..model import Check, CheckKind, Decision, VerificationResult
+from ..attestation.chain_verifier import parse_chain as _parse_chain
+from ..attestation.pinned_roots import default as _pinned_default
+from ..attestation.attestation import challenge as _att_challenge, fields as _att_fields
 from .signals import resolve as _resolve, device as _device
-from .codec import decode as _codec_decode
 
 BINDING_SEP = "\n--BINDING\n"
 FS = "\x1F"
@@ -17,8 +16,8 @@ FS = "\x1F"
 
 class TokenVerifier:
     def __init__(self, registry=None, policy=None, pinned_roots=None):
-        from .registry import SignalRegistry
-        from .policy import Policy
+        from ..policy.registry import SignalRegistry
+        from ..policy.policy import Policy
         self.registry = registry or SignalRegistry.bundled()
         self.policy = policy or Policy()
         self.pinned_roots = pinned_roots or _pinned_default()
@@ -112,7 +111,7 @@ def _run(fn) -> dict:
 
 
 def _verify_to_pinned(chain: list, pinned_roots: list) -> dict:
-    from .chain_verifier import verify_to_pinned_root
+    from ..attestation.chain_verifier import verify_to_pinned_root
     return verify_to_pinned_root(chain, pinned_roots)
 
 
@@ -121,10 +120,10 @@ def _subject(cert) -> str:
 
 
 def _att_challenge(leaf) -> dict:
-    from .attestation import challenge
+    from ..attestation.attestation import challenge
     return challenge(leaf)
 
 
 def _att_fields(leaf) -> dict:
-    from .attestation import fields
+    from ..attestation.attestation import fields
     return fields(leaf)

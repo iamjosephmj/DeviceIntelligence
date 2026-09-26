@@ -1,6 +1,6 @@
 """Android Key Attestation extension reader (Attestation.kt port). Minimal DER walk."""
-from .der import read_tlv, tlv_list, sequence_elements
-from .models import AttestationFields, AttestedApp, AttestedPlatform
+from ..text.der import read_tlv, tlv_list, sequence_elements
+from ..model import AttestationFields, AttestedApp, AttestedPlatform
 
 OID = "1.3.6.1.4.1.11129.2.1.17"
 ROOT_OF_TRUST_TAG = bytes([0xBF, 0x85, 0x40])

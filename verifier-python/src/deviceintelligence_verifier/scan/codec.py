@@ -4,7 +4,7 @@ Decode contract: a truncated document grades DOWN to the suspicious value, never
 to the benign default — an attacker-reachable decoder must not read as clean.
 """
 import json
-from .models import Assurance, AttestedApp, DeviceFingerprint, ScanSession
+from ..model import Assurance, AttestedApp, DeviceFingerprint, ScanSession
 
 _SUSPICIOUS = dict(chain_trusted=False, keybox_revoked=True, cross_level_reuse=True,
                    device_prop_mismatch=True, boot_state_spoofer=True,

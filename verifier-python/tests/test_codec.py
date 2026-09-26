@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 import pytest
-from deviceintelligence_verifier.codec import decode, encode
-from deviceintelligence_verifier.models import (Assurance, AttestedApp, DeviceFingerprint, ScanSession)
+from deviceintelligence_verifier.scan.codec import decode, encode
+from deviceintelligence_verifier.model import (Assurance, AttestedApp, DeviceFingerprint, ScanSession)
     
 FIXTURES = Path(__file__).resolve().parents[2] / "verifiers" / "fixtures"
 

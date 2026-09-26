@@ -1,4 +1,4 @@
-from deviceintelligence_verifier.registry import SignalRegistry
+from deviceintelligence_verifier.policy.registry import SignalRegistry
 
 REG = SignalRegistry.bundled()
 

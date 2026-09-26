@@ -8,19 +8,19 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key, load_der_public_key)
-from .models import (Assurance, AttestedApp, AttestationLevel, Check, CheckKind,
+from ..model import (Assurance, AttestedApp, AttestationLevel, Check, CheckKind,
                      Decision, DeviceFingerprint, ResolvedSignal, ScanResult,
                      ScanSession, AttestedPlatform)
-from .registry import SignalRegistry
-from .policy import Policy
-from .attestation import (fields as _att_fields, challenge as _att_challenge,
+from ..policy.registry import SignalRegistry
+from ..policy.policy import Policy
+from ..attestation.attestation import (fields as _att_fields, challenge as _att_challenge,
                           attested_app as _att_app, attested_platform as _att_platform,
                           device_properties as _att_props)
-from .token_crypto import decrypt as _v2_decrypt, is_v2
-from .chain_verifier import parse_chain as _parse_chain, verify_to_pinned_root as _verify_root
-from .crl import AttestationCrl
-from .pinned_roots import default as _pinned_default
-from .signals import resolve as _signals_resolve
+from ..tokens.token_crypto import decrypt as _v2_decrypt, is_v2
+from ..attestation.chain_verifier import parse_chain as _parse_chain, verify_to_pinned_root as _verify_root
+from ..attestation.crl import AttestationCrl
+from ..attestation.pinned_roots import default as _pinned_default
+from ..tokens.signals import resolve as _signals_resolve
 
 FS = "\x1F"
 BINDING_SEP = "\n--BINDING\n"
@@ -326,7 +326,7 @@ def _degraded_signals(reason, signed_level, detail, registry, policy) -> list:
     out: list = []
     detail_txt = f" ({detail})" if detail else ""
     def add(sid, text):
-        from .models import ResolvedSignal
+        from ..model import ResolvedSignal
         m = registry[sid]
         if m:
             out.append(ResolvedSignal(m.id, m.detector, m.kind, m.title, m.severity, text,
@@ -354,7 +354,7 @@ def _app_signals(doc, attested, licenses, registry, policy) -> list:
         return []
 
     def sig(sid, detail):
-        from .models import ResolvedSignal
+        from ..model import ResolvedSignal
         m = registry[sid]
         return [ResolvedSignal(m.id, m.detector, m.kind, m.title, m.severity, detail,
                                policy.is_blocking(m.id, m.severity))] if m else []
@@ -370,10 +370,10 @@ def _app_signals(doc, attested, licenses, registry, policy) -> list:
 
 
 def _carried_signals(session, registry, policy) -> list:
-    from .models import ResolvedSignal
+    from ..model import ResolvedSignal
     out: list = []
     def add(sid, detail):
-        from .models import ResolvedSignal
+        from ..model import ResolvedSignal
         m = registry[sid]
         if m:
             out.append(ResolvedSignal(m.id, m.detector, m.kind, m.title, m.severity, detail,
@@ -390,7 +390,7 @@ def _carried_signals(session, registry, policy) -> list:
 
 
 def _patch_signals(doc, session, policy, now) -> list:
-    from .models import ResolvedSignal
+    from ..model import ResolvedSignal
     out: list = []
     def add(sid, detail):
         m = registry[sid]

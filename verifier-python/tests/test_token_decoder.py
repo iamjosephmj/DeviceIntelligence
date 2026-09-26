@@ -1,5 +1,5 @@
 from pathlib import Path
-from deviceintelligence_verifier.token_decoder import TokenDecoder
+from deviceintelligence_verifier.tokens.token_decoder import TokenDecoder
 
 FIXTURES = Path(__file__).resolve().parents[2] / "verifiers" / "fixtures"
 
@@ -11,9 +11,9 @@ def test_decodes_real_challenge_token_fixture():
 
 
 def _resolve(doc):
-    from deviceintelligence_verifier.signals import resolve as _resolve
-    from deviceintelligence_verifier.policy import Policy
-    from deviceintelligence_verifier.registry import SignalRegistry
+    from deviceintelligence_verifier.tokens.signals import resolve as _resolve
+    from deviceintelligence_verifier.policy.policy import Policy
+    from deviceintelligence_verifier.policy.registry import SignalRegistry
     return _resolve(doc, SignalRegistry.bundled(), Policy())
 
 
@@ -30,7 +30,7 @@ def test_resolve_falls_back_for_unknown_signal():
 
 
 def test_device_parses_when_present_and_null_when_absent():
-    from deviceintelligence_verifier.signals import device
+    from deviceintelligence_verifier.tokens.signals import device
     d = device({"device": {"api": 34, "abi": "arm64-v8a", "model": "Pixel"}})
     assert d.api == 34 and d.abi == "arm64-v8a" and d.model == "Pixel"
     assert device({}) is None

@@ -11,5 +11,5 @@ def _parse(text: str) -> list:
     return out
 
 def default() -> list:
-    p = os.path.join(os.path.dirname(__file__), "resources", "pinned-roots.txt")
+    p = os.path.join(os.path.dirname(__file__), "../resources", "pinned-roots.txt")
     return _parse(open(p, encoding="utf-8").read())
