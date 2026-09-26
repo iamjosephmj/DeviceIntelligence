@@ -26,6 +26,10 @@ FS = "\x1F"
 BINDING_SEP = "\n--BINDING\n"
 
 
+def _subject(cert):
+    return cert.subject.rfc4514_string()
+
+
 def boot_state_spoofer(reported: dict, fields) -> bool:
     """The consistent Play-Integrity-Fix buster: self-reported boot vs hardware."""
     vbs = (reported.get("vbs") or "").lower()
@@ -114,9 +118,10 @@ class ScanVerifier:
             return fail("bad json")
 
         bootstrap = doc.get("bootstrap") is True
-        level, signed_lvl, reason, detail = _attestation_of(doc)
+        attestation = _attestation_of(doc)      # None when the token carries no block
         signals = _signals_resolve(doc, self.registry, self.policy)
-        degraded = (signed_lvl != AttestationLevel.ATTESTED) or not _binding_sig(binding)
+        degraded = attestation is not None and (
+            attestation[1] != AttestationLevel.ATTESTED or not _binding_sig(binding))
 
         session_id_ok = ck("session id matches issued", doc.get("sessionId") == issued_session_id)
 
