@@ -10,6 +10,13 @@ export function attestationLevelParse(s: string | null | undefined): Attestation
 }
 
 export interface Check { name: string; ok: boolean; detail: string; kind: CheckKind; }
+
+/** The licence question the verifier asks per (package, signer) pair. The
+ *  default answers true for everything — inject a real entitlement store via
+ *  ScanVerifier's opts.licenses (the Kotlin port's LicenseRegistry). */
+export interface LicenseChecker {
+  isLicensed(pkg: string, signer: string): boolean;
+}
 export interface DeviceInfo { api: number | null; abi: string | null; model: string | null; }
 
 export interface ResolvedSignal {

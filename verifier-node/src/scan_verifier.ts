@@ -7,7 +7,7 @@ import { pinnedRootsDefault } from "./pinned_roots.js";
 import { SignalRegistry } from "./registry.js";
 import { Policy, defaultPolicy, isBlocking } from "./policy.js";
 import { resolve as resolveSignals } from "./signals.js";
-import { attestationLevelParse, AttestationLevel, Check, CheckKind, ResolvedSignal,
+import { LicenseChecker, attestationLevelParse, AttestationLevel, Check, CheckKind, ResolvedSignal,
          ScanResult, ScanSession, Assurance, DeviceFingerprint, AttestedApp,
          AttestationFields, AttestedPlatform, bootStateName } from "./models.js";
 import { challenge as attChallenge, fields as attFields,
@@ -102,7 +102,7 @@ function degradedSignals(att: AttestationReport, registry: SignalRegistry,
 }
 
 function appSignals(doc: any, attested: AttestedApp | null,
-                    licenses: { isLicensed(pkg: string, signer: string): boolean },
+                    licenses: LicenseChecker,
                     registry: SignalRegistry, policy: Policy): ResolvedSignal[] {
   if (attested === null) return [];
   const app = doc.app;
@@ -183,7 +183,7 @@ function propMismatchFn(attested: Record<string, string>, reported: any): string
 }
 
 function subjectOf(cert: X509Certificate): string {
-  return cert.subject ?? cert.subject;
+  return cert.subject;
 }
 
 interface ScanOutcome {
@@ -194,13 +194,13 @@ interface ScanOutcome {
 export class ScanVerifier {
   private registry: SignalRegistry;
   private policy: Policy;
-  private licenses: { isLicensed(pkg: string, signer: string): boolean };
+  private licenses: LicenseChecker;
   private crl: AttestationCrl;
   private pinnedRoots: X509Certificate[];
   private now: () => number;
   constructor(opts: { pinnedRoots?: X509Certificate[]; crl?: AttestationCrl;
       registry?: SignalRegistry; policy?: Policy;
-      licenses?: { isLicensed(pkg: string, signer: string): boolean };
+      licenses?: LicenseChecker;
       now?: () => number } = {}) {
     this.pinnedRoots = opts.pinnedRoots ?? pinnedRootsDefault();
     this.crl = opts.crl ?? AttestationCrl.fromFile(new URL(
