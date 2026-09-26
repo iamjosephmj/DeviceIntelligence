@@ -90,20 +90,8 @@ namespace dicore {
 // to full records is the next iteration. Everything fails open: a detector that
 // cannot read its inputs contributes nothing.
 namespace {
-void append(std::vector<std::string>& out, const char* det,
-            const std::vector<std::string>& recs, int& critical) {
-    for (const auto& r : recs) {
-        // __meta/__status are on-device metadata (e.g. the build-baked .text hash,
-        // consumed before this call) — they are NOT findings, so they neither count
-        // toward critical nor go on the wire (they have no signal code).
-        if (r.empty() || r[0] == '_') continue;
-        if (is_critical(r)) ++critical;
-        out.push_back(std::string(det) + kFS + r);
-    }
-}
-
-// Typed overload: cores that emit Finding structs encode to the wire line only
-// here, at the orchestrator boundary (meta rows are skipped exactly as above).
+// The typed boundary: cores emit Finding structs and encode to the wire line
+// only here (meta rows are skipped — they are on-device plumbing, not findings).
 void append(std::vector<std::string>& out, const char* det,
             const std::vector<Finding>& recs, int& critical) {
     for (const auto& f : recs) {
@@ -439,7 +427,7 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
     // by kApkRecheckMs, and back-to-back scans stop paying for it.
     {
         static std::mutex apk_mu;
-        static std::vector<std::string> apk_cache;
+        static std::vector<Finding> apk_cache;
         static std::chrono::steady_clock::time_point apk_at{};
         static bool apk_have = false;
         constexpr long long kApkRecheckMs = 60'000;   // re-hash at most once a minute
@@ -455,11 +443,10 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
             apk_have = true;
         }
         const auto& recs = apk_cache;
-        for (const auto& r : recs) {
-            if (r.rfind("__meta", 0) == 0) {
-                std::string textHash = field(r, 4);
-                if (!textHash.empty())
-                    native_integrity::set_expected_text_hash(textHash.c_str());
+        for (const auto& f : recs) {
+            if (f.meta && f.kind == "__meta" && !f.field(4).empty()) {
+                const std::string textHash(f.field(4));
+                native_integrity::set_expected_text_hash(textHash.c_str());
                 break;
             }
         }

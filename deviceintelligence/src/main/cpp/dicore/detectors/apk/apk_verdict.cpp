@@ -36,14 +36,14 @@
 namespace dicore {
 namespace {
 
-std::string rec(const char* kind, Severity sev, const std::string& subject,
-                const std::string& msg, const std::vector<std::string>& details) {
+Finding rec(const char* kind, Severity sev, const std::string& subject,
+            const std::string& msg, const std::vector<std::string>& details) {
     std::vector<std::string> fields;
     fields.reserve(2 + details.size());
     fields.push_back(subject);
     fields.push_back(msg);
     fields.insert(fields.end(), details.begin(), details.end());
-    return encode_record(make_finding(kind, sev, std::move(fields)));
+    return make_finding(kind, sev, std::move(fields));
 }
 
 std::string join(const std::vector<std::string>& v, char sep) {
@@ -78,13 +78,13 @@ bool fp_derive_key(const uint8_t* seed, uint8_t* out /*32*/) {
 // native orchestrator): decode the baked fingerprint, hash the live APK, diff,
 // and return the Finding records (first row = __meta; __status row on a
 // fail-open path). All inputs are plain acquisition values.
-std::vector<std::string> apk_verdict_records(const std::string& apkPath,
+std::vector<Finding> apk_verdict_records(const std::string& apkPath,
                                              const std::vector<uint8_t>& asset,
                                              const std::string& installer,
                                              const std::string& abi) {
-    std::vector<std::string> out;
+    std::vector<Finding> out;
     if (apkPath.empty() || asset.empty()) {
-        out.push_back(std::string("__status") + kFS + "BAD_INPUT");
+        out.push_back(make_meta("__status", {"BAD_INPUT"}));
         return out;
     }
 
@@ -99,7 +99,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     }
     uint8_t key[32];
     if (!fp_derive_key(asset.data(), key)) {
-        out.push_back(std::string("__status") + kFS + "APK_UNREADABLE");  // no crypto -> fail-open
+        out.push_back(make_meta("__status", {"APK_UNREADABLE"}));  // no crypto -> fail-open
         return out;
     }
 
@@ -112,7 +112,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
                                   "Fingerprint blob has wrong magic — likely re-encrypted with a different key", {}));
                 break;
             case fp::Status::kFormatMismatch:
-                out.push_back(std::string("__status") + kFS + "FORMAT_SKEW");
+                out.push_back(make_meta("__status", {"FORMAT_SKEW"}));
                 break;
             default:
                 out.push_back(rec("fingerprint_corrupt", Severity::kHigh, "",
@@ -128,8 +128,8 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     std::vector<std::string> soList;
     for (const auto& kv : fp.native_lib_inventory_by_abi)
         if (kv.first == abi) { soList = kv.second; break; }
-    out.push_back(std::string("__meta") + kFS + std::to_string(fp.schema_version) + kFS +
-                  fp.variant_name + kFS + fp.plugin_version + kFS + textHash + kFS + join(soList, ','));
+    out.push_back(make_meta("__meta", {std::to_string(fp.schema_version),
+                      fp.variant_name, fp.plugin_version, textHash, join(soList, ',')}));
 
     // ---- bundle mode (App Bundle): decompressed dex/.so diff across splits ---
     // Play re-encodes/re-signs the split APKs, so we cannot byte-diff the
@@ -142,7 +142,7 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
         ApkMap base;
         zip::CentralDirInfo bcdi;
         if (!base.open(apkPath.c_str()) || !zip::find_central_directory(base, &bcdi)) {
-            out.push_back(std::string("__status") + kFS + "APK_UNREADABLE");
+            out.push_back(make_meta("__status", {"APK_UNREADABLE"}));
             return out;
         }
 
@@ -192,12 +192,12 @@ std::vector<std::string> apk_verdict_records(const std::string& apkPath,
     // ---- live APK: signer certs + entry hashes ------------------------------
     ApkMap apk;
     if (!apk.open(apkPath.c_str())) {
-        out.push_back(std::string("__status") + kFS + "APK_UNREADABLE");
+        out.push_back(make_meta("__status", {"APK_UNREADABLE"}));
         return out;
     }
     zip::CentralDirInfo cdi;
     if (!zip::find_central_directory(apk, &cdi)) {
-        out.push_back(std::string("__status") + kFS + "APK_UNREADABLE");
+        out.push_back(make_meta("__status", {"APK_UNREADABLE"}));
         return out;
     }
 

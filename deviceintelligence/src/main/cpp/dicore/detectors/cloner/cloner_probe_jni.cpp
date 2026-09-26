@@ -20,13 +20,13 @@ namespace {
 // Records use US (0x1f) as the field separator so embedded paths / mount dumps
 // (which contain '|', '/', '=') never collide with the framing. Each record is:
 //   kind \x1f SEVERITY \x1f message \x1f k=v \x1f k=v ...
-std::string make_record(const char* kind, dicore::Severity severity, const char* message,
+dicore::Finding make_record(const char* kind, dicore::Severity severity, const char* message,
                         const std::vector<std::string>& details) {
     std::vector<std::string> fields;
     fields.reserve(1 + details.size());
     fields.push_back(std::string(message));
     fields.insert(fields.end(), details.begin(), details.end());
-    return dicore::encode_record(dicore::make_finding(kind, severity, std::move(fields)));
+    return dicore::make_finding(kind, severity, std::move(fields));
 }
 
 // Is [pkg] present as a full element of a '|'-separated [list]?
@@ -56,9 +56,9 @@ namespace dicore {
 //   the UID signal is inherently a kernel-vs-Java comparison so the Java value
 //   must be supplied. Read failures degrade to "no signal" (never a finding).
 //   Each kind is emitted at most once.
-std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int javaUid) {
+std::vector<Finding> cloner_verdict_records(const std::string& pkgStr, int javaUid) {
     const char* pkg = pkgStr.c_str();
-    std::vector<std::string> records;
+    std::vector<Finding> records;
     char buf[1024];
 
     // ---- Signal 1: apk_path_mismatch (CRITICAL), emitted once ----------------

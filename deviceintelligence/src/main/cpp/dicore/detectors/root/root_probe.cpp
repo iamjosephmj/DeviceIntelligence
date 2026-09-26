@@ -92,9 +92,9 @@ void for_each_line(const std::string& content, const std::function<void(const st
     }
 }
 
-std::string record(const char* kind, Severity sev, const char* msg,
-                   const std::string& detail) {
-    return encode_record(make_finding(kind, sev, {msg, detail}));
+Finding record(const char* kind, Severity sev, const char* msg,
+               const std::string& detail) {
+    return make_finding(kind, sev, {msg, detail});
 }
 
 }  // namespace
@@ -104,8 +104,8 @@ std::string record(const char* kind, Severity sev, const char* msg,
 // return the Finding records. The only CRITICAL channel is
 // tls_trust_store_tampered. The root-manager-app channel (MEDIUM, needs a
 // PackageManager query) stays JNI-only.
-std::vector<std::string> root_verdict_records() {
-    std::vector<std::string> recs;
+std::vector<Finding> root_verdict_records() {
+    std::vector<Finding> recs;
 
     // ---- Channel 1: su binary (hardcoded paths + $PATH walk) ----------------
     std::vector<std::string> su_seen;

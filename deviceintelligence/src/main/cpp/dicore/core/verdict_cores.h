@@ -15,17 +15,17 @@ namespace dicore {
 
 // integrity.apk: decode the baked fingerprint, hash the live APK, diff.
 // First row = "__meta"; a "__status" row marks a fail-open (never CRITICAL).
-std::vector<std::string> apk_verdict_records(const std::string& apkPath,
+std::vector<Finding> apk_verdict_records(const std::string& apkPath,
                                              const std::vector<uint8_t>& asset,
                                              const std::string& installer,
                                              const std::string& abi);
 
 // runtime.cloner: apk-path / data-dir-mount / kernel-vs-Java-UID signals.
-std::vector<std::string> cloner_verdict_records(const std::string& pkg, int javaUid);
+std::vector<Finding> cloner_verdict_records(const std::string& pkg, int javaUid);
 
 // runtime.root: filesystem + /proc channels (tls_trust_store_tampered is the
 // only CRITICAL one). The MEDIUM root-manager-app channel stays JNI-only.
-std::vector<std::string> root_verdict_records();
+std::vector<Finding> root_verdict_records();
 
 // integrity.keyattestation: native nonce -> TEE keygen up-call -> chain verify +
 // freshness + boot state. Returns the packed code: code%1000 = trust*100 +
