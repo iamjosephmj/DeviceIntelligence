@@ -107,7 +107,7 @@ deviceintelligence {
 // JDK crypto (available on Android API 28+) and bundles its resources
 // (signals-registry.json, pinned-roots.txt) which merge into the APK.
 dependencies {
-    implementation(project(":verifier"))
+    implementation(project(":verifier-kotlin"))
 
     // --- Compose UI ---
     // The BOM pins every compose artifact below to one tested set.

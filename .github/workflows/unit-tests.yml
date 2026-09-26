@@ -53,7 +53,7 @@ jobs:
           python3 tools/registry/gen-signal-catalogue.py --check
 
       - name: JVM unit tests
-        run: ./gradlew :verifier:test :deviceintelligence:testReleaseUnitTest :samples:minimal:testReleaseUnitTest --console=plain
+        run: ./gradlew :verifier-kotlin:test :deviceintelligence:testReleaseUnitTest :samples:minimal:testReleaseUnitTest --console=plain
 
       # Host C++ unit tests: crypto KATs, licence blob, token crypto, native
       # integrity (elf segment, channel guard, text digest, watchdog), JNI cache.

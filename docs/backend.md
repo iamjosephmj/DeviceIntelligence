@@ -1,20 +1,18 @@
 # Backend verification
 
-The [`verifier`](https://github.com/iamjosephmj/DeviceIntelligence/tree/main/verifier) module is plain Kotlin/JVM with zero external dependencies. Add it to your backend project:
-
-```sh
-cp -r DeviceIntelligence/verifier <your-backend>/verifier
-```
+The verifier is plain Kotlin/JVM with zero external dependencies, published on Maven Central:
 
 ```kotlin
 // settings.gradle.kts
-include(":verifier")
+dependencyResolutionManagement { repositories { mavenCentral() } }
 ```
 
 ```kotlin
 // build.gradle.kts
-dependencies { implementation(project(":verifier")) }
+dependencies { implementation("tech.thessemaj:verifier-kotlin:3.0.0") }
 ```
+
+Prefer vendoring? Copy the [`verifier-kotlin/`](https://github.com/iamjosephmj/DeviceIntelligence/tree/main/verifier-kotlin) directory instead and include it as a module.
 
 ## Verify a scan
 

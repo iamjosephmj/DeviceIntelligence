@@ -57,5 +57,5 @@ if (!providers.gradleProperty("deviceintelligence.useMavenArtifacts").isPresent)
 }
 // Backend verifier — pure Kotlin/JVM library. The sample app bundles it for the
 // on-device demo loop and the SDK androidTests decode tokens with it.
-include(":verifier")
+include(":verifier-kotlin")
 include(":samples:minimal")
