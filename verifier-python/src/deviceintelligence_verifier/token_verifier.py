@@ -48,10 +48,7 @@ class TokenVerifier:
         token_nonce = doc.get("nonce") or ""
         auth("nonce matches issued", token_nonce == issued_nonce)
 
-        sig_hex, certs_hex = "", []
-        for line in binding.split("\n"):
-            if line.startswith("SIG" + FS): sig_hex = line[4:]
-            elif line.startswith("CERT" + FS): certs_hex.append(line[5:])
+        sig_hex, certs_hex = _parse_binding(binding)
         if not auth("chain + signature present", bool(sig_hex) and bool(certs_hex)):
             return self._result(checks, doc)
 
@@ -98,27 +95,36 @@ class TokenVerifier:
                                   doc.get("nonce"), _device(doc), signals)
 
 
-def _run(fn):
+def _parse_binding(binding: str) -> tuple[str, list[str]]:
+    """SIG<US>hex and the CERT<US>hex lines out of the binding payload."""
+    sig_hex, certs_hex = "", []
+    for line in binding.split("\n"):
+        if line.startswith("SIG" + FS): sig_hex = line[4:]
+        elif line.startswith("CERT" + FS): certs_hex.append(line[5:])
+    return sig_hex, certs_hex
+
+
+def _run(fn) -> dict:
     try:
         return {"ok": True, "value": fn()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
-def _verify_to_pinned(chain, pinned_roots):
+def _verify_to_pinned(chain: list, pinned_roots: list) -> dict:
     from .chain_verifier import verify_to_pinned_root
     return verify_to_pinned_root(chain, pinned_roots)
 
 
-def _subject(cert):
+def _subject(cert) -> str:
     return cert.subject.rfc4514_string()
 
 
-def _att_challenge(leaf):
+def _att_challenge(leaf) -> dict:
     from .attestation import challenge
     return challenge(leaf)
 
 
-def _att_fields(leaf):
+def _att_fields(leaf) -> dict:
     from .attestation import fields
     return fields(leaf)

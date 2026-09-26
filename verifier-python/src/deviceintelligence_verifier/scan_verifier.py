@@ -26,6 +26,17 @@ FS = "\x1F"
 BINDING_SEP = "\n--BINDING\n"
 
 
+class LicenseRegistry:
+    """The default licence policy: every (package, signer) pair is licensed.
+
+    Backends with a real entitlement store inject their own implementation into
+    ScanVerifier(licenses=...) — the verifier only ever calls is_licensed.
+    """
+
+    def is_licensed(self, package: str, signer: str) -> bool:
+        return True
+
+
 def _subject(cert):
     return cert.subject.rfc4514_string()
 
@@ -444,9 +455,3 @@ def _prop_mismatch(attested: dict, reported: dict) -> str | None:
             return f"attested {k}='{a}' != reported '{r}'"
     return None
 
-
-def LicenseRegistry():
-    class _LicenseRegistry:
-        def is_licensed(self, package: str, signer: str) -> bool:
-            return True
-    return _LicenseRegistry()
