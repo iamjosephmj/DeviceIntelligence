@@ -112,6 +112,23 @@ int main() {
     for (auto s : {Severity::kLow, Severity::kMedium, Severity::kHigh, Severity::kCritical})
         CHECK(severity_from_token(severity_name(s)).value() == s);
 
+    // --- decode populates typed fields (index 0 = kind, 1 = severity token) ---
+    auto ff = decode_record("k" + FS + "CRITICAL" + FS + "f2" + FS + "f3" + FS + "f4");
+    CHECK(ff.has_value() && ff->fields.size() == 5);
+    CHECK(ff->fields[0] == "k" && ff->fields[1] == "CRITICAL" &&
+          ff->fields[2] == "f2" && ff->fields[3] == "f3" && ff->fields[4] == "f4");
+    CHECK(ff->field(4) == "f4" && ff->field(9).empty());
+
+    // --- make_meta: plumbing rows keep arbitrary field payloads losslessly ---
+    const Finding mm = make_meta("__meta", {"3", "raven", "1.0", "hash123", "a,b"});
+    CHECK(mm.meta == true && mm.severity == Severity::kUnknown);
+    CHECK(mm.fields.size() == 6 && mm.fields[4] == "hash123");  // [0]=kind + 5 payload
+    const std::string enc = encode_record(mm);
+    CHECK(enc == "__meta" + FS + "3" + FS + "raven" + FS + "1.0" + FS + "hash123" + FS + "a,b");
+    auto dm = decode_record(enc);
+    CHECK(dm.has_value() && dm->meta && dm->fields.size() == 6 && dm->fields[4] == "hash123");
+    CHECK(!is_critical(*dm));  // a meta row is never a finding
+
     if (fails == 0) printf("test_finding: all checks passed\n");
     return fails == 0 ? 0 : 1;
 }
