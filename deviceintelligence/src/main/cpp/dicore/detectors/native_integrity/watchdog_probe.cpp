@@ -18,6 +18,7 @@
 // Detection-only: the child is never killed and never respawned — a dead
 // child's standing finding IS the report.
 #include "dicore/core/verdict_cores.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/crypto/rand.h"
 #include "dicore/detectors/native_integrity/watchdog.hpp"
 #include "dicore/platform/obf.h"
@@ -77,7 +78,6 @@ void to_hex8(const uint8_t in[8], char out[17]) {
 
 DI_OBF_ORCH
 std::vector<std::string> watchdog_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     std::lock_guard<std::mutex> lk(g_mu);
@@ -117,11 +117,7 @@ std::vector<std::string> watchdog_records() {
     to_hex8(hb.hmac, mac);
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
-    std::string r = "watchdog_anomaly";
-    r += kFS;
-    r += "HIGH";
-    r += kFS;
-    r += "cause=" + cause;
+    std::string r = "cause=" + cause;
     if (cause == "tracer") {
         r += "|tracer_pid=" + std::to_string(g_mon.tracer_pid);
     } else {
@@ -132,7 +128,7 @@ std::vector<std::string> watchdog_records() {
     r += "|mac=";
     r += mac;
     r += "|period_ms=" + std::to_string(dicore::watchdog::kBeatPeriodMs);
-    out.push_back(r);
+    out.push_back(encode_record(make_finding("watchdog_anomaly", Severity::kHigh, {r})));
     return out;
 }
 

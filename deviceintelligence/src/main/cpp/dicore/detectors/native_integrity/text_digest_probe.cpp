@@ -21,6 +21,7 @@
 // nothing. Fail-open.
 
 #include "dicore/core/verdict_cores.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/native_integrity/shared/module_text.h"
 #include "dicore/detectors/native_integrity/text_digest.hpp"
 #include "dicore/platform/obf.h"
@@ -61,7 +62,6 @@ bool baseline_present(const uint8_t d[32]) {
 
 DI_OBF_ORCH
 std::vector<std::string> text_digest_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     if (!baseline_present(DICORE_TEXT_DIGEST)) return {};
@@ -84,14 +84,10 @@ std::vector<std::string> text_digest_records() {
         bytes.data(), bytes.size(), DICORE_TEXT_DIGEST);
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
-    std::string r = "text_integrity_divergence";
-    r += kFS;
-    r += "CRITICAL";
-    r += kFS;
-    r += "segment_bytes=" + std::to_string(bytes.size());
+    std::string r = "segment_bytes=" + std::to_string(bytes.size());
     r += pages == SIZE_MAX ? "|mismatch_pages=unknown_v1"
                            : "|mismatch_pages=" + std::to_string(pages);
-    out.push_back(r);
+    out.push_back(encode_record(make_finding("text_integrity_divergence", Severity::kCritical, {r})));
     return out;
 }
 

@@ -1,4 +1,5 @@
 #include "dicore/detectors/native_integrity/system_libs/libart_verify.h"
+#include "dicore/orchestrator/finding.h"
 
 #include "dicore/detectors/native_integrity/shared/module_text.h"
 #include "dicore/orchestrator/record_util.h"
@@ -184,7 +185,7 @@ std::vector<std::string> libart_verdict_records() {
     }
 
     std::string r = "libart_text_patched";
-    r = append_field(r, proof_positive ? "CRITICAL" : "HIGH");
+    r = append_severity(r, proof_positive ? Severity::kCritical : Severity::kHigh);
     r = append_field(r, "libart .text diverges from on-disk baseline");
 
     char buf[128];

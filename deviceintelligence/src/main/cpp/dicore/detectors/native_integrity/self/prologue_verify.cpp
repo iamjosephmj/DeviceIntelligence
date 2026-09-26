@@ -20,6 +20,7 @@
 // absolute-jump stub. Everything fails open; an unreadable address is skipped.
 
 #include "dicore/platform/safe_text_read.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/jni/jni_anchors.h"
 #include "dicore/platform/obf.h"  // DI_OBF_MAX
 #include "dicore/core/verdict_cores.h"
@@ -79,7 +80,6 @@ bool prologue_looks_hooked(const uint8_t* code) {
 
 DI_OBF_MAX
 std::vector<std::string> prologue_verdict_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     const Target targets[] = {
@@ -101,8 +101,8 @@ std::vector<std::string> prologue_verdict_records() {
             continue;
         }
         if (prologue_looks_hooked(code)) {
-            out.push_back(std::string("native_function_hooked") + kFS + "CRITICAL" + kFS +
-                          "target=" + t.name);
+            out.push_back(encode_record(make_finding("native_function_hooked",
+                Severity::kCritical, {"target=" + std::string(t.name)})));
         }
     }
     return out;

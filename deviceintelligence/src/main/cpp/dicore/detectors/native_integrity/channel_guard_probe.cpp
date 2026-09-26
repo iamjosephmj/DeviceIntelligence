@@ -16,6 +16,7 @@
 // seq_init call — swap the key source there and nothing else changes.
 
 #include "dicore/core/verdict_cores.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/crypto/rand.h"
 #include "dicore/detectors/native_integrity/channel_guard.hpp"
 #include "dicore/platform/obf.h"
@@ -62,7 +63,6 @@ void to_hex32(const uint8_t in[32], char out[65]) {
 
 DI_OBF_ORCH
 std::vector<std::string> channel_guard_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     std::lock_guard<std::mutex> lk(g_mu);
@@ -90,17 +90,13 @@ std::vector<std::string> channel_guard_records() {
     to_hex32(g_seq.mac_chain, mac);
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
-    std::string r = "channel_sequence_anomaly";
-    r += kFS;
-    r += "CRITICAL";
-    r += kFS;
-    r += "rate_exhausted=1";
+    std::string r = "rate_exhausted=1";
     r += "|seq=" + std::to_string(counter);
     r += "|mac=";
     r += mac;
     r += "|rate_window_ms=" + std::to_string(kRateWindowMs);
     r += "|rate_max_scans=" + std::to_string(kRateMaxScans);
-    out.push_back(r);
+    out.push_back(encode_record(make_finding("channel_sequence_anomaly", Severity::kCritical, {r})));
     return out;
 }
 
