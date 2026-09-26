@@ -1,4 +1,7 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.tokens
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.Hkdf
+import tech.thessemaj.deviceintelligence.verifier.attestation.X25519
 
 import java.security.KeyFactory
 import java.security.PrivateKey

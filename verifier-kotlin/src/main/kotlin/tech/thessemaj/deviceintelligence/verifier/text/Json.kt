@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.text
 
 /**
  * A tiny, dependency-free JSON reader — enough to parse the token's compact

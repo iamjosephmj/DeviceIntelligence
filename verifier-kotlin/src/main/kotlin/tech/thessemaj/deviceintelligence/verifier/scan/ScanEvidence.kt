@@ -1,4 +1,16 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.scan
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestedApp
+import tech.thessemaj.deviceintelligence.verifier.attestation.ChainVerifier
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.AttestationLevel
+import tech.thessemaj.deviceintelligence.verifier.model.DeviceFingerprint
+import tech.thessemaj.deviceintelligence.verifier.model.ResolvedSignal
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.TokenAttestation
+import tech.thessemaj.deviceintelligence.verifier.policy.LicenseRegistry
+import tech.thessemaj.deviceintelligence.verifier.policy.Policy
+import tech.thessemaj.deviceintelligence.verifier.policy.SignalRegistry
 
 /**
  * The evidence-extraction half of [ScanVerifier], split out so the verifier

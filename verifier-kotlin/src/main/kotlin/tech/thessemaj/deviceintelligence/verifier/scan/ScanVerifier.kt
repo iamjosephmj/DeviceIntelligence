@@ -1,4 +1,27 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.scan
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.Attestation
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestationCrl
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestedPlatform
+import tech.thessemaj.deviceintelligence.verifier.attestation.ChainVerifier
+import tech.thessemaj.deviceintelligence.verifier.attestation.PinnedRoots
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.Check
+import tech.thessemaj.deviceintelligence.verifier.model.CheckKind
+import tech.thessemaj.deviceintelligence.verifier.model.ResolvedSignal
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.TokenAttestation
+import tech.thessemaj.deviceintelligence.verifier.policy.LicenseRegistry
+import tech.thessemaj.deviceintelligence.verifier.policy.OpenLicenseRegistry
+import tech.thessemaj.deviceintelligence.verifier.policy.Policy
+import tech.thessemaj.deviceintelligence.verifier.policy.SignalRegistry
+import tech.thessemaj.deviceintelligence.verifier.text.Json
+import tech.thessemaj.deviceintelligence.verifier.tokens.Hex
+import tech.thessemaj.deviceintelligence.verifier.tokens.ServerKey
+import tech.thessemaj.deviceintelligence.verifier.tokens.Signals
+import tech.thessemaj.deviceintelligence.verifier.tokens.TokenCryptoV2
+import tech.thessemaj.deviceintelligence.verifier.tokens.TokenDecoder
 
 import java.security.KeyFactory
 import java.security.Signature

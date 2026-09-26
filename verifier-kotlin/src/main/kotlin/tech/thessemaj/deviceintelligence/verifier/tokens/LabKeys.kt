@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.tokens
 
 /** Fixed lab HMAC key for stateless session tokens — shared by the CLI, the fixture
  *  tests, and the Python reference verifier so sessions issued by one open in another.

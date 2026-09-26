@@ -3,8 +3,8 @@ package tech.thessemaj.deviceintelligence.sample.ui.scan
 import androidx.annotation.StringRes
 import tech.thessemaj.deviceintelligence.sample.R
 import tech.thessemaj.deviceintelligence.sample.ui.text.UiText
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
 
 /** Semantic colour, resolved to an actual colour by the composable that draws it. */
 enum class Tone { Neutral, Good, Warn, Bad }

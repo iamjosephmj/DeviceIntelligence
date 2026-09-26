@@ -1,6 +1,6 @@
 package tech.thessemaj.deviceintelligence.sample.domain.model
 
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
 
 /**
  * The Initialize phase, reported one stage at a time.

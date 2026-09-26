@@ -26,10 +26,10 @@ import tech.thessemaj.deviceintelligence.sample.ui.component.Subhead
 import tech.thessemaj.deviceintelligence.sample.ui.component.VSpace
 import tech.thessemaj.deviceintelligence.sample.ui.theme.MonoStyle
 import tech.thessemaj.deviceintelligence.sample.ui.theme.IntelColors
-import tech.thessemaj.deviceintelligence.verifier.ResolvedSignal
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
-import tech.thessemaj.deviceintelligence.verifier.confirmedHookPools
-import tech.thessemaj.deviceintelligence.verifier.definitiveHooks
+import tech.thessemaj.deviceintelligence.verifier.model.ResolvedSignal
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.confirmedHookPools
+import tech.thessemaj.deviceintelligence.verifier.model.definitiveHooks
 
 @Composable
 fun SignalsScreen(result: ScanResult?, onBack: () -> Unit) {

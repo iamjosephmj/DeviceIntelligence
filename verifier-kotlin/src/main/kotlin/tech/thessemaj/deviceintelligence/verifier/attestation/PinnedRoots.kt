@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.attestation
 
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate

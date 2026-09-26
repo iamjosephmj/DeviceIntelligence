@@ -1,5 +1,7 @@
 package tech.thessemaj.deviceintelligence.verifier
 
+import tech.thessemaj.deviceintelligence.verifier.policy.Policy
+
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.policy
 
 /**
  * Server-side policy — the false-positive tuning that lives OFF the device.

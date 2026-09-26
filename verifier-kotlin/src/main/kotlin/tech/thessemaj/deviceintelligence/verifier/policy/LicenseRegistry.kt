@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.policy
 
 /**
  * Which (package, signing certificate) pairs may run this SDK.

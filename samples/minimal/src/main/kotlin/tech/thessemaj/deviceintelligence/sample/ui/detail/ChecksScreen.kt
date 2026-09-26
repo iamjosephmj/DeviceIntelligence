@@ -10,8 +10,8 @@ import tech.thessemaj.deviceintelligence.sample.ui.component.Hint
 import tech.thessemaj.deviceintelligence.sample.ui.component.Note
 import tech.thessemaj.deviceintelligence.sample.ui.component.ScreenScaffold
 import tech.thessemaj.deviceintelligence.sample.ui.component.Subhead
-import tech.thessemaj.deviceintelligence.verifier.CheckKind
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.CheckKind
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
 
 @Composable
 fun ChecksScreen(result: ScanResult?, onBack: () -> Unit) {

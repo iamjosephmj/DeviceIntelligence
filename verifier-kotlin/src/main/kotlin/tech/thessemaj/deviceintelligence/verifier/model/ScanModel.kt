@@ -1,4 +1,6 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.model
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestedApp
 
 /**
  * The scan/session side of the model: the facts a bootstrap establishes, the

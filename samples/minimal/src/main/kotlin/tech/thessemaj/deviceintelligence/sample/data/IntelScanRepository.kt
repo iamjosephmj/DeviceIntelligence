@@ -7,9 +7,9 @@ import tech.thessemaj.deviceintelligence.api.DeviceIntelligence
 import tech.thessemaj.deviceintelligence.sample.R
 import tech.thessemaj.deviceintelligence.sample.domain.ScanRepository
 import tech.thessemaj.deviceintelligence.sample.domain.model.Timed
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
-import tech.thessemaj.deviceintelligence.verifier.ScanVerifier
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.scan.ScanVerifier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.security.SecureRandom

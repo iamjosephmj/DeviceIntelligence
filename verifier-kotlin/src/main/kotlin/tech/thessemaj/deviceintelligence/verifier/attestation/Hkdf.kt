@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.attestation
 
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec

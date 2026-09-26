@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.model
 
 /**
  * The verify/decision vocabulary shared by every verifier path: the decision

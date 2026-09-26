@@ -1,4 +1,11 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.tokens
+
+import tech.thessemaj.deviceintelligence.verifier.model.DecodedToken
+import tech.thessemaj.deviceintelligence.verifier.model.DeviceInfo
+import tech.thessemaj.deviceintelligence.verifier.model.ResolvedSignal
+import tech.thessemaj.deviceintelligence.verifier.policy.Policy
+import tech.thessemaj.deviceintelligence.verifier.policy.SignalRegistry
+import tech.thessemaj.deviceintelligence.verifier.text.Json
 
 /**
  * Decrypts a token and returns its document WITHOUT verifying authenticity — the

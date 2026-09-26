@@ -1,4 +1,10 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.scan
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestedApp
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.DeviceFingerprint
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.text.Json
 
 /**
  * JSON round-trip for [ScanSession].

@@ -1,4 +1,7 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.attestation
+
+import tech.thessemaj.deviceintelligence.verifier.text.Der
+import tech.thessemaj.deviceintelligence.verifier.tokens.Hex
 
 import java.security.cert.X509Certificate
 

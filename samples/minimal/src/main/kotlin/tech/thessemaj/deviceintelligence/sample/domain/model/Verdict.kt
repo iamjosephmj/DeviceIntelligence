@@ -1,6 +1,6 @@
 package tech.thessemaj.deviceintelligence.sample.domain.model
 
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
 
 /**
  * The policy call, which belongs to the CALLER — [tech.thessemaj.deviceintelligence.verifier.ScanVerifier]

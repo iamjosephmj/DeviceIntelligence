@@ -1,5 +1,7 @@
 package tech.thessemaj.deviceintelligence.verifier
 
+import tech.thessemaj.deviceintelligence.verifier.policy.SignalRegistry
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

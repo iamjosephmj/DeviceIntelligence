@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.text
 
 /**
  * A minimal DER TLV reader — just enough to walk the Android Key Attestation

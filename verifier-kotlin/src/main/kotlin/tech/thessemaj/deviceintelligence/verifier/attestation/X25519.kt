@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.attestation
 
 /**
  * X25519 (Curve25519 scalar multiplication), pure Kotlin.

@@ -1,4 +1,6 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.policy
+
+import tech.thessemaj.deviceintelligence.verifier.text.Json
 
 /** One registry entry: an opaque code and the meaning the backend resolves it to. */
 data class SignalMeta(

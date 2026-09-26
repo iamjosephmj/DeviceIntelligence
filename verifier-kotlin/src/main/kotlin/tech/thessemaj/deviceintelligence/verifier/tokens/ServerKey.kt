@@ -1,4 +1,4 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.tokens
 
 import java.io.InputStream
 import java.security.KeyFactory

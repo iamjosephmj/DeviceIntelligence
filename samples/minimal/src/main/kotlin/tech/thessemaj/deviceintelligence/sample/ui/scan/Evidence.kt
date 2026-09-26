@@ -4,8 +4,8 @@ import androidx.annotation.StringRes
 import tech.thessemaj.deviceintelligence.sample.R
 import tech.thessemaj.deviceintelligence.sample.navigation.Destination
 import tech.thessemaj.deviceintelligence.sample.ui.text.UiText
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
 
 /**
  * One area of the evidence, as the scan screen presents it.

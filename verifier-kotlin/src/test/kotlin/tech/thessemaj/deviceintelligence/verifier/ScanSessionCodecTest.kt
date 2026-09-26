@@ -1,5 +1,12 @@
 package tech.thessemaj.deviceintelligence.verifier
 
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.DeviceFingerprint
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.scan.ScanSessionCodec
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestedApp
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

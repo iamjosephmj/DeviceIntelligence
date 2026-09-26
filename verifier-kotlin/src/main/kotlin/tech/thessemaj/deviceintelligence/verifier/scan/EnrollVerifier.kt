@@ -1,4 +1,20 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.scan
+
+import tech.thessemaj.deviceintelligence.verifier.attestation.Attestation
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestationCrl
+import tech.thessemaj.deviceintelligence.verifier.attestation.AttestationFields
+import tech.thessemaj.deviceintelligence.verifier.attestation.ChainVerifier
+import tech.thessemaj.deviceintelligence.verifier.attestation.PinnedRoots
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.Check
+import tech.thessemaj.deviceintelligence.verifier.model.CheckKind
+import tech.thessemaj.deviceintelligence.verifier.model.EnrollResult
+import tech.thessemaj.deviceintelligence.verifier.model.Session
+import tech.thessemaj.deviceintelligence.verifier.text.Json
+import tech.thessemaj.deviceintelligence.verifier.tokens.Hex
+import tech.thessemaj.deviceintelligence.verifier.tokens.Keystream
+import tech.thessemaj.deviceintelligence.verifier.tokens.SessionSigner
+import tech.thessemaj.deviceintelligence.verifier.tokens.TokenDecoder
 
 import java.security.cert.X509Certificate
 

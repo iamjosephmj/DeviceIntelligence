@@ -1,4 +1,8 @@
-package tech.thessemaj.deviceintelligence.verifier
+package tech.thessemaj.deviceintelligence.verifier.tokens
+
+import tech.thessemaj.deviceintelligence.verifier.model.Assurance
+import tech.thessemaj.deviceintelligence.verifier.model.Session
+import tech.thessemaj.deviceintelligence.verifier.text.Json
 
 import java.security.MessageDigest
 import javax.crypto.Mac

@@ -1,8 +1,8 @@
 package tech.thessemaj.deviceintelligence.sample.domain
 
 import tech.thessemaj.deviceintelligence.sample.domain.model.Timed
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
 
 /**
  * the seam between the app and the DeviceIntelligence SDK.

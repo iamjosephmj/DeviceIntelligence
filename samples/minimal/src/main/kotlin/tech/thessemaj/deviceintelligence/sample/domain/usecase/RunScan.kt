@@ -2,7 +2,7 @@ package tech.thessemaj.deviceintelligence.sample.domain.usecase
 
 import tech.thessemaj.deviceintelligence.sample.domain.ScanRepository
 import tech.thessemaj.deviceintelligence.sample.domain.model.ScanOutcome
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
 import javax.inject.Inject
 
 /** Phase 2: scan (device) + decrypt, verify and decide (in-app backend). */

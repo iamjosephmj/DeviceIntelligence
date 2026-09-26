@@ -10,7 +10,7 @@ import tech.thessemaj.deviceintelligence.sample.ui.component.KeyValueRow
 import tech.thessemaj.deviceintelligence.sample.ui.component.Note
 import tech.thessemaj.deviceintelligence.sample.ui.component.ScreenScaffold
 import tech.thessemaj.deviceintelligence.sample.ui.component.SectionTable
-import tech.thessemaj.deviceintelligence.verifier.ScanResult
+import tech.thessemaj.deviceintelligence.verifier.model.ScanResult
 
 @Composable
 fun FingerprintScreen(result: ScanResult?, onBack: () -> Unit) {

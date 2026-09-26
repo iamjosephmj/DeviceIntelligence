@@ -10,7 +10,7 @@ import tech.thessemaj.deviceintelligence.sample.ui.component.KeyValueRow
 import tech.thessemaj.deviceintelligence.sample.ui.component.Note
 import tech.thessemaj.deviceintelligence.sample.ui.component.ScreenScaffold
 import tech.thessemaj.deviceintelligence.sample.ui.component.SectionTable
-import tech.thessemaj.deviceintelligence.verifier.ScanSession
+import tech.thessemaj.deviceintelligence.verifier.model.ScanSession
 
 @Composable
 fun SessionFactsScreen(session: ScanSession?, onBack: () -> Unit) {
