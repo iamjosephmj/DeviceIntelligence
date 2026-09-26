@@ -1,5 +1,5 @@
 {
-  "name": "deviceintelligence-verifier",
+  "name": "@thessemaj/deviceintelligence-verifier",
   "version": "3.0.0",
   "type": "module",
   "scripts": {
@@ -9,5 +9,18 @@
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^20.14.0"
-  }
+  },
+  "description": "DeviceIntelligence backend token verifier (TypeScript port of the Kotlin/JVM verifier)",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ]
 }
