@@ -18,6 +18,7 @@
 #include <sys/system_properties.h>
 #include <unistd.h>
 
+#include "dicore/orchestrator/finding.h"
 #include "dicore/platform/svc_io.h"
 
 #include <cctype>
@@ -30,8 +31,6 @@
 
 namespace dicore {
 namespace {
-
-constexpr char kFS = '\x1f';  // US record separator (matches the other ports)
 
 const char* const kHardcodedSuPaths[] = {
     "/sbin/su", "/system/bin/su", "/system/xbin/su", "/system/sbin/su",
@@ -93,13 +92,9 @@ void for_each_line(const std::string& content, const std::function<void(const st
     }
 }
 
-std::string record(const char* kind, const char* sev, const char* msg,
+std::string record(const char* kind, Severity sev, const char* msg,
                    const std::string& detail) {
-    std::string r = kind;
-    r += kFS; r += sev;
-    r += kFS; r += msg;
-    r += kFS; r += detail;
-    return r;
+    return encode_record(make_finding(kind, sev, {msg, detail}));
 }
 
 }  // namespace
@@ -117,7 +112,7 @@ std::vector<std::string> root_verdict_records() {
     auto add_su = [&](const std::string& p) {
         for (const auto& s : su_seen) if (s == p) return;
         su_seen.push_back(p);
-        recs.push_back(record("su_binary_present", "HIGH",
+        recs.push_back(record("su_binary_present", Severity::kHigh,
                               "An `su` binary was found at a known root-tool path", "path=" + p));
     };
     for (const char* p : kHardcodedSuPaths) if (file_exists(p)) add_su(p);
@@ -140,7 +135,7 @@ std::vector<std::string> root_verdict_records() {
     // ---- Channel 2: Magisk artifacts (files + /proc/mounts) ------------------
     for (const char* p : kMagiskPaths) {
         if (file_exists(p))
-            recs.push_back(record("magisk_artifact_present", "HIGH",
+            recs.push_back(record("magisk_artifact_present", Severity::kHigh,
                                   "Magisk-related artifact present on device",
                                   std::string("artifact=path=") + p));
     }
@@ -148,7 +143,7 @@ std::vector<std::string> root_verdict_records() {
         if (!contains_ci(line, "magisk")) return;
         std::string target = nth_field(line, 1);
         if (!target.empty())
-            recs.push_back(record("magisk_artifact_present", "HIGH",
+            recs.push_back(record("magisk_artifact_present", Severity::kHigh,
                                   "Magisk-related artifact present on device",
                                   "artifact=mount=" + target));
     });
@@ -158,7 +153,7 @@ std::vector<std::string> root_verdict_records() {
         if (!contains_ci(line, "magisk")) return;
         std::string mp = nth_field(line, 4);
         if (!mp.empty())
-            recs.push_back(record("magisk_in_init_mountinfo", "HIGH",
+            recs.push_back(record("magisk_in_init_mountinfo", Severity::kHigh,
                                   "Magisk artefact present in /proc/1/mountinfo "
                                   "(Shamiko cannot hide init's mount namespace)",
                                   "artifact=mountpoint=" + mp));
@@ -168,7 +163,7 @@ std::vector<std::string> root_verdict_records() {
     {
         std::string unix_tbl = read_text("/proc/self/net/unix");
         if (unix_tbl.find("@magisk_daemon") != std::string::npos)
-            recs.push_back(record("magisk_daemon_socket_present", "HIGH",
+            recs.push_back(record("magisk_daemon_socket_present", Severity::kHigh,
                                   "Magisk daemon abstract Unix socket @magisk_daemon is bound "
                                   "(visible even when filesystem artefacts are hidden)",
                                   "socket_name=@magisk_daemon"));
@@ -183,7 +178,7 @@ std::vector<std::string> root_verdict_records() {
         if (fstype != "tmpfs") return;
         std::string mp = nth_field(line.substr(0, dash), 4);
         if (!mp.empty())
-            recs.push_back(record("tls_trust_store_tampered", "CRITICAL",
+            recs.push_back(record("tls_trust_store_tampered", Severity::kCritical,
                                   "tmpfs bind-mount over /apex/com.android.conscrypt — system TLS "
                                   "trust store has been swapped, MITM-enabling",
                                   "artifact=mountpoint=" + mp));
@@ -194,7 +189,7 @@ std::vector<std::string> root_verdict_records() {
         char tags[PROP_VALUE_MAX] = {0};
         int n = __system_property_get("ro.build.tags", tags);
         if (n > 0 && std::strstr(tags, "test-keys"))
-            recs.push_back(record("test_keys_build", "MEDIUM",
+            recs.push_back(record("test_keys_build", Severity::kMedium,
                                   "ro.build.tags reports a test-keys signed build "
                                   "(custom ROM or eng build)",
                                   std::string("ro_build_tags=") + tags));
@@ -211,7 +206,7 @@ std::vector<std::string> root_verdict_records() {
     {
         std::string enforce = read_text("/sys/fs/selinux/enforce", 8);
         if (!enforce.empty() && enforce[0] == '0')
-            recs.push_back(record("selinux_permissive", "CRITICAL",
+            recs.push_back(record("selinux_permissive", Severity::kCritical,
                                   "SELinux is in permissive mode (enforce=0) — genuine "
                                   "consumer devices are always Enforcing",
                                   "enforce=0"));
@@ -232,7 +227,7 @@ std::vector<std::string> root_verdict_records() {
         };
         for (const char* p : kSystemSuPaths) {
             if (file_exists(p))
-                recs.push_back(record("su_binary_system_path", "CRITICAL",
+                recs.push_back(record("su_binary_system_path", Severity::kCritical,
                                       "An su binary is present on a read-only system partition",
                                       std::string("path=") + p));
         }
@@ -261,7 +256,7 @@ std::vector<std::string> root_verdict_records() {
         int ksuVersion = 0;
         prctl(kKsuMagic, kKsuCmdGetVersion, reinterpret_cast<unsigned long>(&ksuVersion), 0, 0);
         if (ksuVersion > 0) {
-            recs.push_back(record("kernelsu_present", "CRITICAL",
+            recs.push_back(record("kernelsu_present", Severity::kCritical,
                                   "KernelSU kernel-level root detected via its magic prctl handler",
                                   "ksu_version=" + std::to_string(ksuVersion)));
         }

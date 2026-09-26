@@ -75,6 +75,43 @@ int main() {
                                "__m" + FS + "CRITICAL",
                                "k3" + FS + "CRITICAL" + FS + "x"}) == 2);
 
+    // --- producer side: make_finding + encode_record are byte-exact ---
+    // (the legacy producers assembled "kind FS SEV FS f1 FS f2" by hand; the
+    // typed path must reproduce those bytes exactly or the wire changes.)
+    const std::string legacy_su =
+        "su_binary_present" + FS + "HIGH" + FS +
+        "su binary present in PATH" + FS + "artifact=path=/system/bin/su";
+    const Finding su = make_finding("su_binary_present", Severity::kHigh,
+        {"su binary present in PATH", "artifact=path=/system/bin/su"});
+    CHECK(su.kind == "su_binary_present");
+    CHECK(su.severity == Severity::kHigh);
+    CHECK(encode_record(su) == legacy_su);
+    CHECK(encode_record(su) == decode_record(legacy_su)->kind + FS +
+                               decode_record(legacy_su)->severity_token + FS +
+                               decode_record(legacy_su)->detail);
+
+    // critical single-detail field
+    const std::string legacy_tls =
+        "tls_trust_store_tampered" + FS + "CRITICAL" + FS +
+        "tmpfs over conscrypt" + FS + "artifact=mountpoint=/apex/x";
+    CHECK(encode_record(make_finding("tls_trust_store_tampered", Severity::kCritical,
+        {"tmpfs over conscrypt", "artifact=mountpoint=/apex/x"})) == legacy_tls);
+
+    // a producer that emits only kind+severity (no detail fields)
+    CHECK(encode_record(make_finding("bare_kind", Severity::kMedium, {})) ==
+          "bare_kind" + FS + "MEDIUM");
+
+    // decoded-then-re-encoded round trip is byte-identical (lossless edge:
+    // no trailing empty fields — producers never emit those)
+    for (const std::string& rec : {legacy_su, legacy_tls, "k" + FS + "HIGH" + FS + "one"}) {
+        auto d = decode_record(rec);
+        CHECK(d.has_value() && encode_record(*d) == rec);
+    }
+
+    // severity_name round-trips every severity the producers use
+    for (auto s : {Severity::kLow, Severity::kMedium, Severity::kHigh, Severity::kCritical})
+        CHECK(severity_from_token(severity_name(s)).value() == s);
+
     if (fails == 0) printf("test_finding: all checks passed\n");
     return fails == 0 ? 0 : 1;
 }

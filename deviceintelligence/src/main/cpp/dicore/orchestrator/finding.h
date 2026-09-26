@@ -14,6 +14,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dicore {
 
@@ -27,6 +28,17 @@ inline std::optional<Severity> severity_from_token(std::string_view t) {
     if (t == "MEDIUM") return Severity::kMedium;
     if (t == "LOW") return Severity::kLow;
     return std::nullopt;
+}
+
+inline std::string_view severity_name(Severity s) {
+    switch (s) {
+        case Severity::kLow: return "LOW";
+        case Severity::kMedium: return "MEDIUM";
+        case Severity::kHigh: return "HIGH";
+        case Severity::kCritical: return "CRITICAL";
+        case Severity::kUnknown: break;
+    }
+    return "";
 }
 
 struct Finding {
@@ -63,6 +75,34 @@ inline std::optional<Finding> decode_record(std::string_view rec) {
     }
     if (auto s = severity_from_token(f.severity_token)) f.severity = *s;
     return f;
+}
+
+// --- producer side -------------------------------------------------------
+// Verdict cores construct their records through make_finding() so a mistyped
+// severity is a compile error, not an silently-uncountable string on the wire.
+// encode_record() reproduces the legacy hand-assembled bytes exactly
+// ("kind FS SEV FS field1 FS field2..."), so the wire format is pinned by the
+// round-trip test, not by convention.
+
+inline Finding make_finding(std::string kind, Severity sev,
+                            std::vector<std::string> fields) {
+    Finding f;
+    f.kind = std::move(kind);
+    f.severity = sev;
+    f.severity_token = std::string(severity_name(sev));
+    for (size_t i = 0; i < fields.size(); ++i) {
+        if (i) f.detail += kFS;
+        f.detail += std::move(fields[i]);
+    }
+    return f;
+}
+
+inline std::string encode_record(const Finding& f) {
+    std::string out = f.kind;
+    out += kFS;
+    out += f.severity_token;
+    if (!f.detail.empty()) { out += kFS; out += f.detail; }
+    return out;
 }
 
 }  // namespace dicore
