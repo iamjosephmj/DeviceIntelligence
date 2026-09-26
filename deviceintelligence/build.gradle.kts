@@ -416,6 +416,50 @@ val checkSignalRegistryFresh by tasks.registering {
 }
 
 // ---------------------------------------------------------------------------
+// core_dispatch.gen.h freshness guard — same pattern as checkSignalRegistryFresh
+// above: verdict-cores.json (which no-arg cores dicore_verdict wires, in wire
+// order) is the single source of truth; the generated dispatch block embeds its
+// sha256. An edited manifest that forgot to regenerate fails the build instead
+// of silently running a stale detector set.
+val checkCoreDispatchFresh by tasks.registering {
+    group = "verification"
+    description = "Fails if core_dispatch.gen.h is stale w.r.t. verdict-cores.json."
+
+    val manifest = rootProject.file("tools/registry/verdict-cores.json")
+    val header = file("src/main/cpp/dicore/orchestrator/core_dispatch.gen.h")
+    inputs.file(manifest)
+    inputs.file(header)
+    val stamp = layout.buildDirectory.file("tmp/core-dispatch-fresh.txt")
+    outputs.file(stamp)
+
+    doLast {
+        if (!manifest.exists()) throw GradleException("missing ${manifest.path}")
+        if (!header.exists()) throw GradleException("missing ${header.path}")
+
+        val actual = MessageDigest.getInstance("SHA-256")
+            .digest(manifest.readBytes())
+            .joinToString("") { b -> "%02x".format(b) }
+
+        val recorded = Regex("cores-sha256:\\s*([0-9a-f]{64})")
+            .find(header.readText())?.groupValues?.get(1)
+            ?: throw GradleException(
+                "core_dispatch.gen.h has no `cores-sha256:` marker — it predates the " +
+                "freshness guard. Regenerate:\n" +
+                "    python3 tools/registry/gen-core-dispatch.py")
+
+        if (recorded != actual) throw GradleException(
+            "core_dispatch.gen.h is STALE.\n" +
+            "  verdict-cores.json sha256 = $actual\n" +
+            "  core_dispatch.gen.h recorded = $recorded\n" +
+            "The manifest changed without regenerating the dispatch block; the wired " +
+            "core set may not match the manifest. Fix with:\n" +
+            "    python3 tools/registry/gen-core-dispatch.py")
+
+        stamp.get().asFile.apply { parentFile.mkdirs() }.writeText(actual)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // FrameworkShim op-code contract guard.
 //
 // FrameworkShim.q(op) (Kotlin) <-> fw_q/jvm_asset(op) (framework_shim.cpp) are a
@@ -444,4 +488,4 @@ val checkFrameworkShimOps by tasks.registering {
     }
 }
 
-tasks.named("preBuild") { dependsOn(checkSignalRegistryFresh, checkFrameworkShimOps) }
+tasks.named("preBuild") { dependsOn(checkSignalRegistryFresh, checkFrameworkShimOps, checkCoreDispatchFresh) }

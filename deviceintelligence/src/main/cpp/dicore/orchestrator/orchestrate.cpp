@@ -34,6 +34,7 @@
 #include "dicore/orchestrator/orch_log.h"
 #include "dicore/orchestrator/record_util.h"
 #include "dicore/orchestrator/signal_ids.gen.h"
+#include "dicore/orchestrator/core_dispatch.gen.h"
 
 #include "dicore/core/verdict_cores.h"
 #include "dicore/crypto/fp_pepper.h"
@@ -475,53 +476,13 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
     // dual-app (Samsung Dual Messenger, Xiaomi Dual Apps, Island, Shelter) are
     // legitimate and common, especially for enterprise users — the cloner signals
     // fire on them. An actual malicious clone is inferred server-side instead.
-    append(out, "dex", dex_provenance_records(), critical);
-    append(out, "root", root_verdict_records(), critical);
-    // emulator — the CPU-identity probes stay OFF the wire (issue #8): the x86
-    // CPUID hypervisor bit is set on genuine ChromeOS (ARCVM) / WSA, and the
-    // arm64 CNTFRQ check is heuristic. INTEL_0027 translated_environment IS wired:
-    // uname-vs-ABI divergence is definitional (an arm64 process on an x86 kernel
-    // cannot happen on silicon) and the native-bridge sub-facts only fire on
-    // images that ship a translation layer — raw-syscall reads, fail-open, so
-    // they clear the FP bar the CPU probes failed.
-    append(out, "emulator", emu_translation_records(), critical);
-    // INTEL_0047 — cpu_rerouting_anomaly: behavioural companion to INTEL_0027.
-    // Both sub-facts (CNTVCT-off-CNTFRQ rate, UDF fault replayed as a
-    // user-sent signal) are architecturally impossible on genuine silicon,
-    // so this clears the same FP bar that kept the CPUID/CNTFRQ-value probes
-    // off the wire — and it still fires when a bridge renames itself out of
-    // INTEL_0027's provenance keys. Fail-open; arm64-only.
-    append(out, "emulator", emu_rerouting_records(), critical);
-    // INTEL_0033 — hypervisor_cpu: the x86_64 CPU-state probe (CPUID
-    // hypervisor bit + vendor leaf) for hardware-virtualized emulators,
-    // where nothing is translated and INTEL_0027 correctly stays silent.
-    // Real-phone silicon cannot set the bit; x86_64 Android also runs on
-    // Chromebooks/WSA (also set) — severity reflects that honestly.
-    append(out, "emulator", emu_hv_records(), critical);
-    // INTEL_0048 — arm64_vm_platform: the arm64 tier-2 probe (device-tree
-    // markers + qemu_pipe) for VMs and full-system emulators that run ARM
-    // code natively inside an emulated ARM system — invisible to INTEL_0027
-    // (guest ISA matches the app) and to INTEL_0033 (x86-only).
-    append(out, "emulator", emu_vm_platform_records(), critical);
-    append(out, "environment", antidebug_verdict_records(), critical);
-    append(out, "seccomp", seccomp_verdict_records(), critical);
-    // INTEL_0009 — anon/memfd/deleted executable mappings (zygisk stub pools,
-    // Frida gadgets, unloaded payloads), read through the maps family's
-    // raw-syscall reader. Fail-open like everything above.
-    append(out, "environment", anon_exec_records(), critical);
-    // INTEL_0029 — the scan channel's own sequence/rate invariant. Advances the
-    // MAC chain at scan entry and trips on a synthetic-sweep rate; the (seq,
-    // mac) pair rides the record as evidence for the backend replay check.
-    append(out, "native_integrity", channel_guard_records(), critical);
-    // INTEL_0042 — own executable segment vs the CMake-baked build digest
-    // (dicore_text_digest_gen.h; all-zero = no baseline yet -> skipped).
-    append(out, "native_integrity", text_digest_records(), critical);
-    // INTEL_0018 — fork-exec watchdog child: an independent /system/bin/sh
-    // loop reports the parent's TracerPid over a private pipe every beat
-    // period; 3 missed beats (cause=silent) or a nonzero tracer report
-    // (cause=tracer) emit one HIGH record with a keyed-heartbeat (seq, mac)
-    // evidence pair. Fail-open, detection-only.
-    append(out, "native_integrity", watchdog_records(), critical);
+    // The no-arg wired cores run through the GENERATED dispatch block
+    // (core_dispatch.gen.h, from tools/registry/verdict-cores.json): adding a
+    // detector is a manifest line + regenerate, not an orchestrate.cpp edit.
+    // apk (args + load-bearing ordering), the two count-only summaries, and
+    // the not-wired emu_verdict stay hand-written — see "excluded" in the
+    // manifest, and the cloner note above.
+    DICORE_RUN_WIRED_CORES(append, out, critical);
 
     if (critical == 0) on_clean_device();  // publish the string-unlock gate
     else custody_wd_note_critical();       // a CRITICAL sweep stops custody release
