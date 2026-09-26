@@ -1,5 +1,5 @@
-import { readTlv, tlvList, sequenceElements, Tlv } from "./der.js";
-import { AttestationFields, AttestedApp, AttestedPlatform } from "./models.js";
+import { readTlv, tlvList, sequenceElements, Tlv } from "../text/der.js";
+import { AttestationFields, AttestedApp, AttestedPlatform } from "../model.js";
 
 export const OID = "1.3.6.1.4.1.11129.2.1.17";
 const ROOT_OF_TRUST_TAG = Buffer.from([0xbf, 0x85, 0x40]);

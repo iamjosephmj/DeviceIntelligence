@@ -1,6 +1,6 @@
 import { decryptHex } from "./keystream.js";
 import { resolve as resolveSignals, device } from "./signals.js";
-import { DecodedToken } from "./models.js";
+import { DecodedToken } from "../model.js";
 
 export const BINDING_SEP = "\n--BINDING\n";
 

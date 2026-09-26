@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bootStateSpoofer } from "../src/scan_verifier.js";
-import { AttestationFields } from "../src/models.js";
+import { bootStateSpoofer } from "../src/scan/scan_verifier.js";
+import { AttestationFields } from "../src/model.js";
 
 const att = (boot: number | null, locked: boolean | null): AttestationFields =>
   ({ securityLevel: 2, verifiedBootState: boot, deviceLocked: locked });

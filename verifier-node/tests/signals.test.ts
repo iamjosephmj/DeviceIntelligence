@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultPolicy, Policy } from "../src/policy.js";
-import { SignalRegistry } from "../src/registry.js";
-import { resolve } from "../src/signals.js";
-import { definitiveHooks } from "../src/models.js";
+import { defaultPolicy, Policy } from "../src/policy/policy.js";
+import { SignalRegistry } from "../src/policy/registry.js";
+import { resolve } from "../src/tokens/signals.js";
+import { definitiveHooks } from "../src/model.js";
 
 const REG = SignalRegistry.bundled();
 const POL = defaultPolicy();

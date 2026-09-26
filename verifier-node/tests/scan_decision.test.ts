@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Decision, ResolvedSignal, ScanResult, scanDecision, blockingSignals } from "../src/models.js";
+import { Decision, ResolvedSignal, ScanResult, scanDecision, blockingSignals } from "../src/model.js";
 
 const signal = (sid: string, blocking: boolean): ResolvedSignal =>
   ({ id: sid, detector: "t", kind: "t", title: "", severity: "HIGH",

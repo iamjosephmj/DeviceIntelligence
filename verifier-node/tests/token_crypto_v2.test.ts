@@ -1,7 +1,7 @@
 // The v2 ECIES contract: the native-interop KAT, the tamper matrix, malformed input.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decryptV2, isV2 } from "../src/token_crypto.js";
+import { decryptV2, isV2 } from "../src/tokens/token_crypto.js";
 
 const SERVER_PRIV_HEX = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
 const TOKEN = ("2:0203493e82fc74464a59268817623d2053c5eb8e2cc4a988b4fee179ec6b010d531d10111213"

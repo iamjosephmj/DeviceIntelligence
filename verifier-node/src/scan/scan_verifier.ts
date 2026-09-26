@@ -2,18 +2,18 @@
 // adjudication, and the boot-state spoofer truth table.
 import { createDecipheriv, createPublicKey, createHash, diffieHellman, hkdfSync,
          verify as cryptoVerify, X509Certificate } from "node:crypto";
-import { AttestationCrl } from "./crl.js";
-import { pinnedRootsDefault } from "./pinned_roots.js";
-import { SignalRegistry } from "./registry.js";
-import { Policy, defaultPolicy, isBlocking } from "./policy.js";
-import { resolve as resolveSignals } from "./signals.js";
+import { AttestationCrl } from "../attestation/crl.js";
+import { pinnedRootsDefault } from "../attestation/pinned_roots.js";
+import { SignalRegistry } from "../policy/registry.js";
+import { Policy, defaultPolicy, isBlocking } from "../policy/policy.js";
+import { resolve as resolveSignals } from "../tokens/signals.js";
 import { LicenseChecker, attestationLevelParse, AttestationLevel, Check, CheckKind, ResolvedSignal,
          ScanResult, ScanSession, Assurance, DeviceFingerprint, AttestedApp,
-         AttestationFields, AttestedPlatform, bootStateName } from "./models.js";
+         AttestationFields, AttestedPlatform, bootStateName } from "../model.js";
 import { challenge as attChallenge, fields as attFields,
          attestedApp as attApp, attestedPlatform as attPlatform,
-         deviceProperties as attProps } from "./attestation.js";
-import { parseChain, verifyToPinnedRoot } from "./chain_verifier.js";
+         deviceProperties as attProps } from "../attestation/attestation.js";
+import { parseChain, verifyToPinnedRoot } from "../attestation/chain_verifier.js";
 
 const FS = "\x1F";
 const BINDING_SEP = "\n--BINDING\n";

@@ -1,6 +1,6 @@
 // JSON round-trip for ScanSession (ScanSessionCodec.kt port). Decode grades a
 // truncated document DOWN to the suspicious value, never to the benign default.
-import { Assurance, ScanSession } from "./models.js";
+import { Assurance, ScanSession } from "../model.js";
 
 const SUSPICIOUS = { chainTrusted: false, keyboxRevoked: true, crossLevelReuse: true,
   devicePropMismatch: true, bootStateSpoofer: true, strongboxChainMissing: true,

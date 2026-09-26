@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decode, encode } from "../src/codec.js";
-import { Assurance, ScanSession } from "../src/models.js";
+import { decode, encode } from "../src/scan/codec.js";
+import { Assurance, ScanSession } from "../src/model.js";
 
 // Compiled to dist/tests; the canonical shared fixtures live in verifiers/fixtures.
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)),

@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TokenDecoder } from "../src/token_decoder.js";
-import { defaultPolicy } from "../src/policy.js";
-import { SignalRegistry } from "../src/registry.js";
-import { resolve as resolveSignals, device as deviceOf } from "../src/signals.js";
+import { TokenDecoder } from "../src/tokens/token_decoder.js";
+import { defaultPolicy } from "../src/policy/policy.js";
+import { SignalRegistry } from "../src/policy/registry.js";
+import { resolve as resolveSignals, device as deviceOf } from "../src/tokens/signals.js";
 
 // Compiled to dist/tests; the canonical shared fixtures live in verifiers/fixtures.
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)),

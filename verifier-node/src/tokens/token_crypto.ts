@@ -1,6 +1,6 @@
 // v2 ECIES token crypto (TokenCryptoV2.kt port) + the v1 discriminator.
 import { createPrivateKey, createDecipheriv, createHash, diffieHellman, generateKeyPairSync, createPublicKey } from "node:crypto";
-import { sha256 as hkdf } from "./hkdf.js";
+import { sha256 as hkdf } from "../attestation/hkdf.js";
 
 const PREFIX = "2:";
 const INFO_PREFIX = Buffer.from("intel-token-v2", "utf8");

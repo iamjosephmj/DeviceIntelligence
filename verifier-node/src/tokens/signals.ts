@@ -1,6 +1,6 @@
-import { SignalRegistry } from "./registry.js";
-import { Policy, isBlocking } from "./policy.js";
-import { ResolvedSignal } from "./models.js";
+import { SignalRegistry } from "../policy/registry.js";
+import { Policy, isBlocking } from "../policy/policy.js";
+import { ResolvedSignal } from "../model.js";
 
 const ATTR_KEYS = new Set(["path", "module_id", "needed", "links_hook_lib", "hooked_symbol",
   "hooked_by", "target", "ondisk_confirmed", "on_disk_prologue", "trampoline_class",

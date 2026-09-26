@@ -11,6 +11,6 @@ export function parse(text: string): X509Certificate[] {
 }
 
 export function pinnedRootsDefault(): X509Certificate[] {
-  const p = new URL("../resources/pinned-roots.txt", import.meta.url).pathname;
+  const p = new URL("../../resources/pinned-roots.txt", import.meta.url).pathname;
   return parse(readFileSync(p, "utf8"));
 }

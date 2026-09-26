@@ -1,7 +1,7 @@
 // RFC 5869 known-answer tests — via the hkdf module.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sha256 } from "../src/hkdf.js";
+import { sha256 } from "../src/attestation/hkdf.js";
 
 const IKM22 = Buffer.from("0b".repeat(22), "hex");
 

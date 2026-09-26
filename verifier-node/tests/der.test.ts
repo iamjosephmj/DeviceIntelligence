@@ -1,7 +1,7 @@
 // The minimal DER TLV reader (Der.kt port) — short/long/high-tag forms.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readTlv, tlvList, sequenceElements } from "../src/der.js";
+import { readTlv, tlvList, sequenceElements } from "../src/text/der.js";
 
 test("reads short form tlv", () => {
   const [tlv, nxt] = readTlv(Buffer.from([0x02, 0x01, 0x05]), 0);

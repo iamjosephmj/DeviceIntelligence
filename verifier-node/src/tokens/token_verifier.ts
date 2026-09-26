@@ -1,13 +1,13 @@
 // The v1-era verify flow (TokenVerifier.kt port): authenticity + TEE facts.
 import { verify as cryptoVerify, X509Certificate } from "node:crypto";
 import { decryptHex } from "./keystream.js";
-import { Policy, defaultPolicy } from "./policy.js";
-import { SignalRegistry } from "./registry.js";
-import { pinnedRootsDefault } from "./pinned_roots.js";
-import { challenge as attChallenge, fields as attFields } from "./attestation.js";
-import { parseChain, verifyToPinnedRoot } from "./chain_verifier.js";
+import { Policy, defaultPolicy } from "../policy/policy.js";
+import { SignalRegistry } from "../policy/registry.js";
+import { pinnedRootsDefault } from "../attestation/pinned_roots.js";
+import { challenge as attChallenge, fields as attFields } from "../attestation/attestation.js";
+import { parseChain, verifyToPinnedRoot } from "../attestation/chain_verifier.js";
 import { resolve as resolveSignals, device as deviceOf } from "./signals.js";
-import { Check, CheckKind, Decision, ResolvedSignal, VerificationResult } from "./models.js";
+import { Check, CheckKind, Decision, ResolvedSignal, VerificationResult } from "../model.js";
 
 const BINDING_SEP = "\n--BINDING\n";
 const FS = "\x1F";

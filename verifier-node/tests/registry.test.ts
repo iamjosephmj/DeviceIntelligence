@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SignalRegistry } from "../src/registry.js";
+import { SignalRegistry } from "../src/policy/registry.js";
 
 const REG = SignalRegistry.bundled();
 

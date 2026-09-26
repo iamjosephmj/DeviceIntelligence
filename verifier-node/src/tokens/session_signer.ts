@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Assurance, Session } from "./models.js";
+import { Assurance, Session } from "../model.js";
 
 export const DEFAULT_MAX_AGE_SECONDS = 24 * 60 * 60;
 

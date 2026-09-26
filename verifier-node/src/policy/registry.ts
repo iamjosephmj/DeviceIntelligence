@@ -24,7 +24,7 @@ export class SignalRegistry {
   }
   static bundled(): SignalRegistry {
     const p = path.join(path.dirname(new URL(import.meta.url).pathname),
-                        "../resources/signals-registry.json");
+                        "../../resources/signals-registry.json");
     return SignalRegistry.fromJson(readFileSync(p, "utf8"));
   }
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Policy, defaultPolicy, isBlocking } from "../src/policy.js";
+import { Policy, defaultPolicy, isBlocking } from "../src/policy/policy.js";
 
 const pol = (over: Partial<Policy> = {}): Policy => ({ ...defaultPolicy(), ...over });
 

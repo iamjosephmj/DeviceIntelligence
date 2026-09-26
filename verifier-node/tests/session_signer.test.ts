@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_MAX_AGE_SECONDS, SessionSigner } from "../src/session_signer.js";
-import { Assurance, Session } from "../src/models.js";
+import { DEFAULT_MAX_AGE_SECONDS, SessionSigner } from "../src/tokens/session_signer.js";
+import { Assurance, Session } from "../src/model.js";
 
 // Fixed lab HMAC key for stateless session tokens — shared by every port.
 const SERVER_KEY = Buffer.from("intel-lab-session-key-v1", "utf8");
