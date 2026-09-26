@@ -99,6 +99,7 @@ class ScanVerifier:
             return fail("not a v2 token")
         opened = _run(lambda: _v2_decrypt(token, server_priv))
         text = opened.get("value")
+        text = text.decode("utf-8") if isinstance(text, bytes) else text
         if not ck("envelope opens", text is not None):
             return fail("envelope did not open")
 
