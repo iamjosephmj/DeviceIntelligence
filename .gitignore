@@ -111,3 +111,9 @@ node_modules/
 
 # Python packaging
 *.egg-info/
+
+# AI-assistant local files (never commit)
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md

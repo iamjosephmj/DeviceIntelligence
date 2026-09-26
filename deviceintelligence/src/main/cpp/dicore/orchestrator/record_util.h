@@ -3,16 +3,18 @@
 #include <string>
 #include <vector>
 
-// US(0x1f)-framed record helpers shared across the orchestrator. Every verdict
-// record is `kind \x1f SEVERITY \x1f ...`, so severity is always field index 1.
-// "__meta"/"__status" rows carry a non-severity token there, so they never match
-// "CRITICAL". Extracted from dicore_orchestrate.cpp's anonymous namespace.
+#include "dicore/orchestrator/finding.h"
+
+// US(0x1f)-framed record helpers shared across the orchestrator. The framing
+// conventions (severity is field 1; "__meta"/"__status" rows are plumbing, not
+// findings) are interpreted ONLY by dicore/orchestrator/finding.h's
+// decode_record() — the helpers below delegate to it.
 
 namespace dicore {
 
-constexpr char kFS = '\x1f';
+// (kFS and the Finding/Severity types come from finding.h.)
 
-// True iff field[1] of a record is exactly "CRITICAL".
+// True iff the record decodes to a non-meta CRITICAL finding.
 bool is_critical(const std::string& rec);
 
 // Field [idx] (0-based) of a US-framed record, or "" if absent.
