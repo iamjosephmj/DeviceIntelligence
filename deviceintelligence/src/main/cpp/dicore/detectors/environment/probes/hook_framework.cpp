@@ -33,8 +33,8 @@ std::vector<std::string> hook_framework_records() {
     std::vector<std::string> raw, out;
     scan_runtime_maps(raw);
     const int api = android_get_device_api_level();
-    const std::string from = std::string(1, kFS) + "HIGH" + std::string(1, kFS);
-    const std::string to = std::string(1, kFS) + "CRITICAL" + std::string(1, kFS);
+    const std::string from = std::string(1, kFS) + std::string(severity_name(Severity::kHigh)) + std::string(1, kFS);
+    const std::string to = std::string(1, kFS) + std::string(severity_name(Severity::kCritical)) + std::string(1, kFS);
     for (auto& r : raw) {
         bool keep = false;
         bool restamp = true;   // most kept records escalate HIGH->CRITICAL

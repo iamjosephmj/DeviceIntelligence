@@ -105,4 +105,13 @@ inline std::string encode_record(const Finding& f) {
     return out;
 }
 
+// Drop-in for the append_field chain style: records assembled field-by-field
+// get their severity as a TYPE at the position-1 slot instead of a string
+// literal (a mistyped "CRITCAL" would decode as kUnknown and never count).
+inline std::string append_severity(std::string r, Severity s) {
+    r += kFS;
+    r += severity_name(s);
+    return r;
+}
+
 }  // namespace dicore

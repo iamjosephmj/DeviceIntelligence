@@ -79,7 +79,7 @@ std::vector<std::string> linker_maps_records() {
         for (const auto& v : vmas) if (o.exec_base >= v.s && o.exec_base < v.e) { hit = &v; break; }
         if (!hit || !hit->p.empty()) continue;   // linker-named .so at an EMPTY-path VMA only
         std::string r = "linker_maps_divergence";
-        r = append_field(r, "CRITICAL");   // FP-free by construction (validated 0/349 legit objects)
+        r = append_severity(r, Severity::kCritical);   // FP-free by construction (validated 0/349 legit objects)
         r = append_field(r, "linker .so with anon-exec segment");
         r = append_field(r, "object=" + o.name);
         char b[40]; std::snprintf(b, sizeof(b), "base=%#lx", (unsigned long)o.exec_base);

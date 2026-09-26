@@ -48,7 +48,7 @@ std::vector<std::string> property_divergence_records() {
         __system_property_read_callback(pi, dicore_prop_cb, via_cb);   // property-area path (bypasses the hook)
         if (std::strcmp(via_get, via_cb) == 0) continue;    // agreement -> clean
         std::string r = "property_divergence";
-        r = append_field(r, "CRITICAL");
+        r = append_severity(r, Severity::kCritical);
         r = append_field(r, "property diverges from raw-svc read");
         r = append_field(r, "hooked_symbol=__system_property_get");
         r = append_field(r, std::string("key=") + key);

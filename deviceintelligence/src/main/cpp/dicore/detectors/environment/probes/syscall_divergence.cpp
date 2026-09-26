@@ -72,7 +72,7 @@ std::vector<std::string> syscall_divergence_records() {
     // stat family are checked, so a hook on either is caught.
     auto emit = [&](const char* sym, const char* path) {
         std::string r = "syscall_divergence";
-        r = append_field(r, "CRITICAL");   // FP-free by construction; validated FP-clean on 3 OEMs
+        r = append_severity(r, Severity::kCritical);   // FP-free by construction; validated FP-clean on 3 OEMs
         r = append_field(r, "libc/raw file-query divergence");
         r = append_field(r, std::string("hooked_symbol=") + sym);
         r = append_field(r, std::string("path=") + path);

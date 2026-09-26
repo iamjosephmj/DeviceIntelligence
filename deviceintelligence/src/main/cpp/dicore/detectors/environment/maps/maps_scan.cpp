@@ -186,7 +186,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
     // Signal A: foreign executable code mapped (provenance) — one record per distinct path.
     for (const auto& fp : foreign_paths) {
         std::string r = "foreign_text_mapped";
-        r = append_field(r, "HIGH");
+        r = append_severity(r, Severity::kHigh);
         r = append_field(r, "foreign exec mapping outside code roots");
         r = append_field(r, "path=" + fp);
         // C#1: module id from the mapping path (our own maps, no root file access needed).
@@ -240,7 +240,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                     uintptr_t slot = off + k * sizeof(uintptr_t);
                     std::string sym = lib_base ? resolve_reloc_symbol(lib_base, slot - lib_base) : "";
                     std::string r = "got_ptr_hijack";
-                    r = append_field(r, "HIGH");
+                    r = append_severity(r, Severity::kHigh);
                     r = append_field(r, "GOT/data pointer targets foreign exec code");
                     r = append_field(r, "lib=" + lib);
                     if (!sym.empty()) r = append_field(r, "hooked_symbol=" + sym);
@@ -314,7 +314,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                     bool have_disk = native_integrity::libc_ondisk_bytes((uintptr_t)p, disk, sizeof(disk));
                     if (have_disk && prologue_looks_hooked(disk)) continue;  // legit on-disk thunk -> not a hook
                     std::string r = "libc_inline_stub";
-                    r = append_field(r, "HIGH");
+                    r = append_severity(r, Severity::kHigh);
                     r = append_field(r, "libc prologue: absolute-jump trampoline");
                     r = append_field(r, "hooked_symbol=" + std::string(fn));
                     char tb[40]; std::snprintf(tb, sizeof(tb), "target=%#lx", (unsigned long)tgt);
@@ -341,7 +341,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
                 continue;   // no confirmed-foreign target -> INTEL_0003 does not fire
             }
             std::string r = "libc_inline_hook";
-            r = append_field(r, "HIGH");
+            r = append_severity(r, Severity::kHigh);
             r = append_field(r, "libc prologue: branch into foreign code");
             r = append_field(r, "hooked_symbol=" + std::string(fn));
             if (!mod.empty()) r = append_field(r, "hooked_by=" + mod);
@@ -355,7 +355,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
     // hook_framework_present — one per distinct framework (HIGH).
     for (const auto& fw : frameworks) {
         std::string r = "hook_framework_present";
-        r = append_field(r, "HIGH");
+        r = append_severity(r, Severity::kHigh);
         r = append_field(r, "Hook framework library mapped into process address space (" + fw + ")");
         r = append_field(r, "framework=" + fw);
         out.push_back(r);
@@ -403,7 +403,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
     // rwx_memory_mapping — single finding if any RWX region (HIGH), enriched per region.
     if (!rwx_regions.empty()) {
         std::string r = "rwx_memory_mapping";
-        r = append_field(r, "HIGH");
+        r = append_severity(r, Severity::kHigh);
         r = append_field(r, "writable+executable mapping detected");
         r = append_field(r, "region_count=" + std::to_string(rwx_regions.size()));
         int hook_stub_regions = 0;
@@ -434,7 +434,7 @@ void scan_runtime_maps(std::vector<std::string>& out) {
     // frida_memfd_jit_present — single finding if any memfd JIT region (HIGH).
     if (!memfd_regions.empty()) {
         std::string r = "frida_memfd_jit_present";
-        r = append_field(r, "HIGH");
+        r = append_severity(r, Severity::kHigh);
         r = append_field(r, "foreign JIT/gum code range in maps");
         r = append_field(r, "region_count=" + std::to_string(memfd_regions.size()));
         for (size_t i = 0; i < memfd_regions.size(); ++i)

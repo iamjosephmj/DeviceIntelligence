@@ -24,6 +24,7 @@
 // frida tokens an attacker would patch out are not plainly visible.
 
 #include "dicore/core/verdict_cores.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/platform/obf.h"  // DI_OBF_MAX
 
 #include <arpa/inet.h>
@@ -118,21 +119,20 @@ bool frida_worker_thread(std::string& which) {
 
 DI_OBF_MAX
 std::vector<std::string> antidebug_verdict_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     // --- debugger_attached: a tracer that is NOT our own watchdog ---------------
     int tracer = read_tracer_pid();
     if (tracer != 0) {
-        out.push_back(std::string("debugger_attached") + kFS + "CRITICAL" + kFS +
-                      "tracer_pid=" + std::to_string(tracer));
+        out.push_back(encode_record(make_finding("debugger_attached", Severity::kCritical,
+            {"tracer_pid=" + std::to_string(tracer)})));
     }
 
     // --- frida_server_port: default frida-server loopback ports -----------------
     for (int port : {27042, 27043}) {
         if (frida_port_listening(port)) {
-            out.push_back(std::string("frida_server_port") + kFS + "CRITICAL" + kFS +
-                          "port=" + std::to_string(port));
+            out.push_back(encode_record(make_finding("frida_server_port", Severity::kCritical,
+                {"port=" + std::to_string(port)})));
             break;
         }
     }
@@ -140,8 +140,8 @@ std::vector<std::string> antidebug_verdict_records() {
     // --- frida_worker_thread: agent/gadget worker thread names ------------------
     std::string which;
     if (frida_worker_thread(which)) {
-        out.push_back(std::string("frida_worker_thread") + kFS + "CRITICAL" + kFS +
-                      "comm=" + which);
+        out.push_back(encode_record(make_finding("frida_worker_thread", Severity::kCritical,
+            {"comm=" + which})));
     }
 
     // --- hook_framework_present: a mapped/anon-named hook-framework library ------

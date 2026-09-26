@@ -12,6 +12,7 @@
 // mapped payloads ((deleted)).
 
 #include "dicore/core/verdict_cores.h"
+#include "dicore/orchestrator/finding.h"
 #include "dicore/detectors/environment/maps/anon_exec.hpp"
 #include "dicore/detectors/environment/maps/maps_parse.h"
 #include "dicore/platform/obf.h"
@@ -33,7 +34,6 @@ constexpr size_t kDetailRegions = 8;
 
 DI_OBF_ORCH
 std::vector<std::string> anon_exec_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     std::string maps;
@@ -47,11 +47,7 @@ std::vector<std::string> anon_exec_records() {
     if (n == 0) return {};
 
     // kind \x1f SEVERITY \x1f k=v|k=v...
-    std::string r = "injected_executable_mapping";
-    r += kFS;
-    r += "HIGH";
-    r += kFS;
-    r += "region_count=" + std::to_string(n);
+    std::string r = "region_count=" + std::to_string(n);
     if (n == 128) r += "|overflow=1";
     for (size_t i = 0; i < n && i < kDetailRegions; ++i) {
         char rb[384];
@@ -66,7 +62,7 @@ std::vector<std::string> anon_exec_records() {
         r += rb;
     }
     if (n > kDetailRegions) r += "|more=" + std::to_string(n - kDetailRegions);
-    out.push_back(r);
+    out.push_back(encode_record(make_finding("injected_executable_mapping", Severity::kHigh, {r})));
     return out;
 }
 

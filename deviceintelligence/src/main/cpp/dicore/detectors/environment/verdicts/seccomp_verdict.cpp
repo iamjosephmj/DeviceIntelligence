@@ -1,4 +1,5 @@
 #include "dicore/detectors/environment/verdicts/seccomp_verdict.h"
+#include "dicore/orchestrator/finding.h"
 
 #include <cerrno>
 #include <cstdio>
@@ -54,21 +55,20 @@ bool seccomp_user_notif_listener_present() {
 // filter is actively blocking kill — a hostile, high-confidence tamper signal. A
 // benign allow-all filter passes the probe and is correctly ignored.
 std::vector<std::string> seccomp_verdict_records() {
-    constexpr char kFS = '\x1f';
     std::vector<std::string> out;
 
     int rc = kill(getpid(), 0);
     int saved_errno = errno;
     if (kill_probe_indicates_filter(rc, saved_errno)) {
-        out.push_back(std::string("seccomp_kill_filtered") + kFS + "CRITICAL" + kFS +
-                      "errno=" + std::to_string(saved_errno));
+        out.push_back(encode_record(make_finding("seccomp_kill_filtered", Severity::kCritical,
+            {"errno=" + std::to_string(saved_errno)})));
     }
 
     // USER_NOTIF interceptor: a self-held seccomp-notify listener fd (the /proc-spoof
     // primitive the kill probe above cannot see).
     if (seccomp_user_notif_listener_present()) {
-        out.push_back(std::string("seccomp_user_notif_listener") + kFS + "CRITICAL" + kFS +
-                      "self-held SECCOMP_RET_USER_NOTIF listener fd (syscall interception)");
+        out.push_back(encode_record(make_finding("seccomp_user_notif_listener", Severity::kCritical,
+            {"self-held SECCOMP_RET_USER_NOTIF listener fd (syscall interception)"})));
     }
     return out;
 }

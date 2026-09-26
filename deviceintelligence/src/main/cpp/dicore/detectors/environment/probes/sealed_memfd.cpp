@@ -63,7 +63,7 @@ std::vector<std::string> sealed_memfd_records() {
         for (const auto& p : exec_memfd) if (p == tgt) { exec = true; break; }
         if (!exec) continue;
         std::string r = "sealed_exec_memfd";
-        r = append_field(r, "CRITICAL");   // FP-free by construction (sealed+exec memfd; ordinary apps never map one)
+        r = append_severity(r, Severity::kCritical);   // FP-free by construction (sealed+exec memfd; ordinary apps never map one)
         r = append_field(r, "sealed executable memfd mapped");
         std::string oname(tgt);
         size_t del = oname.find(" (deleted)");
