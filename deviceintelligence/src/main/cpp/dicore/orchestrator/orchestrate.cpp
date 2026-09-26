@@ -458,8 +458,9 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
     // Count-only cores (per-finding detail in logcat for now) -> summary records.
     if (int n = count_native_integrity_critical(); n > 0) {
         critical += n;
-        out.push_back(std::string("native") + kFS + "native_integrity_critical" +
-                      kFS + "CRITICAL" + kFS + "count=" + std::to_string(n));
+        out.push_back(std::string("native") + kFS +
+                  encode_record(make_finding("native_integrity_critical",
+                      Severity::kCritical, {"count=" + std::to_string(n)})));
     }
     // G10 — libart .text vs the on-disk file. Emits per-site records with the
     // patch offset and bytes, so a hook inside ART's own code is reported with
@@ -468,8 +469,9 @@ std::vector<std::string> dicore_verdict(JNIEnv* env) {
     append(out, "self_hook", prologue_verdict_records(), critical);
     if (int n = env ? count_art_hook_critical(env) : 0; n > 0) {
         critical += n;
-        out.push_back(std::string("art") + kFS + "art_hook_critical" +
-                      kFS + "CRITICAL" + kFS + "count=" + std::to_string(n));
+        out.push_back(std::string("art") + kFS +
+                  encode_record(make_finding("art_hook_critical",
+                      Severity::kCritical, {"count=" + std::to_string(n)})));
     }
     // cloner REMOVED from the verdict (false-positive prone): work profiles and
     // dual-app (Samsung Dual Messenger, Xiaomi Dual Apps, Island, Shelter) are

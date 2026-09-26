@@ -9,6 +9,8 @@
 
 #include "dicore/detectors/cloner/cloner_probe.h"
 
+#include "dicore/orchestrator/finding.h"
+
 #include <jni.h>
 #include <string>
 #include <vector>
@@ -18,17 +20,13 @@ namespace {
 // Records use US (0x1f) as the field separator so embedded paths / mount dumps
 // (which contain '|', '/', '=') never collide with the framing. Each record is:
 //   kind \x1f SEVERITY \x1f message \x1f k=v \x1f k=v ...
-constexpr char kFS = '\x1f';
-
-std::string make_record(const char* kind, const char* severity, const char* message,
+std::string make_record(const char* kind, dicore::Severity severity, const char* message,
                         const std::vector<std::string>& details) {
-    std::string r;
-    r.reserve(128);
-    r += kind;       r += kFS;
-    r += severity;   r += kFS;
-    r += message;
-    for (const auto& kv : details) { r += kFS; r += kv; }
-    return r;
+    std::vector<std::string> fields;
+    fields.reserve(1 + details.size());
+    fields.push_back(std::string(message));
+    fields.insert(fields.end(), details.begin(), details.end());
+    return dicore::encode_record(dicore::make_finding(kind, severity, std::move(fields)));
 }
 
 // Is [pkg] present as a full element of a '|'-separated [list]?
@@ -67,7 +65,7 @@ std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int j
     bool apk_emitted = false;
     if (dicore::cloner::find_foreign_apk_in_maps(pkg, buf, sizeof(buf)) > 0) {
         records.push_back(make_record(
-            "apk_path_mismatch", "CRITICAL",
+            "apk_path_mismatch", Severity::kCritical,
             "Foreign APK mapping detected in process address space",
             {std::string("signal=foreign_apk_in_maps"),
              std::string("expected_package=") + pkg,
@@ -79,7 +77,7 @@ std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int j
         int n = dicore::cloner::read_apk_path_from_maps(first, sizeof(first));
         if (n > 0 && !dicore::cloner::path_has_pkg_component(first, pkg)) {
             records.push_back(make_record(
-                "apk_path_mismatch", "CRITICAL",
+                "apk_path_mismatch", Severity::kCritical,
                 "Process's first base.apk mapping does not belong to our package",
                 {std::string("signal=first_apk_mapping"),
                  std::string("expected_package=") + pkg,
@@ -104,7 +102,7 @@ std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int j
             pos = bar + 1;
         }
         records.push_back(make_record(
-            "data_dir_mount_invalid", "CRITICAL",
+            "data_dir_mount_invalid", Severity::kCritical,
             "Suspicious mount touches our data dir (tmpfs or foreign-source)",
             details));
         mount_emitted = true;
@@ -125,7 +123,7 @@ std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int j
                 pos = bar + 1;
             }
             records.push_back(make_record(
-                "data_dir_mount_invalid", "CRITICAL",
+                "data_dir_mount_invalid", Severity::kCritical,
                 "Process is in a mount namespace that doesn't include our data dir",
                 {std::string("signal=foreign_mount_namespace"),
                  std::string("expected_package=") + pkg,
@@ -137,7 +135,7 @@ std::vector<std::string> cloner_verdict_records(const std::string& pkgStr, int j
     int kernel_uid = dicore::cloner::read_kernel_uid_from_status();
     if (kernel_uid >= 0 && kernel_uid != (int)javaUid) {
         records.push_back(make_record(
-            "uid_mismatch", "HIGH",
+            "uid_mismatch", Severity::kHigh,
             "Kernel-reported UID disagrees with Java-level Process.myUid()",
             {std::string("java_uid=") + std::to_string((int)javaUid),
              std::string("kernel_uid=") + std::to_string(kernel_uid)}));
