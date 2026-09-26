@@ -1,0 +1,16 @@
+=== authenticity (is the token genuine & fresh?) ===
+  [FAIL] session valid  (sessionId forged/expired -> re-enroll)
+=== device integrity (what the TEE reports) ===
+=== signals (device reports; policy decides) ===
+  device: Pixel 6 Pro / API 36 / arm64-v8a
+  [BLOCK] INTEL_0000 dex/dex_foreign_loader (CRITICAL)
+
+RESULT: ❌ REJECT — not a genuine/fresh binding; do not trust it.
+
+
+Execution failed for task ':verifier-kotlin:run'.
+
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
