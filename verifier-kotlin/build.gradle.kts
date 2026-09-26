@@ -1,7 +1,16 @@
+import com.vanniktech.maven.publish.KotlinJvm
+import com.vanniktech.maven.publish.JavadocJar
+
 plugins {
     id("deviceintelligence.jvm")   // convention: Kotlin/JVM, Java 17, toolchain 17
-    application       // core Gradle plugin — for the optional CLI (`:verifier:run`)
+    application       // core Gradle plugin — for the optional CLI (`:verifier-kotlin:run`)
+    `maven-publish`
+    id("com.vanniktech.maven.publish") version "0.34.0"
 }
+
+group = providers.gradleProperty("GROUP_ID").get()
+version = providers.gradleProperty("VERSION_NAME").get()
+// artifactId defaults to the project name: "verifier-kotlin".
 
 application {
     mainClass.set("tech.thessemaj.deviceintelligence.verifier.CliKt")
@@ -33,14 +42,7 @@ tasks.test {
     testLogging { events("passed", "failed", "skipped") }
 }
 
-// ---- Maven Central publication (same pipeline as the AAR + plugin) --------
-// Coordinates from the root gradle.properties: tech.thessemaj:verifier-kotlin:<VERSION_NAME>.
-import com.vanniktech.maven.publish.KotlinJvm
-import com.vanniktech.maven.publish.JavadocJar
-
-group = providers.gradleProperty("GROUP_ID").get()
-version = providers.gradleProperty("VERSION_NAME").get()
-
+// Maven Central (Sonatype Central Portal) + signing, via vanniktech.
 mavenPublishing {
     configure(KotlinJvm(javadocJar = JavadocJar.Javadoc(), sourcesJar = true))
     publishToMavenCentral(automaticRelease = true)
@@ -48,7 +50,6 @@ mavenPublishing {
     if (providers.gradleProperty("signingInMemoryKey").isPresent) {
         signAllPublications()
     }
-    coordinates(providers.gradleProperty("GROUP_ID").get(), "verifier-kotlin", providers.gradleProperty("VERSION_NAME").get())
     pom {
         name.set("DeviceIntelligence Verifier (Kotlin/JVM)")
         description.set(
