@@ -16,8 +16,9 @@ namespace dicore {
 // Called once from JNI_OnLoad to cache the JavaVM for later up-calls.
 void framework_shim_set_vm(JavaVM* vm);
 
-// The cached JavaVM (or null before JNI_OnLoad). Used by the continuous re-sweep
-// thread to attach its own JNIEnv for the env-using cores (ART hook scan).
+// The cached JavaVM (or null before JNI_OnLoad). Any thread that needs a
+// framework value attaches its own JNIEnv around the call — see
+// docs/thread-ownership.md for the authoritative thread map.
 JavaVM* framework_shim_get_vm();
 
 // One up-call per framework value (no-arg static methods on FrameworkShim).
