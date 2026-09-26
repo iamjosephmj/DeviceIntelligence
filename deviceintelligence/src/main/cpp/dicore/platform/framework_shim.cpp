@@ -82,10 +82,12 @@ jobject fw_call(ScopedEnv& e, int op, jobject arg) {
     return r;
 }
 
-std::string fw_call_string(int op) {
+// (value, known): known == false exactly when the shim returned null (the
+// fail-open path). The plain-string wrapper keeps its old signature.
+static std::pair<std::string, bool> fw_call_string_impl(int op) {
     ScopedEnv e;
     jobject r = fw_call(e, op, nullptr);
-    if (!r) return "";
+    if (!r) return {"", false};
     // B1: string marshalling through the JNI_OnLoad vtable snapshot (the
     // table is process-wide, so the fns captured on the OnLoad env are valid
     // for this attached thread's env too — same reasoning as fw_call_int). A
@@ -103,8 +105,13 @@ std::string fw_call_string(int op) {
         else e.env->ReleaseStringUTFChars((jstring)r, p);
     }
     e.env->DeleteLocalRef(r);
-    return s;
+    return {s, true};
 }
+
+std::string fw_call_string(int op) { return fw_call_string_impl(op).first; }
+
+FwValue fw_strongbox_feature() { auto [v, ok] = fw_call_string_impl(16); return {v, ok}; }
+FwValue fw_signing_digest()    { auto [v, ok] = fw_call_string_impl(17); return {v, ok}; }
 
 int fw_call_int(int op) {
     ScopedEnv e;
@@ -401,8 +408,6 @@ std::string fw_installer_package() { return fw_call_string(4); }
 
 // "1"/"0"/"" — whether this device declares FEATURE_STRONGBOX_KEYSTORE. Acquisition
 // only; the backend decides what it means (see FrameworkShim.a18).
-std::string fw_strongbox_feature() { return fw_call_string(16); }
-std::string fw_signing_digest()    { return fw_call_string(17); }
 std::string fw_fingerprint_raw()   { return fw_call_string(18); }
 
 // Enumerate this app's split APKs from /proc/self/maps natively: every mapped

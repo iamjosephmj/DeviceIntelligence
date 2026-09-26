@@ -738,12 +738,17 @@ jstring JNICALL anchors::nat_challenge(JNIEnv* env, jclass, jstring sidJ, jstrin
     int api = android_get_device_api_level();
     DeviceIdentity id = fw_device_identity();
 
+    // A known StrongBox answer grades the device honestly; an UNKNOWN one must
+    // not silently read as "no feature" — it is emitted as "" for the backend to
+    // treat as its own case (the enroll-bundle contract, framework_shim.h).
+    const auto sb = fw_strongbox_feature();
+    const auto signer = fw_signing_digest();   // unknown == shim failed -> "" on the wire
     std::string sc = std::string("{\"schemaVersion\":4,\"type\":\"scan\",\"sessionId\":\"") +
         json_escape(sid) + "\",\"name\":\"" + json_escape(name) +
         "\",\"ts\":" + std::to_string((long long)time(nullptr)) +
         ",\"bootstrap\":" + (bootstrap ? "true" : "false") +
         ",\"app\":{\"package\":\"" + json_escape(fw_package_name()) +
-        "\",\"signer\":\"" + json_escape(fw_signing_digest()) + "\"}";
+        "\",\"signer\":\"" + json_escape(signer.known ? signer.value : std::string()) + "\"}";
     if (bootstrap) sc += ",\"attestedKey\":\"" + json_escape(attestedKey) + "\"";
     if (!fallbackKey.empty()) sc += ",\"softwareKey\":\"" + json_escape(fallbackKey) + "\"";
 
@@ -766,7 +771,7 @@ jstring JNICALL anchors::nat_challenge(JNIEnv* env, jclass, jstring sidJ, jstrin
         "\",\"vbs\":\"" + json_escape(dicore_prop_get("ro.boot.verifiedbootstate")) +
         "\",\"blocked\":\"" + json_escape(dicore_prop_get("ro.boot.flash.locked")) +
         "\",\"vbmeta\":\"" + json_escape(dicore_prop_get("ro.boot.vbmeta.device_state")) +
-        "\",\"sbFeature\":\"" + json_escape(fw_strongbox_feature()) +
+        "\",\"sbFeature\":\"" + json_escape(sb.known ? sb.value : std::string()) +
         "\"},\"signals\":" + sigArr;
 
     // ---- the signing ladder --------------------------------------------------

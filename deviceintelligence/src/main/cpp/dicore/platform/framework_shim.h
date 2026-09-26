@@ -25,16 +25,28 @@ JavaVM* framework_shim_get_vm();
 std::string fw_package_name();
 std::string fw_source_dir();
 std::string fw_installer_package();
-// "1" if the device declares FEATURE_STRONGBOX_KEYSTORE, "0" if not, "" if unknown.
-// Reported into the enroll bundle so the backend can tell a genuinely StrongBox-less
-// device from one whose StrongBox keygen failed transiently.
-std::string fw_strongbox_feature();
 
-// SHA-256 (lowercase hex) of this APK's first signing certificate; "" if unknown.
+// A framework value plus whether the up-call actually SUCCEEDED. kUnknown
+// (known == false) means "the shim could not answer" — the fail-open sentinel —
+// and must never be conflated with a known-empty value. Callers that keep the
+// plain std::string signatures get the old ""-on-failure behaviour unchanged.
+struct FwValue {
+    std::string value;
+    bool known = false;
+};
+
+// "1" if the device declares FEATURE_STRONGBOX_KEYSTORE, "0" if not; known
+// tells a genuinely StrongBox-less device apart from one whose StrongBox
+// keygen failed transiently (that distinction is the whole point of the
+// report — unknown must not silently grade as "no feature").
+FwValue fw_strongbox_feature();
+
+// SHA-256 (lowercase hex) of this APK's first signing certificate; a
+// known-empty result is valid, unknown means the up-call failed.
 // A SELF-REPORT: app-visible and patchable, so it carries no weight on its own. It
 // is on the wire only to be cross-checked backend-side against the TEE-signed
 // attestationApplicationId — the DISAGREEMENT is the finding.
-std::string fw_signing_digest();
+FwValue fw_signing_digest();
 
 // The fingerprint inputs that need the JVM, '\n'-joined in a fixed order:
 //   widevineId, widevineLevel, androidId
