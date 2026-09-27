@@ -10,6 +10,13 @@ Three principles shape everything:
 - **Hardware-bound sessions.** Hardware attestation runs once per session, keyed to the session id *your* backend issued at login. The attested key signs every later scan, so a captured token is worthless anywhere else — and every token names the user it belongs to.
 - **Opaque on the wire.** The token carries codes, not explanations. Detector names, probe mechanisms and evasion semantics never leave the device; your backend resolves them from the registry and grades what it sees.
 
+## Backend verifiers in six languages
+
+The same contract, ported and parity-tested: Kotlin (the reference), Python,
+TypeScript/Node, Go, PHP and Ruby. Every port grades the shared rooted-Pixel
+capture identically. See [Backend verifiers](verifiers.md) for per-language
+quick starts and coverage.
+
 ## Quick start
 
 Apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:

@@ -27,10 +27,13 @@ theme:
 
 nav:
   - Home: index.md
-  - Android: android.md
-  - Backend: backend.md
+  - Android integration: android.md
+  - Backend verification: backend.md
+  - Verifier ports: verifiers.md
   - Keys & licences: keys.md
   - Signal catalogue: signal-catalogue.md
+  - Verification spec: verification-spec.md
+  - Thread ownership: thread-ownership.md
 
 markdown_extensions:
   - tables
