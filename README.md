@@ -1,19 +1,58 @@
-# DeviceIntelligence 🐍
+# DeviceIntelligence
 
-Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
+Device-integrity detection for Android. On-device detectors grade the environment — hardware attestation, verified boot, hook frameworks, root, emulators, APK tampering — and report findings as opaque `INTEL_XXXX` codes inside a signed, encrypted token. Your backend opens it and decides.
 
 <p align="left">
-  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg?style=for-the-badge">
-  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white">
-  <img alt="Maven Central" src="https://img.shields.io/maven-central/v/tech.thessemaj/deviceintelligence?style=for-the-badge">
-  <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=for-the-badge&logo=githubsponsors"></a>
+  <a href="https://github.com/iamjosephmj/DeviceIntelligence/actions/workflows/unit-tests.yml"><img alt="CI" src="https://github.com/iamjosephmj/DeviceIntelligence/actions/workflows/unit-tests.yml/badge.svg?branch=main"></a>
+  <img alt="Min SDK" src="https://img.shields.io/badge/minSdk-28-green.svg?style=flat">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg?style=flat&logo=kotlin&logoColor=white">
+  <img alt="Maven Central" src="https://img.shields.io/maven-central/v/tech.thessemaj/deviceintelligence?style=flat">
+  <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=flat&logo=githubsponsors"></a>
 </p>
 
-### 📚 [docs.iamjosephmj — the full documentation lives here](https://iamjosephmj.github.io/DeviceIntelligence/)
+📚 **[Full documentation](https://iamjosephmj.github.io/DeviceIntelligence/)** — Android integration, backend verification, keys & licences, the decoded signal catalogue, and the verification spec.
 
-Integration guides, the backend verifier, keys & licences, and the decoded signal catalogue — all on the docs site.
+## The device reports. Your backend decides.
 
-🙏 If you like DeviceIntelligence you can show support by starring ⭐ this repository.
+Three principles, no exceptions:
+
+1. **Detection only** — nothing is killed or blocked on-device; enforcement lives where the attacker isn't.
+2. **Hardware-bound sessions** — attestation runs once per login, keyed to *your* session id; the attested key signs every later scan.
+3. **Opaque on the wire** — tokens carry codes, not explanations. Probe mechanisms never leave the device.
+
+## Backend verifiers — six languages, one verdict
+
+Every port grades the same rooted-device capture identically. CI runs all six suites in parallel on every push.
+
+| Language | Path | Install | Test |
+|---|---|---|---|
+| Kotlin *(reference)* | [`verifier-kotlin/`](verifier-kotlin/) | Maven Central: `tech.thessemaj:verifier-kotlin:3.0.0` | `./gradlew :verifier-kotlin:test` |
+| Python | [`verifier-python/`](verifier-python/) | `pip install -e verifier-python` | `pytest verifier-python/tests` |
+| TypeScript | [`verifier-node/`](verifier-node/) | `npm install ./verifier-node` | `npm test` |
+| Go | [`verifier-go/`](verifier-go/) | vendored module | `go test ./...` |
+| PHP | [`verifier-php/`](verifier-php/) | Composer path repo | `php tests/run_tests.php` |
+| Ruby | [`verifier-ruby/`](verifier-ruby/) | gemspec | minitest suite |
+
+## Quick start
+
+Android (the Gradle plugin adds the runtime AAR, hashes your APK, re-signs):
+
+```kotlin
+plugins { id("tech.thessemaj.deviceintelligence") version "3.0.0" }
+```
+
+Backend (any language — this is the whole integration):
+
+```kotlin
+val result = ScanVerifier().verifyScan(token, sessionId, serverPrivateKey)
+when (result.decision) {
+    Decision.TRUSTWORTHY -> allow()
+    Decision.COMPROMISED -> stepUp(result.blockingSignals)
+    Decision.REJECT      -> deny()
+}
+```
+
+Keys, provisioning and the full flow: [the docs](https://iamjosephmj.github.io/DeviceIntelligence/).
 
 ## License
 
