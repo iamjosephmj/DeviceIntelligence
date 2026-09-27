@@ -10,6 +10,15 @@ Device-integrity detection for Android. On-device detectors grade the environmen
   <a href="https://github.com/sponsors/iamjosephmj"><img alt="GitHub Sponsors" src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-DB61A2.svg?style=flat&logo=githubsponsors"></a>
 </p>
 
+<p align="left">
+  <a href="verifier-kotlin/"><img alt="Kotlin verifier" src="https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg?style=flat&logo=kotlin&logoColor=white"></a>
+  <a href="verifier-python/"><img alt="Python verifier" src="https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white"></a>
+  <a href="verifier-node/"><img alt="Node verifier" src="https://img.shields.io/badge/Node-20-339933.svg?style=flat&logo=nodedotjs&logoColor=white"></a>
+  <a href="verifier-go/"><img alt="Go verifier" src="https://img.shields.io/badge/Go-1.22-00ADD8.svg?style=flat&logo=go&logoColor=white"></a>
+  <a href="verifier-php/"><img alt="PHP verifier" src="https://img.shields.io/badge/PHP-8.3-777BB4.svg?style=flat&logo=php&logoColor=white"></a>
+  <a href="verifier-ruby/"><img alt="Ruby verifier" src="https://img.shields.io/badge/Ruby-3.2-CC342D.svg?style=flat&logo=ruby&logoColor=white"></a>
+</p>
+
 📚 **[Full documentation](https://iamjosephmj.github.io/DeviceIntelligence/)** — Android integration, backend verification, keys & licences, the decoded signal catalogue, and the verification spec.
 
 ## The device reports. Your backend decides.
