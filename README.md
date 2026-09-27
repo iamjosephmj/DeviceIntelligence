@@ -44,6 +44,11 @@ Every port grades the same rooted-device capture identically. CI runs all seven 
 | Ruby | [`verifier-ruby/`](verifier-ruby/) | gemspec | minitest suite |
 | Rust | [`verifier-rust/`](verifier-rust/) | vendored crate | `cargo test` |
 
+**Testing without a device?** [`deviceintelligence-lab`](lab-python/) is a pip-installable
+lab that mints attestation chains and issues verdict tokens — `di-lab mint-chain`, then
+`di-lab issue-token`, and pin the root it prints. Authentic-but-COMPROMISED spoofed devices
+are one keyword away. See [the docs](https://iamjosephmj.github.io/DeviceIntelligence/token-lab/).
+
 ## Quick start
 
 Android (the Gradle plugin adds the runtime AAR, hashes your APK, re-signs):

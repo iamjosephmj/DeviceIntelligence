@@ -43,6 +43,7 @@ nav:
   - Android integration: android.md
   - Backend verification: backend.md
   - Verifier ports: verifiers.md
+  - Test-token lab: token-lab.md
   - Keys & licences: keys.md
   - Signal catalogue: signal-catalogue.md
   - Verification spec: verification-spec.md

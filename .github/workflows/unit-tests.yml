@@ -162,3 +162,24 @@ jobs:
       - name: Rust verifier tests
         working-directory: verifier-rust
         run: cargo test
+
+  # The lab package mints chains/tokens; its round-trip suite drives the
+  # verifier package, so both are installed.
+  python-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: |
+          python -m pip install --quiet pytest
+          python -m pip install --quiet -e verifier-python
+          python -m pip install --quiet -e lab-python
+
+      - name: Lab round-trip tests
+        run: python -m pytest lab-python/tests -q
