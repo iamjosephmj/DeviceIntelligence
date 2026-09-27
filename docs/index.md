@@ -1,58 +1,218 @@
-# DeviceIntelligence 🐍
+---
+template: home.html
+social:
+  cards_layout_options:
+    title: Can this phone be trusted?
+---
 
-DeviceIntelligence answers one question for your backend: **can this phone be trusted?**
+## Six languages. One verdict.
 
-A rooted, hooked or spoofed device lies to your app about everything — the files on disk, the values of its own properties, the provenance of the code running inside it. DeviceIntelligence sends a sensor into that minefield: on-device detectors probe hardware attestation, verified boot, hook frameworks, root, syscall filtering, package tampering and emulated environments, and report what they find as opaque `INTEL_XXXX` codes inside a signed, encrypted token.
+<div class="grid cards" markdown>
 
-Three principles shape everything:
+-   :material-language-kotlin:{ .lg .middle } __Kotlin — the reference__
 
-- **Detection only.** The device reports; the backend decides. Nothing is killed, blocked, or degraded on-device — anything the app could enforce, a rooted attacker can remove. Enforcement lives where the attacker isn't.
-- **Hardware-bound sessions.** Hardware attestation runs once per session, keyed to the session id *your* backend issued at login. The attested key signs every later scan, so a captured token is worthless anywhere else — and every token names the user it belongs to.
-- **Opaque on the wire.** The token carries codes, not explanations. Detector names, probe mechanisms and evasion semantics never leave the device; your backend resolves them from the registry and grades what it sees.
+    ---
 
-## Backend verifiers in six languages
+    The original backend verifier, published on Maven Central as
+    `tech.thessemaj:verifier-kotlin`. Scan + token flows, zero dependencies.
 
-The same contract, ported and parity-tested: Kotlin (the reference), Python,
-TypeScript/Node, Go, PHP and Ruby. Every port grades the shared rooted-Pixel
-capture identically. See [Backend verifiers](verifiers.md) for per-language
-quick starts and coverage.
+    [:arrow_forward: Quick start](backend.md)
 
-## Quick start
+-   :material-language-python:{ .lg .middle } __Python__
 
-Apply the Gradle plugin; it adds the runtime AAR, hashes your APK at build time, and re-signs:
+    ---
 
-```kotlin
-plugins {
-    id("tech.thessemaj.deviceintelligence") version "3.0.0"
-}
-```
+    Pip-installable port with the full token path and the scan-verification
+    flow. Runs the same rooted-Pixel fixture, grades it the same.
 
-Provision one X25519 keypair on your machine — never in a build, never on a device:
+    [:arrow_forward: Quick start](verifiers.md)
 
-```sh
-python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
-```
+-   :material-language-typescript:{ .lg .middle } __TypeScript / Node__
 
-Ship `server.key` as an app asset at `assets/tech.thessemaj.deviceintelligence/server.key`; the private half belongs to your backend. Then three calls:
+    ---
 
-```kotlin
-DeviceIntelligence.initialize(application)      // once, local, ~3 ms
-DeviceIntelligence.setSession(sessionId)        // once per session, ~175 ms, off the UI thread
-val token = DeviceIntelligence.scan("checkout") // per request, ~150 ms
-myBackend.submit(token)
-```
+    Feature-packaged npm module with a flat facade — token path complete,
+    scan flow on the roadmap.
 
-All three are suspend functions. Send the token even when the first two return false — a degraded token names the failure, and your backend grades it.
+    [:arrow_forward: Quick start](verifiers.md)
 
-## Verdicts
+-   :material-language-go:{ .lg .middle } __Go__
 
-- **TRUSTWORTHY** — authentic and clean.
-- **COMPROMISED** — authentic, but the device reports an untrustworthy state.
-- **REJECT** — forged, replayed, or re-signed.
+    ---
 
-## Where next
+    Stdlib-only module: `crypto/ecdh` X25519, AES-GCM, `crypto/x509` chain
+    verification, embedded registry and pinned roots.
 
-- [Android integration](android.md) — repositories, plugin styles, per-call contracts.
-- [Backend verification](backend.md) — the `verifier` module and the decision flow.
-- [Keys & licences](keys.md) — the two files, rotation, dev vs release.
-- [Signal catalogue](signal-catalogue.md) — every `INTEL_XXXX` code, decoded.
+    [:arrow_forward: Quick start](verifiers.md)
+
+-   :material-language-php:{ .lg .middle } __PHP__
+
+    ---
+
+    PSR-4 package on ext-openssl + ext-sodium, self-contained test runner —
+    no phpunit dependency.
+
+    [:arrow_forward: Quick start](verifiers.md)
+
+-   :material-language-ruby:{ .lg .middle } __Ruby__
+
+    ---
+
+    Gemspec-packaged port with a pure-Ruby RFC 7748 X25519 where the host
+    OpenSSL binding falls short.
+
+    [:arrow_forward: Quick start](verifiers.md)
+
+</div>
+
+## Three principles
+
+<div class="grid cards" markdown>
+
+-   :material-shield-search:{ .lg .middle } __Detection only__
+
+    ---
+
+    The device reports; the backend decides. Nothing is killed, blocked or
+    degraded on-device — anything the app could enforce, a rooted attacker
+    can remove.
+
+-   :material-key-chain:{ .lg .middle } __Hardware-bound sessions__
+
+    ---
+
+    Hardware attestation runs once per session, keyed to the session id your
+    backend issued. The attested key signs every later scan — a captured
+    token is worthless anywhere else.
+
+-   :material-eye-off:{ .lg .middle } __Opaque on the wire__
+
+    ---
+
+    Tokens carry `INTEL_XXXX` codes, not explanations. Detector names, probe
+    mechanisms and evasion semantics never leave the device; your backend
+    resolves them from the registry.
+
+</div>
+
+## Verify a token in 30 seconds
+
+=== "Kotlin / JVM"
+
+    ```kotlin
+    val verifier = ScanVerifier()
+    val result = verifier.verifyScan(token, sessionId, serverPrivateKey)
+    when (result.decision) {
+        Decision.TRUSTWORTHY -> allow()
+        Decision.COMPROMISED -> stepUp(result.blockingSignals)
+        Decision.REJECT      -> deny()
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    from deviceintelligence_verifier import TokenVerifier
+
+    result = TokenVerifier().verify(token_hex, issued_nonce)
+    if result.decision.value == "TRUSTWORTHY":
+        allow()
+    ```
+
+=== "TypeScript / Node"
+
+    ```ts
+    import { TokenVerifier } from "./src/index.js";
+
+    const result = new TokenVerifier().verify(tokenHex, issuedNonce);
+    if (result.decision === "TRUSTWORTHY") allow();
+    ```
+
+=== "Go"
+
+    ```go
+    import verifier "github.com/iamjosephmj/DeviceIntelligence/verifier-go"
+
+    res, _ := verifier.NewTokenVerifierBundled().Verify(tokenHex, issuedNonce)
+    if res.Decision == verifier.DecisionTrustworthy {
+        allow()
+    }
+    ```
+
+=== "PHP"
+
+    ```php
+    use DeviceIntelligenceVerifier\TokenVerifier;
+
+    $result = (new TokenVerifier())->verify($tokenHex, $issuedNonce);
+    if ($result['decision'] === 'TRUSTWORTHY') allow();
+    ```
+
+=== "Ruby"
+
+    ```ruby
+    require "deviceintelligence_verifier"
+
+    result = DeviceIntelligenceVerifier::TokenVerifier.new.verify(token_hex, issued_nonce)
+    allow if result.decision == "TRUSTWORTHY"
+    ```
+
+## What the device checks
+
+<div class="grid cards" markdown>
+
+-   :material-cpu-64-bit:{ .lg .middle } __Hardware attestation__
+
+    ---
+
+    Keymaster KeyDescription chains verified against pinned Google roots,
+    StrongBox vs TEE assurance, challenge-bound freshness.
+
+-   :material-cellphone-lock:{ .lg .middle } __Verified boot__
+
+    ---
+
+    The TEE's own word on boot state and lock — a spoofer's self-report
+    is cross-checked against hardware and flagged as INTEL_0055.
+
+-   :material-hook:{ .lg .middle } __Hook frameworks__
+
+    ---
+
+    Inline prologues, GOT entries, JNIEnv tables, sealed memfds, linker<->maps
+    divergence, behavioral syscall lies — mechanism-independent evidence.
+
+-   :material-android:{ .lg .middle } __Root & clones__
+
+    ---
+
+    su binaries, Magisk artifacts, init mount namespaces, daemon sockets,
+    test-keys builds, foreign APK mappings.
+
+-   :material-monitor-shimmer:{ .lg .middle } __Emulators__
+
+    ---
+
+    Translated environments, CPU re-routing anomalies, hypervisor evidence,
+    VM platform markers — probes that cannot fire on genuine silicon.
+
+-   :material-package-variant-minus:{ .lg .middle } __Package tampering__
+
+    ---
+
+    Live APK vs build-time baseline: signature, entries, dex provenance,
+    installer identity.
+
+</div>
+
+## Prove it
+
+Every port runs the same rooted-Pixel capture (KernelSU + TrickyStore) and
+grades it COMPROMISED, check-for-check. CI runs all six suites in parallel on
+every push:
+
+[:material-github: The suites](https://github.com/iamjosephmj/DeviceIntelligence/actions/workflows/unit-tests.yml)
+
+Deep dive: the [verification specification](verification-spec.md), the
+[signal catalogue](signal-catalogue.md), and the [verifier ports](verifiers.md)
+page carry the full contract and per-language coverage.
