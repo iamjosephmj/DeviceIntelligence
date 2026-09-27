@@ -4,6 +4,7 @@ require "openssl"
 require "digest"
 
 module DeviceIntelligenceVerifier
+  module Attestation
   # Token attestation chain validation (ChainVerifier.kt port). Signature-only:
   # each cert must be signed by the next, and the chain top must terminate in a
   # pinned Google root (by SHA-256 of the DER, or by key verification — Pixel
@@ -41,4 +42,5 @@ module DeviceIntelligenceVerifier
       raise OpenSSL::PKey::PKeyError, "signature mismatch" unless cert.verify(issuer.public_key)
     end
   end
+end
 end

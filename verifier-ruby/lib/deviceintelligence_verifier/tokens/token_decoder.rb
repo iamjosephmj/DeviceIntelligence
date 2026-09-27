@@ -3,6 +3,7 @@
 require "json"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # Decrypts a token and returns its document WITHOUT verifying
   # (TokenDecoder.kt port).
   class TokenDecoder
@@ -29,4 +30,5 @@ module DeviceIntelligenceVerifier
       )
     end
   end
+end
 end

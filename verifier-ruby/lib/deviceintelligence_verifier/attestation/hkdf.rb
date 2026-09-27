@@ -3,6 +3,7 @@
 require "openssl"
 
 module DeviceIntelligenceVerifier
+  module Attestation
   # HKDF-SHA256 (RFC 5869). Ruby's OpenSSL bindings implement the extract-and-
   # expand directly; the guard mirrors the spec's 255-block output ceiling.
   module Hkdf
@@ -16,4 +17,5 @@ module DeviceIntelligenceVerifier
       OpenSSL::KDF.hkdf(ikm, salt: salt, info: info, length: length, hash: "SHA256")
     end
   end
+end
 end

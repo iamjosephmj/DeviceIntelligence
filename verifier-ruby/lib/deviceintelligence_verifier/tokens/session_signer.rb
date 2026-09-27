@@ -5,6 +5,7 @@ require "base64"
 require "json"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # Stateless HMAC-signed session tokens (SessionSigner.kt port). The token is
   # "<payload-b64url>.<mac-b64url>"; tampering with either half fails verification.
   class SessionSigner
@@ -91,4 +92,5 @@ module DeviceIntelligenceVerifier
       diff.zero?
     end
   end
+end
 end

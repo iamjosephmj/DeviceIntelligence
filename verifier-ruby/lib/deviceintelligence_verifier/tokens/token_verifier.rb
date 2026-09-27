@@ -3,6 +3,7 @@
 require "openssl"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # The v1-era verify flow (TokenVerifier.kt port): authenticity + TEE facts.
   # Layered like every port: AUTH failures => REJECT, INTEGRITY failures =>
   # COMPROMISED, blocking signals => COMPROMISED, else TRUSTWORTHY.
@@ -13,7 +14,7 @@ module DeviceIntelligenceVerifier
     def initialize(registry: nil, policy: nil, pinned_roots: nil)
       @registry = registry || SignalRegistry.bundled
       @policy = policy || Policy.new
-      @pinned_roots = pinned_roots || PinnedRoots.default
+      @pinned_roots = pinned_roots || Attestation::PinnedRoots.default
     end
 
     def verify(token_hex, issued_nonce)
@@ -39,20 +40,20 @@ module DeviceIntelligenceVerifier
       return result(checks, doc) unless checks.auth(
         "chain + signature present", !sig_hex.empty? && !certs_hex.empty?)
 
-      chain = safe { ChainVerifier.parse_chain(certs_hex) } || []
+      chain = safe { Attestation::ChainVerifier.parse_chain(certs_hex) } || []
       unless checks.auth("chain parses", !chain.empty?, chain.empty? ? "could not parse cert chain" : "")
         return result(checks, doc)
       end
       leaf = chain.first
 
       begin
-        root = ChainVerifier.verify_to_pinned_root(chain, @pinned_roots)
+        root = Attestation::ChainVerifier.verify_to_pinned_root(chain, @pinned_roots)
         checks.auth("chain -> pinned Google root", true, root.subject.to_s)
       rescue ArgumentError, OpenSSL::X509::CertificateError, OpenSSL::PKey::PKeyError => e
         checks.auth("chain -> pinned Google root", false, e.message)
       end
 
-      chal = safe { Attestation.challenge(leaf) }
+      chal = safe { Attestation::Attestation.challenge(leaf) }
       checks.auth("attestation challenge == nonce",
                   !chal.nil? && chal.unpack1("H*") == issued_nonce.downcase)
 
@@ -62,13 +63,13 @@ module DeviceIntelligenceVerifier
       end
       checks.auth("signature over verdict", sig_ok == true, sig_ok == true ? "" : "ECDSA verify failed")
 
-      fields = safe { Attestation.fields(leaf) }
+      fields = safe { Attestation::Attestation.fields(leaf) }
       checks.integ("hardware security level >= TEE",
                    !fields.nil? && [1, 2].include?(fields.security_level),
-                   fields ? Attestation.security_level_name(fields.security_level) : "parse error")
+                   fields ? Attestation::Attestation.security_level_name(fields.security_level) : "parse error")
       checks.integ("verified boot state = Verified",
                    !fields.nil? && fields.verified_boot_state == 0,
-                   fields ? Attestation.boot_state_name(fields.verified_boot_state) : "parse error")
+                   fields ? Attestation::Attestation.boot_state_name(fields.verified_boot_state) : "parse error")
       checks.integ("device locked",
                    !fields.nil? && fields.device_locked == true,
                    fields ? fields.device_locked.to_s : "parse error")
@@ -144,4 +145,5 @@ module DeviceIntelligenceVerifier
       end
     end
   end
+end
 end

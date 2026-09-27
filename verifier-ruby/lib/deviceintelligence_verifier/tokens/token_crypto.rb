@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 require "openssl"
-require_relative "x25519"
+require_relative "../x25519"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # v2 ECIES token crypto (TokenCryptoV2.kt port) + the v1 discriminator.
   # Wire: "2:" + hex(version || epoch || eph_pub(32) || nonce(12) || ct || tag).
   # Every corruption fails the GCM tag — a tampered token never decrypts.
@@ -50,7 +51,7 @@ module DeviceIntelligenceVerifier
       eph = eph_pub.dup
       eph.setbyte(31, eph.getbyte(31) & 0x7F) # RFC 7748: the ignored high bit
       shared = X25519.shared_secret(scalar, eph)
-      key = Hkdf.sha256(shared, nonce, INFO_PREFIX + epoch.chr, 32)
+      key = Attestation::Hkdf.sha256(shared, nonce, INFO_PREFIX + epoch.chr, 32)
 
       aad = [version, epoch].pack("C*") + eph_pub
       ct = ct_and_tag.byteslice(0, ct_and_tag.bytesize - TAG)
@@ -64,4 +65,5 @@ module DeviceIntelligenceVerifier
       d.update(ct) + d.final
     end
   end
+end
 end

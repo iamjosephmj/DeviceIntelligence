@@ -3,6 +3,7 @@
 require "digest"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # v1 symmetric token crypto (Keystream.kt port). Confidentiality in transit
   # only — the scan path REJECTS v1 tokens; this exists to decode legacy ones.
   module Keystream
@@ -29,4 +30,5 @@ module DeviceIntelligenceVerifier
       decrypt_bytes([token_hex.strip].pack("H*")).force_encoding("UTF-8")
     end
   end
+end
 end

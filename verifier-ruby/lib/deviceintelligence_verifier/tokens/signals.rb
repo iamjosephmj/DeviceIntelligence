@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # Signal resolution: turn the device's opaque findings into registry-backed
   # ResolvedSignals, and correlate structural + behavioral hook evidence.
   module Signals
@@ -51,19 +52,17 @@ module DeviceIntelligenceVerifier
         model: d["model"] || nil,
       )
     end
-  end
-
-  module Models
     # Definitive hook = the SAME symbol seen both structurally (inline hook /
     # stub) and behaviorally (syscall divergence). Sorted for determinism.
     def self.definitive_hooks(signals)
       structural = signals.select { |s| s.kind == "libc_inline_hook" || s.kind == "libc_inline_stub" }
-                          .filter_map(&:hooked_symbol).to_set
+                          .filter_map { |s| s.attributes["hooked_symbol"] }.to_set
       behavioral = signals.select { |s| s.kind == "syscall_divergence" }
-                          .filter_map(&:hooked_symbol).to_set
+                          .filter_map { |s| s.attributes["hooked_symbol"] }.to_set
       (structural & behavioral).sort
     end
   end
 end
 
 require "set"
+end

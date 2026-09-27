@@ -40,7 +40,7 @@ class SignalsTest < Minitest::Test
                      'path=/system/bin/sh"},{"id":"INTEL_0003","severity":"CRITICAL",' \
                      '"detail":"inline hook. hooked_symbol=openat hooked_by=evilmod"}]}')
     resolved = DeviceIntelligenceVerifier::Signals.resolve(doc, reg, pol)
-    assert_equal ["faccessat"], DeviceIntelligenceVerifier::Models.definitive_hooks(resolved)
+    assert_equal ["faccessat"], DeviceIntelligenceVerifier::Signals.definitive_hooks(resolved)
   end
 
   def test_unknown_signal_falls_back_to_question_marks

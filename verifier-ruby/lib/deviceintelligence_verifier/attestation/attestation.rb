@@ -3,6 +3,7 @@
 require "openssl"
 
 module DeviceIntelligenceVerifier
+  module Attestation
   # Android Key Attestation extension reader (Attestation.kt port), on
   # OpenSSL::ASN1. KeyDescription element indexes (spec §8):
   #   [1] attestationSecurityLevel (ENUMERATED)
@@ -104,4 +105,5 @@ module DeviceIntelligenceVerifier
       nil
     end
   end
+end
 end

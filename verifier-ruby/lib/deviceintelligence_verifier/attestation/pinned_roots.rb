@@ -3,6 +3,7 @@
 require "openssl"
 
 module DeviceIntelligenceVerifier
+  module Attestation
   # The pinned Google hardware-attestation roots (PinnedRoots.kt port).
   # Bundled file: base64 DER, one root per line, '#' comments allowed.
   module PinnedRoots
@@ -17,8 +18,9 @@ module DeviceIntelligenceVerifier
     end
 
     def default
-      path = File.expand_path("resources/pinned-roots.txt", __dir__)
+      path = File.expand_path("../resources/pinned-roots.txt", __dir__)
       parse(File.read(path))
     end
   end
+end
 end

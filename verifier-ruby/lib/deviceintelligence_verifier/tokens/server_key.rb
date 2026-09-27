@@ -4,6 +4,7 @@ require "openssl"
 require "base64"
 
 module DeviceIntelligenceVerifier
+  module Tokens
   # Loads the backend X25519 private half (ServerKey.kt port). Accepts PEM or
   # raw DER PKCS#8; a truncated tail-32 fallback mirrors the Kotlin no-XDH
   # path for exotic encodings.
@@ -38,4 +39,5 @@ module DeviceIntelligenceVerifier
       from_bytes(File.binread(path))
     end
   end
+end
 end

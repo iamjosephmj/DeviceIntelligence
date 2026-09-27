@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module DeviceIntelligenceVerifier
+  module Attestation
   # Attestation-key revocation list (the weekly-baked encrypted crl.bin asset,
   # already decrypted by the caller). Serial matching normalizes case, an
   # optional 0x prefix, and leading zeros away — "0" stays "0".
@@ -49,3 +50,4 @@ module DeviceIntelligenceVerifier
 end
 
 require "set"
+end
