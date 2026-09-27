@@ -183,3 +183,23 @@ jobs:
 
       - name: Lab round-trip tests
         run: python -m pytest lab-python/tests -q
+
+  # The licence package mints the RVN2 server.key asset; its suite
+  # byte-compares against the reference script and the native publisher key.
+  python-licence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --quiet pytest cryptography
+          python -m pip install --quiet -e licence-python
+
+      - name: Licence generator tests
+        run: python -m pytest licence-python/tests -q

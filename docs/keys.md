@@ -1,6 +1,14 @@
 # Keys & licences
 
-One X25519 keypair per app. Generate it on your machine — never in a build, never on a device:
+One X25519 keypair per app. Generate it on your machine — never in a build, never on a device.
+The generator ships as a pip package:
+
+```sh
+pip install deviceintelligence-licence   # or: pip install -e licence-python
+di-licence generate <applicationId> <out-dir>
+```
+
+The repo script does the same thing if you'd rather not install anything:
 
 ```sh
 python3 tools/keys/gen-dev-licence.py <applicationId> <out-dir>
