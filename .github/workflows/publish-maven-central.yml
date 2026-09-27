@@ -99,3 +99,40 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
         run: |
           ./gradlew -p deviceintelligence-gradle publishAndReleaseToMavenCentral --no-daemon --stacktrace
+
+  # The backend verifier (pure Kotlin/JVM, zero dependencies) publishes in
+  # parallel with the Android modules — JDK only, no Android SDK needed.
+  publish-verifier-kotlin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Verify tag matches gradle.properties
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.version }}"
+          fi
+          TAG="${TAG#v}"
+          PROP="$(grep -E '^VERSION_NAME=' gradle.properties | cut -d= -f2)"
+          if [ "$TAG" != "$PROP" ]; then
+            echo "::error::Release tag '$TAG' != gradle.properties VERSION_NAME '$PROP'. Bump gradle.properties and re-tag."
+            exit 1
+          fi
+          echo "Publishing verifier-kotlin $PROP"
+
+      - name: Publish verifier-kotlin to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :verifier-kotlin:publishAndReleaseToMavenCentral --no-daemon --stacktrace
