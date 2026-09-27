@@ -14,7 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit-tests:
+  # JVM + Android: Kotlin verifier, SDK unit tests, sample app, registry
+  # drift gates, and the host C++ unit-test harness.
+  jvm-android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -68,3 +70,83 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/test-results/
+
+  # ---- Language verifier ports: each in its own parallel job ----------------
+
+  python-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python -m pip install --quiet cryptography pytest
+
+      - name: Python verifier tests
+        env:
+          PYTHONPATH: verifier-python/src
+        run: python -m pytest verifier-python/tests -q
+
+  node-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: verifier-node
+        run: npm install --no-audit --no-fund
+
+      - name: Node verifier tests
+        working-directory: verifier-node
+        run: npm test
+
+  go-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Go verifier tests
+        working-directory: verifier-go
+        run: go test ./...
+
+  php-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: openssl, sodium
+
+      - name: PHP verifier tests
+        run: php verifier-php/tests/run_tests.php
+
+  ruby-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Ruby verifier tests
+        working-directory: verifier-ruby
+        run: ruby -Ilib -Itest -e 'Dir.glob("test/test_*.rb").sort.each { |f| require "./#{f}" }'
