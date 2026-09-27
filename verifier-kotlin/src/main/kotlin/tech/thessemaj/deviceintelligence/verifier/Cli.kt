@@ -10,6 +10,7 @@ import tech.thessemaj.deviceintelligence.verifier.scan.ScanSessionCodec
 import tech.thessemaj.deviceintelligence.verifier.scan.ScanVerifier
 import tech.thessemaj.deviceintelligence.verifier.tokens.LabKeys
 import tech.thessemaj.deviceintelligence.verifier.tokens.SessionSigner
+import tech.thessemaj.deviceintelligence.verifier.tokens.ServerKey
 import tech.thessemaj.deviceintelligence.verifier.tokens.TokenVerifier
 import java.io.File
 import java.security.KeyFactory
