@@ -237,7 +237,7 @@ checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 
 [[package]]
 name = "deviceintelligence-verifier"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "aes-gcm",
  "base64",

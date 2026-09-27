@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deviceintelligence-licence"
-version = "3.0.0"
+version = "3.0.1"
 description = "DeviceIntelligence licence generator: mints the RVN2 server.key asset (X25519 public half + signed licence) and its backend private PEM"
 requires-python = ">=3.10"
 dependencies = ["cryptography>=42"]

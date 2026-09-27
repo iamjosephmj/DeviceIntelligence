@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deviceintelligence-verifier"
-version = "3.0.0"
+version = "3.0.1"
 description = "DeviceIntelligence backend token verifier (Python port of the Kotlin/JVM verifier)"
 requires-python = ">=3.10"
 license = { text = "CC-BY-ND-4.0" }

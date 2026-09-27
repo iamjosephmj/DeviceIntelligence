@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name = "deviceintelligence-verifier"
-  spec.version = "3.0.0"
+  spec.version = "3.0.1"
   spec.summary = "DeviceIntelligence backend token verifier (Ruby port of the Kotlin/JVM verifier)"
   spec.authors = ["Joseph MJ"]
   spec.homepage = "https://github.com/iamjosephmj/DeviceIntelligence"
