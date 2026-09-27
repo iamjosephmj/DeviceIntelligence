@@ -1,0 +1,16 @@
+{
+    "name": "thessemaj/deviceintelligence-verifier",
+    "description": "DeviceIntelligence backend token verifier (PHP port of the Kotlin/JVM verifier)",
+    "type": "library",
+    "license": "CC-BY-ND-4.0",
+    "require": {
+        "php": ">=8.1",
+        "ext-openssl": "*",
+        "ext-sodium": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "DeviceIntelligenceVerifier\\": "src/"
+        }
+    }
+}
