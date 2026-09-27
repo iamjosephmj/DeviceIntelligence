@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Attestation;
 
 // The pinned Google hardware-attestation roots (PinnedRoots.kt port).
 // Bundled file: base64 DER, one root per line, '#' comments allowed.
@@ -28,7 +28,7 @@ final class PinnedRoots
 
     public static function default(): array
     {
-        return self::parse(file_get_contents(__DIR__ . '/resources/pinned-roots.txt'));
+        return self::parse(file_get_contents(__DIR__ . '/../resources/pinned-roots.txt'));
     }
 
     public static function toPem(string $der): string

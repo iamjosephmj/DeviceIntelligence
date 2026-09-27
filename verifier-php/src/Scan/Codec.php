@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Scan;
 
 // JSON round-trip for ScanSession (ScanSessionCodec.kt port). Decode grades a
 // truncated document DOWN to the suspicious value, never to the benign default

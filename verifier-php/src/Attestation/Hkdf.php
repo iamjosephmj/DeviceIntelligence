@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Attestation;
 
 // HKDF-SHA256 (RFC 5869) on the stdlib hash_hkdf.
 final class Hkdf

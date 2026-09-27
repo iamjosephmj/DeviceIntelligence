@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Text;
 
 // Minimal DER TLV reader (Der.kt port) — short/long/high-tag forms, exactly
 // what the KeyDescription walk needs.

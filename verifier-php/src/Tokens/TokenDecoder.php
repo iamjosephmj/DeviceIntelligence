@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
+
+use DeviceIntelligenceVerifier\Policy\Policy;
+use DeviceIntelligenceVerifier\Policy\Registry;
 
 // Decrypts a token and returns its document WITHOUT verifying
 // (TokenDecoder.kt port).

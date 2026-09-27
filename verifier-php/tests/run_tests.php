@@ -5,39 +5,43 @@ declare(strict_types=1);
 // The PHP verifier suite: the same vectors the python/node/kotlin suites pin,
 // run by a self-contained checker (no phpunit dependency — `php tests/run_tests.php`).
 
-require __DIR__ . '/../src/Der.php';
-require __DIR__ . '/../src/Keystream.php';
-require __DIR__ . '/../src/Hkdf.php';
-require __DIR__ . '/../src/LabKeys.php';
-require __DIR__ . '/../src/Registry.php';
-require __DIR__ . '/../src/Policy.php';
-require __DIR__ . '/../src/Signals.php';
+require __DIR__ . '/../src/Text/Der.php';
+require __DIR__ . '/../src/Tokens/Keystream.php';
+require __DIR__ . '/../src/Attestation/Hkdf.php';
+require __DIR__ . '/../src/Tokens/LabKeys.php';
+require __DIR__ . '/../src/Policy/Registry.php';
+require __DIR__ . '/../src/Policy/Policy.php';
+require __DIR__ . '/../src/Tokens/Signals.php';
 require __DIR__ . '/../src/X25519.php';
-require __DIR__ . '/../src/TokenCryptoV2.php';
-require __DIR__ . '/../src/SessionSigner.php';
-require __DIR__ . '/../src/ServerKey.php';
-require __DIR__ . '/../src/PinnedRoots.php';
-require __DIR__ . '/../src/ChainVerifier.php';
-require __DIR__ . '/../src/AttestationCrl.php';
-require __DIR__ . '/../src/Attestation.php';
-require __DIR__ . '/../src/TokenDecoder.php';
-require __DIR__ . '/../src/TokenVerifier.php';
-require __DIR__ . '/../src/Codec.php';
+require __DIR__ . '/../src/Tokens/TokenCryptoV2.php';
+require __DIR__ . '/../src/Tokens/SessionSigner.php';
+require __DIR__ . '/../src/Tokens/ServerKey.php';
+require __DIR__ . '/../src/Attestation/PinnedRoots.php';
+require __DIR__ . '/../src/Attestation/ChainVerifier.php';
+require __DIR__ . '/../src/Attestation/AttestationCrl.php';
+require __DIR__ . '/../src/Attestation/Attestation.php';
+require __DIR__ . '/../src/Tokens/TokenDecoder.php';
+require __DIR__ . '/../src/Tokens/TokenVerifier.php';
+require __DIR__ . '/../src/Scan/Codec.php';
 
-use DeviceIntelligenceVerifier\AttestationCrl;
-use DeviceIntelligenceVerifier\Codec;
-use DeviceIntelligenceVerifier\Hkdf;
-use DeviceIntelligenceVerifier\Keystream;
-use DeviceIntelligenceVerifier\LabKeys;
-use DeviceIntelligenceVerifier\Policy;
-use DeviceIntelligenceVerifier\Registry;
-use DeviceIntelligenceVerifier\ServerKey;
-use DeviceIntelligenceVerifier\SessionSigner;
-use DeviceIntelligenceVerifier\Signals;
-use DeviceIntelligenceVerifier\TokenCryptoV2;
-use DeviceIntelligenceVerifier\TokenDecoder;
-use DeviceIntelligenceVerifier\TokenVerifier;
-use DeviceIntelligenceVerifier\X25519;
+use DeviceIntelligenceVerifier\Attestation\Attestation;
+use DeviceIntelligenceVerifier\Attestation\AttestationCrl;
+use DeviceIntelligenceVerifier\Attestation\ChainVerifier;
+use DeviceIntelligenceVerifier\Attestation\Hkdf;
+use DeviceIntelligenceVerifier\Attestation\PinnedRoots;
+use DeviceIntelligenceVerifier\Policy\Policy;
+use DeviceIntelligenceVerifier\Policy\Registry;
+use DeviceIntelligenceVerifier\Scan\Codec;
+use DeviceIntelligenceVerifier\Tokens\Keystream;
+use DeviceIntelligenceVerifier\Tokens\LabKeys;
+use DeviceIntelligenceVerifier\Tokens\ServerKey;
+use DeviceIntelligenceVerifier\Tokens\SessionSigner;
+use DeviceIntelligenceVerifier\Tokens\Signals;
+use DeviceIntelligenceVerifier\Tokens\TokenCryptoV2;
+use DeviceIntelligenceVerifier\Tokens\TokenDecoder;
+use DeviceIntelligenceVerifier\Tokens\TokenVerifier;
+
+
 
 define('ISSUED_AT', 1_787_220_000);
 

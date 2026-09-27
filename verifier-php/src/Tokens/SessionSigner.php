@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
 
 // Stateless HMAC-signed session tokens (SessionSigner.kt port). The token is
 // "<payload-b64url>.<mac-b64url>"; tampering with either half fails.

@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
+
+use DeviceIntelligenceVerifier\Attestation\Attestation;
+use DeviceIntelligenceVerifier\Attestation\ChainVerifier;
+use DeviceIntelligenceVerifier\Attestation\PinnedRoots;
+use DeviceIntelligenceVerifier\Policy\Policy;
+use DeviceIntelligenceVerifier\Policy\Registry;
 
 // The v1-era verify flow (TokenVerifier.kt port): authenticity + TEE facts.
 // Layered like every port: AUTH failures => REJECT, INTEGRITY failures =>

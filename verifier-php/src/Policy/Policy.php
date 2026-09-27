@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Policy;
 
 // Server-side policy — the false-positive tuning that lives OFF the device.
 final class Policy

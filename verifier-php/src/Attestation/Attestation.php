@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Attestation;
+
+use DeviceIntelligenceVerifier\Text\Der;
 
 // Android Key Attestation extension reader (Attestation.kt port), on the
 // minimal DER walker. KeyDescription element indexes (spec §8): [1]

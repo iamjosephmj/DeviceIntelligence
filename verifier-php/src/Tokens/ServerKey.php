@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
 
 // Loads the backend X25519 private half (ServerKey.kt port): the raw 32-byte
 // scalar sodium_crypto_scalarmult consumes. Accepts PEM or raw DER PKCS#8; a

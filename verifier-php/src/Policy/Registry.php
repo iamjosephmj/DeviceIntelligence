@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Policy;
 
 // The signal taxonomy: opaque INTEL_ codes resolved to their meaning. The
 // device never ships detector/kind — only the backend holds the table.
@@ -33,7 +33,7 @@ final class Registry
 
     public static function bundled(): self
     {
-        $path = __DIR__ . '/resources/signals-registry.json';
+        $path = __DIR__ . '/../resources/signals-registry.json';
         return self::fromJson(file_get_contents($path));
     }
 

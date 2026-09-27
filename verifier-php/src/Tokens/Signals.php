@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
+
+use DeviceIntelligenceVerifier\Policy\Policy;
+use DeviceIntelligenceVerifier\Policy\Registry;
 
 // Signal resolution: turn the device's opaque findings into registry-backed
 // resolved signals, and correlate structural + behavioral hook evidence.

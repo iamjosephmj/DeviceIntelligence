@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
+
+use DeviceIntelligenceVerifier\Attestation\Hkdf;
 
 // v2 ECIES token crypto (TokenCryptoV2.kt port) + the v1 discriminator.
 // Wire: "2:" + hex(version || epoch || eph_pub(32) || nonce(12) || ct || tag).

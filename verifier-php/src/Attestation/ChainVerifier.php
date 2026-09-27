@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Attestation;
 
 // Token attestation chain validation (ChainVerifier.kt port). Signature-only:
 // each cert signed by the next, and the chain top must terminate in a pinned

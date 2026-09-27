@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Attestation;
 
 // Attestation-key revocation list (the weekly-baked encrypted crl.bin asset,
 // already decrypted by the caller). Serial matching normalizes case, an

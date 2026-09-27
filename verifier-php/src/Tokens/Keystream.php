@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
 
 // v1 symmetric token crypto (Keystream.kt port). Confidentiality in transit
 // only — the scan path rejects v1 tokens; this decodes legacy ones.

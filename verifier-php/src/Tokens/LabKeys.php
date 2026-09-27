@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DeviceIntelligenceVerifier;
+namespace DeviceIntelligenceVerifier\Tokens;
 
 // Fixed lab HMAC key for stateless session tokens — shared by every port.
 final class LabKeys
