@@ -1,0 +1,24 @@
+[package]
+name = "deviceintelligence-verifier"
+version = "3.0.0"
+edition = "2021"
+description = "DeviceIntelligence backend token verifier (Rust port of the Kotlin/JVM verifier)"
+license = "CC-BY-ND-4.0"
+
+[dependencies]
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+aes-gcm = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+hex = "0.4"
+p256 = { version = "0.13", features = ["ecdsa"] }
+p384 = { version = "0.13", features = ["ecdsa"] }
+rsa = { version = "0.9", features = ["sha2"] }
+pkcs8 = "0.10"
+x509-parser = "0.15"
+
+[profile.test]
+opt-level = 2

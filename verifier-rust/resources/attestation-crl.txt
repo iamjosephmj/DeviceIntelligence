@@ -1,0 +1,15 @@
+# Attestation keybox-revocation list (offline).
+#
+# The backend port of the native `attest_crl`. One revoked attestation-cert serial
+# per line: lowercase hex, no leading zeros, "0x" optional; text after '#' is a
+# comment. An enrollment whose cert chain (or either cross-level chain) contains a
+# serial listed here is rejected as a known-compromised / leaked keybox.
+#
+# This is an OFFLINE MIRROR of Google's attestation status list
+#   https://android.googleapis.com/attestation/status
+# A production backend syncs that list periodically and rewrites this file (or loads
+# it directly). Seeded empty here so it never false-positives out of the box; the
+# unit tests inject serials to exercise the check.
+#
+# example:
+#   8f2c4b8d1e...      # revoked 2024-xx, KEY_COMPROMISE
