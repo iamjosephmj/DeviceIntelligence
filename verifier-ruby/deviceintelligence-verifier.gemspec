@@ -8,6 +8,7 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/iamjosephmj/DeviceIntelligence"
   spec.license = "CC-BY-ND-4.0"
   spec.required_ruby_version = ">= 3.0"
+  spec.metadata["source_code_uri"] = "https://github.com/iamjosephmj/DeviceIntelligence/tree/main/verifier-ruby"
 
   spec.files = Dir["lib/**/*.rb", "lib/**/*.json", "lib/**/*.txt"]
   spec.require_paths = ["lib"]

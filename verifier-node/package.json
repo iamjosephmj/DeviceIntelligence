@@ -22,5 +22,13 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "license": "CC-BY-ND-4.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamjosephmj/DeviceIntelligence.git",
+    "directory": "verifier-node"
+  },
+  "homepage": "https://iamjosephmj.github.io/DeviceIntelligence/",
+  "author": "Joseph MJ <iamjosephmj@gmail.com> (https://github.com/iamjosephmj)"
 }

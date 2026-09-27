@@ -1,0 +1,95 @@
+# Publishes the non-JVM verifier ports to their native registries. Maven
+# Central (verifier-kotlin) lives in publish-maven-central.yml; Go needs no
+# registry (tags on this repo make the module resolvable) and PHP has no
+# upload step (Packagist indexes the repo URL — one-time submit, see
+# docs/verifiers.md).
+#
+# Each job runs only on manual dispatch, and only proceeds when its
+# registry token secret exists in the repo. Names on PyPI / npm / crates.io /
+# RubyGems must be registered (claimed) once by the maintainer before the
+# first publish — the workflows cannot do that for you.
+
+name: Publish verifier ports
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: "Which port to publish: python | node | ruby | rust (empty = all with secrets present)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  python-pypi:
+    if: ${{ inputs.backend == '' || inputs.backend == 'python' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --quiet build
+          python -m build verifier-python
+      - name: Publish to PyPI
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: verifier-python/dist/
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  node-npm:
+    if: ${{ inputs.backend == '' || inputs.backend == 'node' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Build and publish to npm
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        working-directory: verifier-node
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install --no-audit --no-fund
+          npm publish --access public
+
+  ruby-rubygems:
+    if: ${{ inputs.backend == '' || inputs.backend == 'ruby' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Build and push to RubyGems
+        if: ${{ secrets.GEM_HOST_API_KEY != '' }}
+        working-directory: verifier-ruby
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
+        run: |
+          gem build deviceintelligence-verifier.gemspec
+          gem push deviceintelligence-verifier-*.gem
+
+  rust-crates:
+    if: ${{ inputs.backend == '' || inputs.backend == 'rust' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish to crates.io
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+        working-directory: verifier-rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --allow-dirty

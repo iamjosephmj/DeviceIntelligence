@@ -105,6 +105,18 @@ revocation, cross-level keybox forensics, patch staleness) is ported in
 Kotlin, Python, Node and Go; PHP, Ruby and Rust currently ship the token
 path and gain the scan flow as their next milestone.
 
+## Publishing
+
+Kotlin ships to Maven Central on a GitHub Release (`tech.thessemaj:verifier-kotlin`);
+Python/Node/Ruby/Rust ship to PyPI/npm/RubyGems/crates.io through the manual
+**Publish verifier ports** workflow, each gated on its registry token secret
+(`PYPI_API_TOKEN`, `NPM_TOKEN`, `GEM_HOST_API_KEY`, `CARGO_REGISTRY_TOKEN`) —
+and on a one-time namespace claim by the maintainer on each registry. Go needs
+no registry (tag this repo and `go get github.com/iamjosephmj/DeviceIntelligence/verifier-go@<tag>`
+resolves; for a 1.x+ tag the module path needs a `/v2`-style suffix or a
+`verifier-go/v*` tag). PHP has no upload step: submit the repo URL once on
+packagist.org and every tagged release is indexed automatically.
+
 ## Adding a new port
 
 1. Mirror the feature layout (`tokens/`, `attestation/`, `policy/`, `model/`).

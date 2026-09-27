@@ -4,6 +4,8 @@ version = "3.0.0"
 edition = "2021"
 description = "DeviceIntelligence backend token verifier (Rust port of the Kotlin/JVM verifier)"
 license = "CC-BY-ND-4.0"
+repository = "https://github.com/iamjosephmj/DeviceIntelligence"
+homepage = "https://iamjosephmj.github.io/DeviceIntelligence/"
 
 [dependencies]
 x25519-dalek = { version = "2", features = ["static_secrets"] }
