@@ -150,3 +150,15 @@ jobs:
       - name: Ruby verifier tests
         working-directory: verifier-ruby
         run: ruby -Ilib -Itest -e 'Dir.glob("test/test_*.rb").sort.each { |f| require "./#{f}" }'
+
+  rust-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust verifier tests
+        working-directory: verifier-rust
+        run: cargo test

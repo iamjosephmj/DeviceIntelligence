@@ -17,6 +17,7 @@ Device-integrity detection for Android. On-device detectors grade the environmen
   <a href="verifier-go/"><img alt="Go verifier" src="https://img.shields.io/badge/Go-1.22-00ADD8.svg?style=flat&logo=go&logoColor=white"></a>
   <a href="verifier-php/"><img alt="PHP verifier" src="https://img.shields.io/badge/PHP-8.3-777BB4.svg?style=flat&logo=php&logoColor=white"></a>
   <a href="verifier-ruby/"><img alt="Ruby verifier" src="https://img.shields.io/badge/Ruby-3.2-CC342D.svg?style=flat&logo=ruby&logoColor=white"></a>
+  <a href="verifier-rust/"><img alt="Rust verifier" src="https://img.shields.io/badge/Rust-1.75-DEA584.svg?style=flat&logo=rust&logoColor=white"></a>
 </p>
 
 📚 **[Full documentation](https://iamjosephmj.github.io/DeviceIntelligence/)** — Android integration, backend verification, keys & licences, the decoded signal catalogue, and the verification spec.
@@ -29,9 +30,9 @@ Three principles, no exceptions:
 2. **Hardware-bound sessions** — attestation runs once per login, keyed to *your* session id; the attested key signs every later scan.
 3. **Opaque on the wire** — tokens carry codes, not explanations. Probe mechanisms never leave the device.
 
-## Backend verifiers — six languages, one verdict
+## Backend verifiers — seven languages, one verdict
 
-Every port grades the same rooted-device capture identically. CI runs all six suites in parallel on every push.
+Every port grades the same rooted-device capture identically. CI runs all seven suites in parallel on every push.
 
 | Language | Path | Install | Test |
 |---|---|---|---|
@@ -41,6 +42,7 @@ Every port grades the same rooted-device capture identically. CI runs all six su
 | Go | [`verifier-go/`](verifier-go/) | vendored module | `go test ./...` |
 | PHP | [`verifier-php/`](verifier-php/) | Composer path repo | `php tests/run_tests.php` |
 | Ruby | [`verifier-ruby/`](verifier-ruby/) | gemspec | minitest suite |
+| Rust | [`verifier-rust/`](verifier-rust/) | vendored crate | `cargo test` |
 
 ## Quick start
 

@@ -63,6 +63,15 @@ social:
 
     [:arrow_forward: Quick start](verifiers.md)
 
+-   :material-language-rust:{ .lg .middle } __Rust__
+
+    ---
+
+    Crate-packaged port on the pure-Rust stack: dalek X25519, aes-gcm,
+    p256/p384 ECDSA, rsa — zero OpenSSL linkage.
+
+    [:arrow_forward: Quick start](verifiers.md)
+
 </div>
 
 ## Three principles
@@ -155,6 +164,17 @@ social:
 
     result = DeviceIntelligenceVerifier::TokenVerifier.new.verify(token_hex, issued_nonce)
     allow if result.decision == "TRUSTWORTHY"
+    ```
+
+=== "Rust"
+
+    ```rust
+    use deviceintelligence_verifier::{decision, TokenVerifier};
+
+    let result = TokenVerifier::bundled()?.verify(&token_hex, &issued_nonce);
+    if result.decision == decision::TRUSTWORTHY {
+        allow();
+    }
     ```
 
 ## What the device checks
