@@ -1,0 +1,27 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  <style>.md-header{position:initial}.md-main__inner{margin:0}.md-content{max-width:100%}@media screen and (min-width:60em){.md-sidebar--secondary{display:none}}@media screen and (min-width:76.25em){.md-sidebar--primary{display:none}}</style>
+  <section class="mdx-container">
+    <div class="md-grid md-typeset">
+      <div class="mdx-hero">
+        <div class="mdx-hero__content">
+          <h1>Can this phone be trusted?</h1>
+          <p>{{ config.site_description }}. Detection only: the device reports, your backend decides.</p>
+          <a href="android/" title="Android integration" class="md-button md-button--primary">
+            Android integration
+          </a>
+          <a href="backend/" title="Backend verification" class="md-button">
+            Backend verification
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}
+  {{ super() }}
+  <style>.md-typeset h2{margin-top:1.5em}</style>
+{% endblock %}

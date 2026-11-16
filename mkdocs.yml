@@ -1,0 +1,69 @@
+site_name: DeviceIntelligence
+site_description: Device-integrity detection for Android — hardware-attested, signed, and encrypted.
+repo_url: https://github.com/iamjosephmj/DeviceIntelligence
+repo_name: iamjosephmj/DeviceIntelligence
+
+theme:
+  name: material
+  custom_dir: overrides
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: lime
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: lime
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/iamjosephmj/DeviceIntelligence
+
+nav:
+  - Home: index.md
+  - Android integration: android.md
+  - Backend verification: backend.md
+  - Verifier ports: verifiers.md
+  - Test-token lab: token-lab.md
+  - Keys & licences: keys.md
+  - Signal catalogue: signal-catalogue.md
+  - Verification spec: verification-spec.md
+  - Thread ownership: thread-ownership.md
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - tables
+  - admonition
+  - def_list
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

@@ -1,0 +1,205 @@
+name: unit-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # JVM + Android: Kotlin verifier, SDK unit tests, sample app, registry
+  # drift gates, and the host C++ unit-test harness.
+  jvm-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Android SDK for the two Android modules' unit-test tasks (no NDK:
+      # JVM unit tests never invoke the native build).
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -eu
+          export ANDROID_SDK_ROOT="$HOME/android-sdk"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -qo /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+          mkdir -p "$ANDROID_SDK_ROOT/licenses"
+          printf '\n24333f8a63b6825ea9c5514f748d145ef07021\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+          printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses > /dev/null 2>&1 || true
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" > /dev/null
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+      # Registry drift gates: the generated C++ table and the sample catalogue
+      # must match signals-registry.json.
+      - name: Registry drift gates
+        run: |
+          python3 tools/registry/gen-signal-ids.py --check
+          python3 tools/registry/gen-signal-catalogue.py --check
+
+      - name: JVM unit tests
+        run: ./gradlew :verifier-kotlin:test :deviceintelligence:testReleaseUnitTest :samples:minimal:testReleaseUnitTest --console=plain
+
+      # Host C++ unit tests: crypto KATs, licence blob, token crypto, native
+      # integrity (elf segment, channel guard, text digest, watchdog), JNI cache.
+      - name: C++ unit tests
+        run: bash tools/qa/native-unit-tests.sh
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+
+  # ---- Language verifier ports: each in its own parallel job ----------------
+
+  python-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python -m pip install --quiet cryptography pytest
+
+      - name: Python verifier tests
+        env:
+          PYTHONPATH: verifier-python/src
+        run: python -m pytest verifier-python/tests -q
+
+  node-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: verifier-node
+        run: npm install --no-audit --no-fund
+
+      - name: Node verifier tests
+        working-directory: verifier-node
+        run: npm test
+
+  go-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Go verifier tests
+        working-directory: verifier-go
+        run: go test ./...
+
+  php-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: openssl, sodium
+
+      - name: PHP verifier tests
+        run: php verifier-php/tests/run_tests.php
+
+  ruby-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Ruby verifier tests
+        working-directory: verifier-ruby
+        run: ruby -Ilib -Itest -e 'Dir.glob("test/test_*.rb").sort.each { |f| require "./#{f}" }'
+
+  rust-verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust verifier tests
+        working-directory: verifier-rust
+        run: cargo test
+
+  # The lab package mints chains/tokens; its round-trip suite drives the
+  # verifier package, so both are installed.
+  python-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: |
+          python -m pip install --quiet pytest
+          python -m pip install --quiet -e verifier-python
+          python -m pip install --quiet -e lab-python
+
+      - name: Lab round-trip tests
+        run: python -m pytest lab-python/tests -q
+
+  # The licence package mints the RVN2 server.key asset; its suite
+  # byte-compares against the reference script and the native publisher key.
+  python-licence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --quiet pytest cryptography
+          python -m pip install --quiet -e licence-python
+
+      - name: Licence generator tests
+        run: python -m pytest licence-python/tests -q

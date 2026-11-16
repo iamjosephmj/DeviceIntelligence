@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Broad package visibility for runtime.root.
+
+        IMPORTANT FOR CONSUMERS: this is a Google-Play-restricted
+        permission. Apps that include this manifest will inherit it
+        through manifest merging; when those apps are submitted to
+        Google Play, the developer must justify the permission under
+        one of the Play Console permitted use cases
+        (https://support.google.com/googleplay/android-developer/answer/10158779).
+        "Anti-malware / security app" is the relevant category for
+        DeviceIntelligence-driven integrity telemetry. Consumers who
+        cannot justify the permission should remove it via a
+        manifest-merger override:
+
+            <uses-permission
+                android:name="android.permission.QUERY_ALL_PACKAGES"
+                tools:node="remove" />
+
+        runtime.root will then fall back to whatever subset of packages
+        the consumer's own <queries> block exposes (or just to the
+        on-disk / shell signals).
+
+        Why we declare it at the library level: Android 11+ hides
+        installed packages from getPackageInfo() / getInstalledPackages()
+        unless the caller declares either an explicit <queries> entry,
+        a matching <queries><intent>, or this permission. runtime.root needs
+        to enumerate beyond a hand-maintained list (new root managers
+        appear constantly — KernelSU forks, Apatch, etc.) and the
+        permission is the only mechanism that gives that scope.
+    -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <!--
+        The bootstrap entry points (the earliest-load AppComponentFactory and the
+        auto-init ContentProvider) are NO LONGER declared here. The Gradle plugin
+        generates them into the consumer app under per-build random names with a
+        random provider authority (spec 08 Stage A, GenerateBootstrapTask), so the
+        shipped AAR carries no telltale bootstrap class for
+        an APK reader to find. The generated factory still triggers
+        System.loadLibrary("dicore") before the Application instance exists, and
+        the generated provider (initOrder MAX_VALUE) is the fallback bootstrap.
+    -->
+
+</manifest>

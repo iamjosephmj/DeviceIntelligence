@@ -1,0 +1,13 @@
+# build-logic's own dependency versions. KEEP IN SYNC with the root
+# gradle/libs.versions.toml — these two must agree or the convention plugins
+# configure modules with a different AGP/Kotlin than the one the build applies
+# directly.
+[versions]
+agp = "8.13.2"
+kotlin = "2.0.21"
+
+[libraries]
+# The full Gradle plugin artifacts, needed on the convention plugins' compile
+# classpath so the precompiled script plugins can apply AGP / Kotlin by id.
+android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
+kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }

@@ -1,0 +1,25 @@
+{
+  "comment": "The no-arg verdict cores wired into dicore_verdict, in wire order. gen-core-dispatch.py turns this manifest into core_dispatch.gen.h; the freshness guard in :deviceintelligence's build fails when the manifest changes without regenerating. A new no-arg detector = add a line here + regenerate. Cores that need arguments (apk: shim values + rate-limit cache), count-only summary emitters (native_integrity_critical, art_hook_critical), and the not-wired/not-wired-yet cores stay hand-written in orchestrate.cpp — the manifest documents them as excluded so that decision is visible, not accidental.",
+  "cores": [
+    { "detector": "root",            "call": "root_verdict_records()",          "note": "runtime.root: filesystem + /proc channels; tls_trust_store_tampered is the only CRITICAL." },
+    { "detector": "dex",             "call": "dex_provenance_records()",        "note": "INTEL_0060 — dex-injection provenance across reachable class loaders." },
+    { "detector": "emulator",        "call": "emu_translation_records()",       "note": "INTEL_0027 — uname-vs-ABI divergence is definitional on genuine silicon." },
+    { "detector": "emulator",        "call": "emu_rerouting_records()",         "note": "INTEL_0047 — CNTVCT/CNTFRQ rate + UDF fault replay; arm64-only (empty elsewhere)." },
+    { "detector": "emulator",        "call": "emu_hv_records()",                "note": "INTEL_0033 — x86_64 CPUID hypervisor evidence for hardware-virtualized emulators." },
+    { "detector": "emulator",        "call": "emu_vm_platform_records()",       "note": "INTEL_0048 — arm64 device-tree/qemu_pipe markers for native-ARM VMs." },
+    { "detector": "environment",     "call": "antidebug_verdict_records()",     "note": "debugger/frida surfaces + composes the four environment probes below the fold." },
+    { "detector": "seccomp",         "call": "seccomp_verdict_records()",       "note": "INTEL_0057 — kill-probe filter + self-held USER_NOTIF listener." },
+    { "detector": "environment",     "call": "anon_exec_records()",             "note": "INTEL_0009 — anon/memfd/deleted executable mappings." },
+    { "detector": "native_integrity", "call": "channel_guard_records()",        "note": "INTEL_0029 — scan-channel MAC sequence/rate invariant." },
+    { "detector": "native_integrity", "call": "text_digest_records()",          "note": "INTEL_0042 — own .text vs the CMake-baked build digest." },
+    { "detector": "native_integrity", "call": "watchdog_records()",             "note": "INTEL_0018 — fork-exec watchdog heartbeat evidence (seq, mac)." },
+    { "detector": "native",          "call": "native_integrity::libart_verdict_records()", "note": "INTEL_0012-side evidence — G10 libart .text vs on-disk file, per-site fields." },
+    { "detector": "self_hook",       "call": "prologue_verdict_records()",      "note": "own-export prologue snapshot vs live bytes." }
+  ],
+  "excluded": [
+    { "call": "apk_verdict_records(...)",    "why": "needs shim values + the 60s re-hash cache + installs the __meta text hash BEFORE det_native runs — ordering is load-bearing." },
+    { "call": "cloner_verdict_records(...)", "why": "REMOVED from the verdict (FP-prone on work profiles/dual-app); kept for the Kotlin-driven path." },
+    { "call": "emu_verdict_records()",       "why": "NOT WIRED (issue #8): CPU-identity probes false-positive on ChromeOS/WSA; INTEL_0027/0033/0048 cover the ground." },
+    { "call": "count_native_integrity_critical()/count_art_hook_critical()", "why": "count-only summary emitters: they count CRITICALs directly and emit a single summary record each — hand-written in dicore_verdict." }
+  ]
+}

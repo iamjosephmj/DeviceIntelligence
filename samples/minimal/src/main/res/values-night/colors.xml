@@ -1,0 +1,4 @@
+<resources>
+    <!-- Mirrors Ui.Palette.DARK.pageBg (0xFF0F1115). -->
+    <color name="sample_page_bg">#0F1115</color>
+</resources>
